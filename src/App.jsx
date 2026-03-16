@@ -516,6 +516,97 @@ function Demandes() {
 }
 
 
+
+function Users() {
+  const [users, setUsers] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [editUser, setEditUser] = useState(null)
+  const emptyForm = { name: '', email: '', password: '', role: 'agent' }
+  const [form, setForm] = useState(emptyForm)
+
+  useEffect(() => { API.get('/users').then(r => setUsers(r.data)).catch(() => {}) }, [])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      if (editUser) {
+        const res = await API.put(`/users/${editUser.id}`, form)
+        setUsers(users.map(u => u.id === editUser.id ? res.data : u))
+        setEditUser(null)
+      } else {
+        const res = await API.post('/users', form)
+        setUsers([...users, res.data])
+      }
+      setForm(emptyForm)
+      setShowForm(false)
+    } catch { alert("Erreur lors de l'enregistrement") }
+  }
+
+  const handleEdit = (u) => {
+    setEditUser(u)
+    setForm({ name: u.name, email: u.email, password: '', role: u.role })
+    setShowForm(true)
+  }
+
+  const roleColor = (r) => ({
+    admin: { background: '#fff5f5', color: '#c53030' },
+    agent: { background: '#ebf8ff', color: '#2b6cb0' },
+    manager: { background: '#faf5ff', color: '#6b46c1' },
+  }[r] || { background: '#f7fafc', color: '#718096' })
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>👤 Utilisateurs</h2>
+        <button style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem'}}
+          onClick={() => { setShowForm(!showForm); setEditUser(null); setForm(emptyForm) }}>
+          {showForm ? '✕ Annuler' : '+ Ajouter'}
+        </button>
+      </div>
+      {showForm && (
+        <form onSubmit={handleSubmit} style={styles.form}>
+          <h3 style={{color:'#1a365d', marginBottom:'1rem', fontSize:'1rem'}}>{editUser ? '✏️ Modifier' : '➕ Nouvel utilisateur'}</h3>
+          <input style={styles.input} placeholder="Nom complet *" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} required />
+          <input style={styles.input} type="email" placeholder="Email *" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} required />
+          <input style={styles.input} type="password" placeholder={editUser ? "Nouveau mot de passe (laisser vide pour ne pas changer)" : "Mot de passe *"} value={form.password} onChange={e=>setForm({...form,password:e.target.value})} required={!editUser} />
+          <select style={styles.input} value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
+            <option value="agent">Agent</option>
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button style={styles.button} type="submit">{editUser ? '💾 Modifier' : '💾 Créer'}</button>
+        </form>
+      )}
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>Nom</th>
+            <th style={styles.th}>Email</th>
+            <th style={styles.th}>Rôle</th>
+            <th style={styles.th}>Statut</th>
+            <th style={styles.th}>Créé le</th>
+            <th style={styles.th}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map(u => (
+            <tr key={u.id} style={styles.tr}>
+              <td style={styles.td}>{u.name}</td>
+              <td style={styles.td}>{u.email}</td>
+              <td style={styles.td}><span style={{...styles.badge,...roleColor(u.role)}}>{u.role}</span></td>
+              <td style={styles.td}><span style={{...styles.badge,...(u.active?{background:'#f0fff4',color:'#276749'}:{background:'#fff5f5',color:'#c53030'})}}>{u.active?'Actif':'Inactif'}</span></td>
+              <td style={styles.td}>{u.createdAt?new Date(u.createdAt).toLocaleDateString('fr-FR'):'—'}</td>
+              <td style={styles.td}>
+                <button onClick={()=>handleEdit(u)} style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'6px',padding:'0.3rem 0.75rem',cursor:'pointer',marginRight:'0.5rem'}}>✏️ Modifier</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // Layout
 function Layout({ onLogout, children }) {
   return (
@@ -553,6 +644,7 @@ export default function App() {
           <Route path="/deals" element={<Deals />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/campagnes" element={<Campagnes />} />
+          <Route path="/users" element={<Users />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </Layout>
