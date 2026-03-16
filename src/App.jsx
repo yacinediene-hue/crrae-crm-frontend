@@ -56,7 +56,7 @@ function Login({ onLogin }) {
 }
 
 // Dashboard
-function Dashboard({ alertes }) {
+function Dashboard({ alertes = [] }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0, tickets: 0, demandes: 0 })
   const [demandes, setDemandes] = useState([])
 
