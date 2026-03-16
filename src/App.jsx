@@ -16,6 +16,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import API from './api'
 import './App.css'
+import * as XLSX from 'xlsx'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 // Login
@@ -484,6 +485,38 @@ function Demandes() {
   }
   const f = (v) => v || '—'
   const sColor = (s) => ({'Traité': {background:'#f0fff4',color:'#276749'},'En cours': {background:'#fffbeb',color:'#b7791f'},'En attente': {background:'#ebf8ff',color:'#2b6cb0'}}[s] || {background:'#f7fafc',color:'#718096'})
+  const exportExcel = () => {
+    const data = filtered.map(d => ({
+      'N° Demande': d.numDemande || '',
+      'Date réception': d.dateReception ? new Date(d.dateReception).toLocaleDateString('fr-FR') : '',
+      'Nom & Prénom': d.nomPrenom || '',
+      'Matricule': d.matricule || '',
+      'Adhérent': d.adherent || '',
+      'Type client': d.typeClient || '',
+      'Pays': d.pays || '',
+      'Heure appel': d.heureAppel || '',
+      'Canal': d.canal || '',
+      'Téléphone': d.telephone || '',
+      'Email': d.email || '',
+      'Objet': d.objetDemande || '',
+      'Commentaire': d.commentaire || '',
+      'Agent N1': d.agentN1 || '',
+      'Service': d.service || '',
+      'Agent N2': d.agentN2 || '',
+      'Date traitement': d.dateTraitement ? new Date(d.dateTraitement).toLocaleDateString('fr-FR') : '',
+      'Statut': d.statut || '',
+      'Action menée': d.actionMenee || '',
+      'Délai (j)': d.delaiTraitement || '',
+      'Respect délai': d.respectDelai || '',
+      'Canal communication': d.canalCommunication || '',
+      'Note satisfaction': d.noteSatisfaction || '',
+    }))
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Demandes')
+    XLSX.writeFile(wb, `Demandes_CRRAE_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`)
+  }
+
   const filtered = demandes.filter(d => {
     const q = search.toLowerCase()
     const ms = !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q)
@@ -496,9 +529,14 @@ function Demandes() {
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>📋 Suivi des Demandes</h2>
+        <div style={{display:'flex', gap:'0.75rem'}}>
+        <button style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#276749'}} onClick={exportExcel}>
+          📥 Exporter Excel
+        </button>
         <button style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem'}} onClick={() => setShowForm(!showForm)}>
           {showForm ? '✕ Annuler' : '+ Nouvelle demande'}
         </button>
+        </div>
       </div>
       <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'0.75rem', marginBottom:'1.5rem'}}>
         {[{label:'Total',val:demandes.length,bg:'#ebf8ff',col:'#2b6cb0'},{label:'Traités',val:demandes.filter(d=>d.statut==='Traité').length,bg:'#f0fff4',col:'#276749'},{label:'En cours',val:demandes.filter(d=>d.statut==='En cours').length,bg:'#fffbeb',col:'#b7791f'},{label:'Délai OK',val:demandes.filter(d=>d.respectDelai==='OUI').length,bg:'#faf5ff',col:'#6b46c1'}].map(s => (
