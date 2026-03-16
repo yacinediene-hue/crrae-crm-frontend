@@ -56,7 +56,7 @@ function Login({ onLogin }) {
 }
 
 // Dashboard
-function Dashboard() {
+function Dashboard({ alertes }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0, tickets: 0, demandes: 0 })
   const [demandes, setDemandes] = useState([])
 
@@ -96,6 +96,17 @@ function Dashboard() {
   return (
     <div>
       <h2 style={styles.pageTitle}>📊 Dashboard</h2>
+      {alertes && alertes.length > 0 && (
+        <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:'8px',padding:'1rem',marginBottom:'1.5rem'}}>
+          <strong style={{color:'#c53030'}}>⚠️ {alertes.length} demande{alertes.length > 1 ? 's' : ''} en retard !</strong>
+          <ul style={{margin:'0.5rem 0 0',paddingLeft:'1.5rem',color:'#c53030',fontSize:'0.9rem'}}>
+            {alertes.slice(0,5).map(d => (
+              <li key={d.id}>{d.numDemande} — {d.nomPrenom} ({d.service || '?'})</li>
+            ))}
+            {alertes.length > 5 && <li>...et {alertes.length - 5} autres</li>}
+          </ul>
+        </div>
+      )}
       <div style={styles.statsGrid}>
         <div style={styles.statCard}><h3>👥 Contacts</h3><p style={styles.statNum}>{stats.contacts}</p></div>
         <div style={styles.statCard}><h3>💼 Deals</h3><p style={styles.statNum}>{stats.deals}</p></div>
@@ -854,13 +865,20 @@ function Rapports() {
 }
 
 // Layout
-function Layout({ onLogout, children }) {
+function Layout({ onLogout, children, alertes }) {
   return (
     <div style={styles.layout}>
       <nav style={styles.nav}>
         <h2 style={styles.navTitle}>🏦 CRRAE CRM</h2>
         <Link style={styles.navLink} to="/dashboard">📊 Dashboard</Link>
-        <Link style={styles.navLink} to="/demandes">📋 Suivi Demandes</Link>
+        <Link style={styles.navLink} to="/demandes">
+          📋 Suivi Demandes
+          {alertes && alertes.length > 0 && (
+            <span style={{background:'#c53030',color:'white',borderRadius:'50%',padding:'0.1rem 0.4rem',fontSize:'0.7rem',marginLeft:'0.5rem'}}>
+              {alertes.length}
+            </span>
+          )}
+        </Link>
         <Link style={styles.navLink} to="/contacts">👥 Contacts</Link>
         <Link style={styles.navLink} to="/deals">💼 Deals</Link>
         <Link style={styles.navLink} to="/tickets">🎫 Tickets</Link>
@@ -884,9 +902,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout onLogout={logout}>
+      <Layout onLogout={logout} alertes={alertes}>
         <Routes>
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard alertes={alertes} />} />
           <Route path="/demandes" element={<Demandes />} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/deals" element={<Deals />} />
