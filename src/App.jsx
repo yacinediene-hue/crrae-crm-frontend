@@ -361,10 +361,10 @@ function Campagnes() {
 
 
 function Demandes() {
-  const [demandes, setDemandes] = React.useState([])
-  const [showForm, setShowForm] = React.useState(false)
-  const [search, setSearch] = React.useState('')
-  const [filterStatut, setFilterStatut] = React.useState('')
+  const [demandes, setDemandes] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filterStatut, setFilterStatut] = useState('')
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
     heureAppel: '', canal: 'WhatsApp', telephone: '', email: '',
@@ -374,8 +374,8 @@ function Demandes() {
     dateTraitement: '', statut: 'En cours', actionMenee: '',
     canalCommunication: 'WhatsApp', noteSatisfaction: '',
   }
-  const [form, setForm] = React.useState(emptyForm)
-  React.useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
+  const [form, setForm] = useState(emptyForm)
+  useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
