@@ -359,10 +359,147 @@ function Campagnes() {
 }
 
 
+
 function Demandes() {
   const [demandes, setDemandes] = React.useState([])
-  return <div><h2>📋 Suivi Demandes</h2><p>En cours de chargement...</p></div>
+  const [showForm, setShowForm] = React.useState(false)
+  const [search, setSearch] = React.useState('')
+  const [filterStatut, setFilterStatut] = React.useState('')
+  const emptyForm = {
+    nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
+    heureAppel: '', canal: 'WhatsApp', telephone: '', email: '',
+    objetDemande: 'Information', commentaire: '',
+    agentN1: '', service: '', agentN2: '',
+    dateReception: new Date().toISOString().split('T')[0],
+    dateTraitement: '', statut: 'En cours', actionMenee: '',
+    canalCommunication: 'WhatsApp', noteSatisfaction: '',
+  }
+  const [form, setForm] = React.useState(emptyForm)
+  React.useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await API.post('/demandes', form)
+      setDemandes([res.data, ...demandes])
+      setForm(emptyForm)
+      setShowForm(false)
+    } catch { alert("Erreur enregistrement") }
+  }
+  const f = (v) => v || '—'
+  const sColor = (s) => ({'Traité': {background:'#f0fff4',color:'#276749'},'En cours': {background:'#fffbeb',color:'#b7791f'},'En attente': {background:'#ebf8ff',color:'#2b6cb0'}}[s] || {background:'#f7fafc',color:'#718096'})
+  const filtered = demandes.filter(d => {
+    const q = search.toLowerCase()
+    const ms = !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q)
+    const mst = !filterStatut || d.statut === filterStatut
+    return ms && mst
+  })
+  const inp = {...styles.input, marginBottom: '0.75rem'}
+  const col2 = {display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 1rem'}
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>📋 Suivi des Demandes</h2>
+        <button style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem'}} onClick={() => setShowForm(!showForm)}>
+          {showForm ? '✕ Annuler' : '+ Nouvelle demande'}
+        </button>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'0.75rem', marginBottom:'1.5rem'}}>
+        {[{label:'Total',val:demandes.length,bg:'#ebf8ff',col:'#2b6cb0'},{label:'Traités',val:demandes.filter(d=>d.statut==='Traité').length,bg:'#f0fff4',col:'#276749'},{label:'En cours',val:demandes.filter(d=>d.statut==='En cours').length,bg:'#fffbeb',col:'#b7791f'},{label:'Délai OK',val:demandes.filter(d=>d.respectDelai==='OUI').length,bg:'#faf5ff',col:'#6b46c1'}].map(s => (
+          <div key={s.label} style={{background:s.bg,borderRadius:'10px',padding:'0.75rem',textAlign:'center'}}>
+            <div style={{fontSize:'1.8rem',fontWeight:'bold',color:s.col}}>{s.val}</div>
+            <div style={{fontSize:'0.8rem',color:s.col}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+      {showForm && (
+        <form onSubmit={handleAdd} style={{...styles.form, marginBottom:'1.5rem'}}>
+          <h3 style={{color:'#1a365d',marginBottom:'1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>👤 Informations client</h3>
+          <div style={col2}>
+            <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom} onChange={e=>setForm({...form,nomPrenom:e.target.value})} required />
+            <input style={inp} placeholder="Matricule" value={form.matricule} onChange={e=>setForm({...form,matricule:e.target.value})} />
+            <input style={inp} placeholder="Adhérent (BOAD, BCEAO...)" value={form.adherent} onChange={e=>setForm({...form,adherent:e.target.value})} />
+            <select style={inp} value={form.typeClient} onChange={e=>setForm({...form,typeClient:e.target.value})}>
+              <option>Actif</option><option>Retraité</option><option>Ayant droit</option>
+            </select>
+            <select style={inp} value={form.pays} onChange={e=>setForm({...form,pays:e.target.value})}>
+              <option value="">-- Pays --</option>
+              {["Bénin","Burkina Faso","Côte d'Ivoire","Guinée Bissau","Mali","Niger","Sénégal","Togo","France"].map(p=><option key={p}>{p}</option>)}
+            </select>
+            <input style={inp} placeholder="Téléphone" value={form.telephone} onChange={e=>setForm({...form,telephone:e.target.value})} />
+            <input style={inp} type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
+            <input style={inp} placeholder="Heure appel (ex: 09h00)" value={form.heureAppel} onChange={e=>setForm({...form,heureAppel:e.target.value})} />
+          </div>
+          <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>📨 Demande</h3>
+          <div style={col2}>
+            <select style={inp} value={form.objetDemande} onChange={e=>setForm({...form,objetDemande:e.target.value})}>
+              <option>Information</option><option>Réclamation</option><option>Demande de document</option><option>Autre</option>
+            </select>
+            <select style={inp} value={form.canal} onChange={e=>setForm({...form,canal:e.target.value})}>
+              <option>WhatsApp</option><option>Appel</option><option>Email</option><option>Courrier</option>
+            </select>
+          </div>
+          <textarea style={{...inp,height:'70px',resize:'vertical',width:'100%'}} placeholder="Commentaire" value={form.commentaire} onChange={e=>setForm({...form,commentaire:e.target.value})} />
+          <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>⚙️ Traitement</h3>
+          <div style={col2}>
+            <input style={inp} placeholder="Agent N1" value={form.agentN1} onChange={e=>setForm({...form,agentN1:e.target.value})} />
+            <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
+              <option value="">-- Service --</option>
+              {["DPM","DPR","DSI","DCR","PATRIMOINE","REGISSEUR"].map(s=><option key={s}>{s}</option>)}
+            </select>
+            <input style={inp} placeholder="Agent N2" value={form.agentN2} onChange={e=>setForm({...form,agentN2:e.target.value})} />
+            <select style={inp} value={form.statut} onChange={e=>setForm({...form,statut:e.target.value})}>
+              <option>En cours</option><option>Traité</option><option>En attente</option>
+            </select>
+            <div><label style={{fontSize:'0.8rem',color:'#718096',display:'block',marginBottom:'0.25rem'}}>Date réception</label>
+            <input style={inp} type="date" value={form.dateReception} onChange={e=>setForm({...form,dateReception:e.target.value})} /></div>
+            <div><label style={{fontSize:'0.8rem',color:'#718096',display:'block',marginBottom:'0.25rem'}}>Date traitement</label>
+            <input style={inp} type="date" value={form.dateTraitement} onChange={e=>setForm({...form,dateTraitement:e.target.value})} /></div>
+            <select style={inp} value={form.canalCommunication} onChange={e=>setForm({...form,canalCommunication:e.target.value})}>
+              <option value="WhatsApp">Retour : WhatsApp</option><option value="Email">Retour : Email</option><option value="Appel">Retour : Appel</option>
+            </select>
+            <select style={inp} value={form.noteSatisfaction} onChange={e=>setForm({...form,noteSatisfaction:e.target.value})}>
+              <option value="">Note satisfaction</option>
+              {[1,2,3,4,5].map(n=><option key={n} value={n}>{n}/5</option>)}
+            </select>
+          </div>
+          <textarea style={{...inp,height:'60px',resize:'vertical',width:'100%'}} placeholder="Action menée" value={form.actionMenee} onChange={e=>setForm({...form,actionMenee:e.target.value})} />
+          <button style={styles.button} type="submit">💾 Enregistrer</button>
+        </form>
+      )}
+      <div style={{display:'flex',gap:'0.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
+        <input style={{...styles.input,marginBottom:0,flex:1}} placeholder="🔍 Rechercher..." value={search} onChange={e=>setSearch(e.target.value)} />
+        <select style={{...styles.input,marginBottom:0,width:'160px'}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
+          <option value="">Tous statuts</option><option>Traité</option><option>En cours</option><option>En attente</option>
+        </select>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table style={styles.table}>
+          <thead><tr>{['N°','Date','Nom','Type','Pays','Objet','Canal','Agent N1','Service','Statut','Délai','Note'].map(h=><th key={h} style={styles.th}>{h}</th>)}</tr></thead>
+          <tbody>
+            {filtered.length===0 ? <tr><td colSpan={12} style={{...styles.td,textAlign:'center',color:'#718096',padding:'3rem'}}>Aucune demande — cliquez sur "+ Nouvelle demande"</td></tr>
+            : filtered.map(d=>(
+              <tr key={d.id} style={styles.tr}>
+                <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
+                <td style={styles.td}>{d.dateReception?new Date(d.dateReception).toLocaleDateString('fr-FR'):'—'}</td>
+                <td style={styles.td}>{f(d.nomPrenom)}</td>
+                <td style={styles.td}><span style={{...styles.badge,...(d.typeClient==='Actif'?{background:'#f0fff4',color:'#276749'}:{background:'#faf5ff',color:'#6b46c1'})}}>{f(d.typeClient)}</span></td>
+                <td style={styles.td}>{f(d.pays)}</td>
+                <td style={styles.td}><span style={{...styles.badge,...(d.objetDemande==='Réclamation'?{background:'#fff5f5',color:'#c53030'}:{background:'#ebf8ff',color:'#2b6cb0'})}}>{f(d.objetDemande)}</span></td>
+                <td style={styles.td}>{f(d.canal)}</td>
+                <td style={styles.td}>{f(d.agentN1)}</td>
+                <td style={styles.td}>{f(d.service)}</td>
+                <td style={styles.td}><span style={{...styles.badge,...sColor(d.statut)}}>{f(d.statut)}</span></td>
+                <td style={styles.td}>{d.delaiTraitement?`${d.delaiTraitement}j`:'—'}</td>
+                <td style={styles.td}>{d.noteSatisfaction?`⭐${d.noteSatisfaction}/5`:'—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
 }
+
 
 // Layout
 function Layout({ onLogout, children }) {
