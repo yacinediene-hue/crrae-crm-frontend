@@ -31,6 +31,8 @@ function Login({ onLogin }) {
       const res = await API.post('/auth/login', { email, password })
       localStorage.setItem('token', res.data.access_token)
       localStorage.setItem('userName', res.data.user.name)
+      localStorage.setItem('userRole', res.data.user.role)
+      localStorage.setItem('userEmail', res.data.user.email)
       onLogin()
     } catch {
       setError('Email ou mot de passe incorrect')
@@ -517,7 +519,12 @@ function Demandes() {
     XLSX.writeFile(wb, `Demandes_CRRAE_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`)
   }
 
+  const userRole = localStorage.getItem('userRole')
+  const userName = localStorage.getItem('userName')
+  const isFullAccess = userRole === 'admin' || userRole === 'manager' || userName === 'Ismael COULIBALY'
+
   const filtered = demandes.filter(d => {
+    if (!isFullAccess && d.agentN1 !== userName && d.agentN2 !== userName) return false
     const q = search.toLowerCase()
     const ms = !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q)
     const mst = !filterStatut || d.statut === filterStatut
