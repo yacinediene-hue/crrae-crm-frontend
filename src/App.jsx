@@ -734,6 +734,125 @@ function Users() {
   )
 }
 
+
+function Rapports() {
+  const [demandes, setDemandes] = useState([])
+  const [periode, setPeriode] = useState('mois')
+
+  useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
+
+  const now = new Date()
+  const filtered = demandes.filter(d => {
+    if (!d.dateReception) return false
+    const date = new Date(d.dateReception)
+    if (periode === 'semaine') {
+      const diff = (now - date) / (1000 * 60 * 60 * 24)
+      return diff <= 7
+    } else if (periode === 'mois') {
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+    } else if (periode === 'annee') {
+      return date.getFullYear() === now.getFullYear()
+    }
+    return true
+  })
+
+  const agents = [...new Set(demandes.map(d => d.agentN1).filter(Boolean))]
+  const perfAgents = agents.map(a => ({
+    name: a.split(' ')[0],
+    total: filtered.filter(d => d.agentN1 === a).length,
+    traite: filtered.filter(d => d.agentN1 === a && d.statut === 'Traité').length,
+  })).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
+
+  const services = ['DPM','DPR','DSI','DCR','PATRIMOINE']
+  const perfServices = services.map(s => {
+    const total = filtered.filter(d => d.service === s).length
+    const oui = filtered.filter(d => d.service === s && d.respectDelai === 'OUI').length
+    return { name: s, total, taux: total > 0 ? Math.round(oui/total*100) : 0 }
+  }).filter(s => s.total > 0)
+
+  const notes = filtered.filter(d => d.noteSatisfaction).map(d => d.noteSatisfaction)
+  const moyNote = notes.length > 0 ? (notes.reduce((a,b) => a+b, 0) / notes.length).toFixed(1) : '—'
+
+  const tauxTraite = filtered.length > 0 ? Math.round(filtered.filter(d => d.statut === 'Traité').length / filtered.length * 100) : 0
+  const tauxDelai = filtered.length > 0 ? Math.round(filtered.filter(d => d.respectDelai === 'OUI').length / filtered.length * 100) : 0
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>📈 Rapports</h2>
+        <div style={{display:'flex', gap:'0.5rem'}}>
+          {[{val:'semaine',label:'Cette semaine'},{val:'mois',label:'Ce mois'},{val:'annee',label:'Cette année'},{val:'tout',label:'Tout'}].map(p => (
+            <button key={p.val} onClick={() => setPeriode(p.val)}
+              style={{padding:'0.5rem 1rem', borderRadius:'6px', border:'none', cursor:'pointer',
+                background: periode === p.val ? '#2b6cb0' : '#edf2f7',
+                color: periode === p.val ? 'white' : '#4a5568', fontSize:'0.85rem'}}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'0.75rem', marginBottom:'1.5rem'}}>
+        {[
+          {label:'Total demandes', val:filtered.length, bg:'#ebf8ff', col:'#2b6cb0'},
+          {label:'Taux traitement', val:`${tauxTraite}%`, bg:'#f0fff4', col:'#276749'},
+          {label:'Respect délais', val:`${tauxDelai}%`, bg:'#faf5ff', col:'#6b46c1'},
+          {label:'Note moyenne', val:`${moyNote}/5`, bg:'#fffbeb', col:'#b7791f'},
+        ].map(s => (
+          <div key={s.label} style={{background:s.bg, borderRadius:'10px', padding:'1rem', textAlign:'center'}}>
+            <div style={{fontSize:'1.8rem', fontWeight:'bold', color:s.col}}>{s.val}</div>
+            <div style={{fontSize:'0.8rem', color:s.col, opacity:0.85}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem'}}>
+        <div style={{background:'white', borderRadius:'12px', padding:'1.5rem', boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
+          <h3 style={{color:'#1a365d', marginBottom:'1rem', fontSize:'1rem'}}>👤 Performance par agent</h3>
+          <table style={styles.table}>
+            <thead><tr><th style={styles.th}>Agent</th><th style={styles.th}>Total</th><th style={styles.th}>Traités</th><th style={styles.th}>Taux</th></tr></thead>
+            <tbody>
+              {perfAgents.map(a => (
+                <tr key={a.name} style={styles.tr}>
+                  <td style={styles.td}>{a.name}</td>
+                  <td style={styles.td}>{a.total}</td>
+                  <td style={styles.td}>{a.traite}</td>
+                  <td style={styles.td}>
+                    <span style={{...styles.badge, background:'#f0fff4', color:'#276749'}}>
+                      {a.total > 0 ? Math.round(a.traite/a.total*100) : 0}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{background:'white', borderRadius:'12px', padding:'1.5rem', boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
+          <h3 style={{color:'#1a365d', marginBottom:'1rem', fontSize:'1rem'}}>🏢 Respect délais par service</h3>
+          <table style={styles.table}>
+            <thead><tr><th style={styles.th}>Service</th><th style={styles.th}>Total</th><th style={styles.th}>Délai max</th><th style={styles.th}>Taux</th></tr></thead>
+            <tbody>
+              {perfServices.map(s => (
+                <tr key={s.name} style={styles.tr}>
+                  <td style={styles.td}>{s.name}</td>
+                  <td style={styles.td}>{s.total}</td>
+                  <td style={styles.td}>{{'DPM':'3j','DPR':'5j','DSI':'6j','PATRIMOINE':'7j','DCR':'5j'}[s.name]}</td>
+                  <td style={styles.td}>
+                    <span style={{...styles.badge, background: s.taux >= 80 ? '#f0fff4' : '#fff5f5', color: s.taux >= 80 ? '#276749' : '#c53030'}}>
+                      {s.taux}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Layout
 function Layout({ onLogout, children }) {
   return (
@@ -746,6 +865,7 @@ function Layout({ onLogout, children }) {
         <Link style={styles.navLink} to="/deals">💼 Deals</Link>
         <Link style={styles.navLink} to="/tickets">🎫 Tickets</Link>
         <Link style={styles.navLink} to="/campagnes">📣 Campagnes</Link>
+        <Link style={styles.navLink} to="/rapports">📈 Rapports</Link>
         <Link style={styles.navLink} to="/users">👤 Utilisateurs</Link>
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
       </nav>
@@ -772,6 +892,7 @@ export default function App() {
           <Route path="/deals" element={<Deals />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/campagnes" element={<Campagnes />} />
+          <Route path="/rapports" element={<Rapports />} />
           <Route path="/users" element={<Users />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
