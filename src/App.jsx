@@ -96,12 +96,260 @@ function Contacts() {
         </form>
       )}
       <table style={styles.table}>
-        <thead><tr><th>Nom</th><th>Email</th><th>Téléphone</th><th>Entreprise</th><th>Statut</th></tr></thead>
+        <thead><tr><th style={styles.th}>Nom</th><th style={styles.th}>Email</th><th style={styles.th}>Téléphone</th><th style={styles.th}>Entreprise</th><th style={styles.th}>Statut</th></tr></thead>
         <tbody>
           {contacts.map(c => (
-            <tr key={c.id}>
-              <td>{c.name}</td><td>{c.email}</td><td>{c.phone}</td><td>{c.company}</td>
-              <td><span style={styles.badge}>{c.status}</span></td>
+            <tr key={c.id} style={styles.tr}>
+              <td style={styles.td}>{c.name}</td>
+              <td style={styles.td}>{c.email}</td>
+              <td style={styles.td}>{c.phone}</td>
+              <td style={styles.td}>{c.company}</td>
+              <td style={styles.td}><span style={styles.badge}>{c.status}</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Deals
+function Deals() {
+  const [deals, setDeals] = useState([])
+  const [form, setForm] = useState({ title: '', amount: '', status: 'open', contactId: '' })
+  const [showForm, setShowForm] = useState(false)
+
+  useEffect(() => { API.get('/deals').then(r => setDeals(r.data)).catch(() => {}) }, [])
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await API.post('/deals', { ...form, amount: parseFloat(form.amount) })
+      setDeals([...deals, res.data])
+      setForm({ title: '', amount: '', status: 'open', contactId: '' })
+      setShowForm(false)
+    } catch {}
+  }
+
+  const statusColor = (status) => {
+    const map = {
+      open: { background: '#ebf8ff', color: '#2b6cb0' },
+      won: { background: '#f0fff4', color: '#276749' },
+      lost: { background: '#fff5f5', color: '#c53030' },
+      pending: { background: '#fffbeb', color: '#b7791f' },
+    }
+    return map[status] || map.open
+  }
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>💼 Deals</h2>
+        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
+      </div>
+      {showForm && (
+        <form onSubmit={handleAdd} style={styles.form}>
+          <input style={styles.input} placeholder="Titre du deal" value={form.title} onChange={e => setForm({...form, title: e.target.value})} required />
+          <input style={styles.input} placeholder="Montant (FCFA)" type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
+          <select style={styles.input} value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+            <option value="open">Ouvert</option>
+            <option value="pending">En cours</option>
+            <option value="won">Gagné</option>
+            <option value="lost">Perdu</option>
+          </select>
+          <input style={styles.input} placeholder="ID Contact (optionnel)" value={form.contactId} onChange={e => setForm({...form, contactId: e.target.value})} />
+          <button style={styles.button} type="submit">Enregistrer</button>
+        </form>
+      )}
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>Titre</th>
+            <th style={styles.th}>Montant</th>
+            <th style={styles.th}>Statut</th>
+            <th style={styles.th}>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {deals.map(d => (
+            <tr key={d.id} style={styles.tr}>
+              <td style={styles.td}>{d.title}</td>
+              <td style={styles.td}>{d.amount ? `${Number(d.amount).toLocaleString('fr-FR')} FCFA` : '—'}</td>
+              <td style={styles.td}><span style={{...styles.badge, ...statusColor(d.status)}}>{d.status}</span></td>
+              <td style={styles.td}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Tickets
+function Tickets() {
+  const [tickets, setTickets] = useState([])
+  const [form, setForm] = useState({ subject: '', description: '', priority: 'medium', status: 'open' })
+  const [showForm, setShowForm] = useState(false)
+
+  useEffect(() => { API.get('/tickets').then(r => setTickets(r.data)).catch(() => {}) }, [])
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await API.post('/tickets', form)
+      setTickets([...tickets, res.data])
+      setForm({ subject: '', description: '', priority: 'medium', status: 'open' })
+      setShowForm(false)
+    } catch {}
+  }
+
+  const priorityColor = (priority) => {
+    const map = {
+      low: { background: '#f0fff4', color: '#276749' },
+      medium: { background: '#fffbeb', color: '#b7791f' },
+      high: { background: '#fff5f5', color: '#c53030' },
+    }
+    return map[priority] || map.medium
+  }
+
+  const statusColor = (status) => {
+    const map = {
+      open: { background: '#ebf8ff', color: '#2b6cb0' },
+      in_progress: { background: '#faf5ff', color: '#6b46c1' },
+      closed: { background: '#f7fafc', color: '#718096' },
+    }
+    return map[status] || map.open
+  }
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>🎫 Tickets</h2>
+        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
+      </div>
+      {showForm && (
+        <form onSubmit={handleAdd} style={styles.form}>
+          <input style={styles.input} placeholder="Sujet" value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} required />
+          <textarea style={{...styles.input, height: '80px', resize: 'vertical'}} placeholder="Description" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+          <select style={styles.input} value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>
+            <option value="low">Priorité basse</option>
+            <option value="medium">Priorité moyenne</option>
+            <option value="high">Priorité haute</option>
+          </select>
+          <select style={styles.input} value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+            <option value="open">Ouvert</option>
+            <option value="in_progress">En cours</option>
+            <option value="closed">Fermé</option>
+          </select>
+          <button style={styles.button} type="submit">Enregistrer</button>
+        </form>
+      )}
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>Sujet</th>
+            <th style={styles.th}>Description</th>
+            <th style={styles.th}>Priorité</th>
+            <th style={styles.th}>Statut</th>
+            <th style={styles.th}>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tickets.map(t => (
+            <tr key={t.id} style={styles.tr}>
+              <td style={styles.td}>{t.subject}</td>
+              <td style={styles.td}>{t.description ? t.description.substring(0, 50) + (t.description.length > 50 ? '...' : '') : '—'}</td>
+              <td style={styles.td}><span style={{...styles.badge, ...priorityColor(t.priority)}}>{t.priority}</span></td>
+              <td style={styles.td}><span style={{...styles.badge, ...statusColor(t.status)}}>{t.status}</span></td>
+              <td style={styles.td}>{t.createdAt ? new Date(t.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// Campagnes
+function Campagnes() {
+  const [campagnes, setCampagnes] = useState([])
+  const [form, setForm] = useState({ name: '', type: 'email', status: 'draft', startDate: '', endDate: '' })
+  const [showForm, setShowForm] = useState(false)
+
+  useEffect(() => { API.get('/campaigns').then(r => setCampagnes(r.data)).catch(() => {}) }, [])
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await API.post('/campaigns', form)
+      setCampagnes([...campagnes, res.data])
+      setForm({ name: '', type: 'email', status: 'draft', startDate: '', endDate: '' })
+      setShowForm(false)
+    } catch {}
+  }
+
+  const statusColor = (status) => {
+    const map = {
+      draft: { background: '#f7fafc', color: '#718096' },
+      active: { background: '#f0fff4', color: '#276749' },
+      paused: { background: '#fffbeb', color: '#b7791f' },
+      completed: { background: '#ebf8ff', color: '#2b6cb0' },
+    }
+    return map[status] || map.draft
+  }
+
+  const typeColor = (type) => {
+    const map = {
+      email: { background: '#ebf8ff', color: '#2b6cb0' },
+      sms: { background: '#faf5ff', color: '#6b46c1' },
+      social: { background: '#f0fff4', color: '#276749' },
+    }
+    return map[type] || map.email
+  }
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>📣 Campagnes</h2>
+        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
+      </div>
+      {showForm && (
+        <form onSubmit={handleAdd} style={styles.form}>
+          <input style={styles.input} placeholder="Nom de la campagne" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+          <select style={styles.input} value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+            <option value="email">Email</option>
+            <option value="sms">SMS</option>
+            <option value="social">Réseaux sociaux</option>
+          </select>
+          <select style={styles.input} value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+            <option value="draft">Brouillon</option>
+            <option value="active">Active</option>
+            <option value="paused">En pause</option>
+            <option value="completed">Terminée</option>
+          </select>
+          <input style={styles.input} type="date" placeholder="Date de début" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} />
+          <input style={styles.input} type="date" placeholder="Date de fin" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} />
+          <button style={styles.button} type="submit">Enregistrer</button>
+        </form>
+      )}
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>Nom</th>
+            <th style={styles.th}>Type</th>
+            <th style={styles.th}>Statut</th>
+            <th style={styles.th}>Début</th>
+            <th style={styles.th}>Fin</th>
+          </tr>
+        </thead>
+        <tbody>
+          {campagnes.map(c => (
+            <tr key={c.id} style={styles.tr}>
+              <td style={styles.td}>{c.name}</td>
+              <td style={styles.td}><span style={{...styles.badge, ...typeColor(c.type)}}>{c.type}</span></td>
+              <td style={styles.td}><span style={{...styles.badge, ...statusColor(c.status)}}>{c.status}</span></td>
+              <td style={styles.td}>{c.startDate ? new Date(c.startDate).toLocaleDateString('fr-FR') : '—'}</td>
+              <td style={styles.td}>{c.endDate ? new Date(c.endDate).toLocaleDateString('fr-FR') : '—'}</td>
             </tr>
           ))}
         </tbody>
@@ -118,6 +366,9 @@ function Layout({ onLogout, children }) {
         <h2 style={styles.navTitle}>🏦 CRRAE CRM</h2>
         <Link style={styles.navLink} to="/dashboard">📊 Dashboard</Link>
         <Link style={styles.navLink} to="/contacts">👥 Contacts</Link>
+        <Link style={styles.navLink} to="/deals">💼 Deals</Link>
+        <Link style={styles.navLink} to="/tickets">🎫 Tickets</Link>
+        <Link style={styles.navLink} to="/campagnes">📣 Campagnes</Link>
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
       </nav>
       <main style={styles.main}>{children}</main>
@@ -139,6 +390,9 @@ export default function App() {
         <Routes>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/contacts" element={<Contacts />} />
+          <Route path="/deals" element={<Deals />} />
+          <Route path="/tickets" element={<Tickets />} />
+          <Route path="/campagnes" element={<Campagnes />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </Layout>
@@ -165,7 +419,10 @@ const styles = {
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' },
   statCard: { background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', textAlign: 'center' },
   statNum: { fontSize: '2.5rem', fontWeight: 'bold', color: '#2b6cb0' },
-  table: { width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '12px', overflow: 'hidden' },
-  form: { background: 'white', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' },
+  table: { width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
+  th: { background: '#edf2f7', padding: '0.75rem 1rem', textAlign: 'left', color: '#4a5568', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' },
+  tr: { borderBottom: '1px solid #e2e8f0' },
+  td: { padding: '0.75rem 1rem', color: '#2d3748', fontSize: '0.95rem' },
+  form: { background: 'white', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
   badge: { background: '#ebf8ff', color: '#2b6cb0', padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.85rem' },
 }
