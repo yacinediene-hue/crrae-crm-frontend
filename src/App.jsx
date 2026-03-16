@@ -896,6 +896,23 @@ function Layout({ onLogout, children, alertes }) {
 export default function App() {
   const [auth, setAuth] = useState(!!localStorage.getItem('token'))
 
+  const [alertes, setAlertes] = useState([])
+
+  useEffect(() => {
+    if (auth) {
+      const delaisMax = { DPM:3, DPR:5, DSI:6, PATRIMOINE:7, DCR:5, REGISSEUR:5 }
+      API.get('/demandes').then(r => {
+        const retard = r.data.filter(d => {
+          if (d.statut === 'Traite') return false
+          if (!d.dateReception) return false
+          const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000*60*60*24))
+          return jours > (delaisMax[d.service] || 3)
+        })
+        setAlertes(retard)
+      }).catch(() => {})
+    }
+  }, [auth])
+
   const logout = () => { localStorage.removeItem('token'); setAuth(false) }
 
   if (!auth) return <Login onLogin={() => setAuth(true)} />
