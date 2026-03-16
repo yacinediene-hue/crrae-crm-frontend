@@ -1,3 +1,17 @@
+
+const INDICATIFS = {
+  "Bénin": "+229",
+  "Burkina Faso": "+226",
+  "Côte d'Ivoire": "+225",
+  "Guinée Bissau": "+245",
+  "Mali": "+223",
+  "Niger": "+227",
+  "Sénégal": "+221",
+  "Togo": "+228",
+  "France": "+33",
+}
+
+const AGENTS = ["Koffi Stephane", "Kacou Michèle", "Kouame Faty"]
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import API from './api'
@@ -367,7 +381,7 @@ function Demandes() {
   const [filterStatut, setFilterStatut] = useState('')
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
-    heureAppel: '', canal: 'WhatsApp', telephone: '', email: '',
+    heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WhatsApp', telephone: '', email: '',
     objetDemande: 'Information', commentaire: '',
     agentN1: '', service: '', agentN2: '',
     dateReception: new Date().toISOString().split('T')[0],
@@ -421,11 +435,11 @@ function Demandes() {
             <select style={inp} value={form.typeClient} onChange={e=>setForm({...form,typeClient:e.target.value})}>
               <option>Actif</option><option>Retraité</option><option>Ayant droit</option>
             </select>
-            <select style={inp} value={form.pays} onChange={e=>setForm({...form,pays:e.target.value})}>
+            <select style={inp} value={form.pays} onChange={e=>{ const p=e.target.value; setForm({...form,pays:p,telephone:INDICATIFS[p]||form.telephone})}}>
               <option value="">-- Pays --</option>
               {["Bénin","Burkina Faso","Côte d'Ivoire","Guinée Bissau","Mali","Niger","Sénégal","Togo","France"].map(p=><option key={p}>{p}</option>)}
             </select>
-            <input style={inp} placeholder="Téléphone" value={form.telephone} onChange={e=>setForm({...form,telephone:e.target.value})} />
+            <input style={inp} placeholder="Téléphone" value={form.telephone} onChange={e=>setForm({...form,telephone:e.target.value})} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
             <input style={inp} type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
             <input style={inp} placeholder="Heure appel (ex: 09h00)" value={form.heureAppel} onChange={e=>setForm({...form,heureAppel:e.target.value})} />
           </div>
