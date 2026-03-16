@@ -16,6 +16,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import API from './api'
 import './App.css'
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 // Login
 function Login({ onLogin }) {
@@ -53,17 +54,41 @@ function Login({ onLogin }) {
 
 // Dashboard
 function Dashboard() {
-  const [stats, setStats] = useState({ contacts: 0, deals: 0, tickets: 0 })
+  const [stats, setStats] = useState({ contacts: 0, deals: 0, tickets: 0, demandes: 0 })
+  const [demandes, setDemandes] = useState([])
 
   useEffect(() => {
     Promise.all([
       API.get('/contacts'),
       API.get('/deals'),
       API.get('/tickets'),
-    ]).then(([c, d, t]) => {
-      setStats({ contacts: c.data.length, deals: d.data.length, tickets: t.data.length })
+      API.get('/demandes'),
+    ]).then(([c, d, t, dem]) => {
+      setStats({ contacts: c.data.length, deals: d.data.length, tickets: t.data.length, demandes: dem.data.length })
+      setDemandes(dem.data)
     }).catch(() => {})
   }, [])
+
+  const byStatut = [
+    { name: 'Traité', value: demandes.filter(d => d.statut === 'Traité').length, color: '#276749' },
+    { name: 'En cours', value: demandes.filter(d => d.statut === 'En cours').length, color: '#b7791f' },
+    { name: 'En attente', value: demandes.filter(d => d.statut === 'En attente').length, color: '#2b6cb0' },
+  ]
+
+  const services = ['DPM','DPR','DSI','DCR','PATRIMOINE']
+  const byService = services.map(s => ({
+    name: s,
+    total: demandes.filter(d => d.service === s).length,
+    traite: demandes.filter(d => d.service === s && d.statut === 'Traité').length,
+  })).filter(s => s.total > 0)
+
+  const canaux = ['WhatsApp','Email','Appel','Courrier']
+  const byCanal = canaux.map(c => ({
+    name: c,
+    value: demandes.filter(d => d.canal === c).length,
+  })).filter(c => c.value > 0)
+
+  const COLORS = ['#2b6cb0','#276749','#b7791f','#6b46c1','#c53030']
 
   return (
     <div>
@@ -72,12 +97,69 @@ function Dashboard() {
         <div style={styles.statCard}><h3>👥 Contacts</h3><p style={styles.statNum}>{stats.contacts}</p></div>
         <div style={styles.statCard}><h3>💼 Deals</h3><p style={styles.statNum}>{stats.deals}</p></div>
         <div style={styles.statCard}><h3>🎫 Tickets</h3><p style={styles.statNum}>{stats.tickets}</p></div>
+        <div style={styles.statCard}><h3>📋 Demandes</h3><p style={styles.statNum}>{stats.demandes}</p></div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <h3 style={{ color: '#1a365d', marginBottom: '1rem', fontSize: '1rem' }}>📋 Demandes par statut</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={byStatut} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name,value}) => `${name}: ${value}`}>
+                {byStatut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <h3 style={{ color: '#1a365d', marginBottom: '1rem', fontSize: '1rem' }}>🏢 Demandes par service</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={byService}>
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="total" name="Total" fill="#2b6cb0" />
+              <Bar dataKey="traite" name="Traité" fill="#276749" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <h3 style={{ color: '#1a365d', marginBottom: '1rem', fontSize: '1rem' }}>📱 Demandes par canal</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={byCanal} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name,value}) => `${name}: ${value}`}>
+                {byCanal.map((entry, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+          <h3 style={{ color: '#1a365d', marginBottom: '1rem', fontSize: '1rem' }}>⏱️ Respect des délais</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={[
+                { name: 'OUI', value: demandes.filter(d => d.respectDelai === 'OUI').length, color: '#276749' },
+                { name: 'NON', value: demandes.filter(d => d.respectDelai === 'NON').length, color: '#c53030' },
+              ]} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name,value}) => `${name}: ${value}`}>
+                <Cell fill="#276749" />
+                <Cell fill="#c53030" />
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   )
 }
 
-// Contacts
+
 function Contacts() {
   const [contacts, setContacts] = useState([])
   const [form, setForm] = useState({ name: '', email: '', phone: '', company: '' })
