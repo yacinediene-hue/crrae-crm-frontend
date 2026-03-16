@@ -619,6 +619,7 @@ function Layout({ onLogout, children }) {
         <Link style={styles.navLink} to="/deals">💼 Deals</Link>
         <Link style={styles.navLink} to="/tickets">🎫 Tickets</Link>
         <Link style={styles.navLink} to="/campagnes">📣 Campagnes</Link>
+        <Link style={styles.navLink} to="/users">👤 Utilisateurs</Link>
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
       </nav>
       <main style={styles.main}>{children}</main>
