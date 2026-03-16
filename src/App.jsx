@@ -28,6 +28,7 @@ function Login({ onLogin }) {
     try {
       const res = await API.post('/auth/login', { email, password })
       localStorage.setItem('token', res.data.access_token)
+      localStorage.setItem('userName', res.data.user.name)
       onLogin()
     } catch {
       setError('Email ou mot de passe incorrect')
@@ -383,7 +384,7 @@ function Demandes() {
     nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WhatsApp', telephone: '', email: '',
     objetDemande: 'Information', commentaire: '',
-    agentN1: '', service: '', agentN2: '',
+    agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '',
     dateReception: new Date().toISOString().split('T')[0],
     dateTraitement: '', statut: 'En cours', actionMenee: '',
     canalCommunication: 'WhatsApp', noteSatisfaction: '',
