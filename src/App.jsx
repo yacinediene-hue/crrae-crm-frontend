@@ -1099,8 +1099,8 @@ function Rapports() {
           </table>
         </div>
       </div>
-    </div>
       {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
+    </div>
   )
 }
 
