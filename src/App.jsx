@@ -635,7 +635,9 @@ function PanneauCommentaires({ demande, onClose }) {
   if (!demande) return null
 
   return (
-    <div style={{position:'fixed', top:0, right:0, width:'400px', height:'100vh', background:'white', boxShadow:'-4px 0 20px rgba(0,0,0,0.15)', zIndex:1000, display:'flex', flexDirection:'column'}}>
+    <>
+    <div onClick={onClose} style={{position:'fixed', top:0, left:0, width:'100vw', height:'100vh', background:'rgba(0,0,0,0.5)', zIndex:9998}} />
+    <div style={{position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:'500px', maxHeight:'80vh', background:'white', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', zIndex:9999, display:'flex', flexDirection:'column', borderRadius:'12px', overflow:'hidden'}}>
       <div style={{background:'#1e4a7a', padding:'1.25rem', color:'white', flexShrink:0}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div>
@@ -711,6 +713,7 @@ function PanneauCommentaires({ demande, onClose }) {
         <button style={{...styles.button, marginTop:'0.5rem'}} type="submit">💾 Ajouter la note</button>
       </form>}
     </div>
+    </>
   )
 }
 
