@@ -495,6 +495,91 @@ function Campagnes() {
 
 
 
+
+function FicheClient({ telephone, matricule, onClose }) {
+  const [client, setClient] = useState(null)
+  const [demandes, setDemandes] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    API.get('/demandes').then(r => {
+      const all = r.data
+      const filtered = all.filter(d =>
+        (telephone && telephone.length >= 6 && d.telephone && d.telephone.replace(/[^0-9]/g,'').includes(telephone.replace(/[^0-9]/g,''))) ||
+        (matricule && matricule.length >= 4 && d.matricule && d.matricule === matricule)
+      )
+      if (filtered.length > 0) {
+        const last = filtered[0]
+        setClient({ nomPrenom: last.nomPrenom, telephone: last.telephone, email: last.email, pays: last.pays, typeClient: last.typeClient, adherent: last.adherent, matricule: last.matricule })
+        setDemandes(filtered)
+      }
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [telephone, matricule])
+
+  if (loading) return (
+    <div style={{background:'#ebf8ff', borderRadius:'8px', padding:'0.75rem 1rem', marginBottom:'1rem', color:'#2b6cb0', fontSize:'0.9rem'}}>
+      🔍 Recherche du profil client...
+    </div>
+  )
+
+  if (!client) return null
+
+  const notes = demandes.filter(d => d.noteSatisfaction).map(d => d.noteSatisfaction)
+  const moyNote = notes.length > 0 ? (notes.reduce((a,b) => a+b, 0) / notes.length).toFixed(1) : null
+
+  return (
+    <div style={{background:'#f0fff4', border:'1px solid #9ae6b4', borderRadius:'12px', padding:'1rem', marginBottom:'1.5rem'}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
+        <div>
+          <div style={{display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'0.25rem'}}>
+            <span style={{fontSize:'1.1rem', fontWeight:'700', color:'#276749'}}>👤 {client.nomPrenom}</span>
+            <span style={{background:'#276749', color:'white', padding:'0.15rem 0.5rem', borderRadius:'20px', fontSize:'0.75rem'}}>{client.typeClient}</span>
+            {client.adherent && <span style={{background:'#ebf8ff', color:'#2b6cb0', padding:'0.15rem 0.5rem', borderRadius:'20px', fontSize:'0.75rem'}}>{client.adherent}</span>}
+          </div>
+          <div style={{fontSize:'0.85rem', color:'#4a5568', display:'flex', gap:'1rem', flexWrap:'wrap'}}>
+            {client.telephone && <span>📞 {client.telephone}</span>}
+            {client.email && <span>📧 {client.email}</span>}
+            {client.pays && <span>🌍 {client.pays}</span>}
+            {client.matricule && <span>🪪 {client.matricule}</span>}
+          </div>
+        </div>
+        <div style={{display:'flex', gap:'0.5rem', textAlign:'center', flexShrink:0}}>
+          <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
+            <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#2b6cb0'}}>{demandes.length}</div>
+            <div style={{fontSize:'0.7rem', color:'#718096'}}>demandes</div>
+          </div>
+          <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
+            <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#276749'}}>{demandes.filter(d=>d.statut==='Traité').length}</div>
+            <div style={{fontSize:'0.7rem', color:'#718096'}}>traitées</div>
+          </div>
+          {moyNote && (
+            <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
+              <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#b7791f'}}>⭐{moyNote}</div>
+              <div style={{fontSize:'0.7rem', color:'#718096'}}>note moy.</div>
+            </div>
+          )}
+        </div>
+      </div>
+      {demandes.length > 0 && (
+        <div style={{marginTop:'0.75rem', borderTop:'1px solid #9ae6b4', paddingTop:'0.75rem'}}>
+          <div style={{fontSize:'0.8rem', color:'#276749', fontWeight:'600', marginBottom:'0.5rem'}}>DERNIÈRES DEMANDES</div>
+          <div style={{display:'flex', flexDirection:'column', gap:'0.4rem'}}>
+            {demandes.slice(0,3).map(d => (
+              <div key={d.id} style={{background:'white', borderRadius:'6px', padding:'0.5rem 0.75rem', display:'flex', justifyContent:'space-between', fontSize:'0.82rem'}}>
+                <span style={{color:'#2b6cb0', fontWeight:'600'}}>{d.numDemande}</span>
+                <span style={{color:'#4a5568'}}>{d.objetDemande}</span>
+                <span style={{color:'#718096'}}>{d.dateReception ? new Date(d.dateReception).toLocaleDateString('fr-FR') : ''}</span>
+                <span style={{background: d.statut==='Traité'?'#f0fff4':'#fffbeb', color: d.statut==='Traité'?'#276749':'#b7791f', padding:'0.1rem 0.4rem', borderRadius:'20px'}}>{d.statut}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Demandes() {
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -592,6 +677,7 @@ function Demandes() {
       </div>
       {showForm && (
         <form onSubmit={handleAdd} style={{...styles.form, marginBottom:'1.5rem'}}>
+          {showFiche && <FicheClient telephone={ficheSearch.telephone} matricule={ficheSearch.matricule} onClose={() => setShowFiche(false)} />}
           <h3 style={{color:'#1a365d',marginBottom:'1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>👤 Informations client</h3>
           <div style={col2}>
             <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom} onChange={e=>setForm({...form,nomPrenom:e.target.value})} required />
@@ -895,89 +981,6 @@ function Rapports() {
 }
 
 
-function FicheClient({ telephone, matricule, onClose }) {
-  const [client, setClient] = useState(null)
-  const [demandes, setDemandes] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    API.get('/demandes').then(r => {
-      const all = r.data
-      const filtered = all.filter(d =>
-        (telephone && telephone.length >= 6 && d.telephone && d.telephone.replace(/[^0-9]/g,'').includes(telephone.replace(/[^0-9]/g,''))) ||
-        (matricule && matricule.length >= 4 && d.matricule && d.matricule === matricule)
-      )
-      if (filtered.length > 0) {
-        const last = filtered[0]
-        setClient({ nomPrenom: last.nomPrenom, telephone: last.telephone, email: last.email, pays: last.pays, typeClient: last.typeClient, adherent: last.adherent, matricule: last.matricule })
-        setDemandes(filtered)
-      }
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [telephone, matricule])
-
-  if (loading) return (
-    <div style={{background:'#ebf8ff', borderRadius:'8px', padding:'0.75rem 1rem', marginBottom:'1rem', color:'#2b6cb0', fontSize:'0.9rem'}}>
-      🔍 Recherche du profil client...
-    </div>
-  )
-
-  if (!client) return null
-
-  const notes = demandes.filter(d => d.noteSatisfaction).map(d => d.noteSatisfaction)
-  const moyNote = notes.length > 0 ? (notes.reduce((a,b) => a+b, 0) / notes.length).toFixed(1) : null
-
-  return (
-    <div style={{background:'#f0fff4', border:'1px solid #9ae6b4', borderRadius:'12px', padding:'1rem', marginBottom:'1.5rem'}}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start'}}>
-        <div>
-          <div style={{display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'0.25rem'}}>
-            <span style={{fontSize:'1.1rem', fontWeight:'700', color:'#276749'}}>👤 {client.nomPrenom}</span>
-            <span style={{background:'#276749', color:'white', padding:'0.15rem 0.5rem', borderRadius:'20px', fontSize:'0.75rem'}}>{client.typeClient}</span>
-            {client.adherent && <span style={{background:'#ebf8ff', color:'#2b6cb0', padding:'0.15rem 0.5rem', borderRadius:'20px', fontSize:'0.75rem'}}>{client.adherent}</span>}
-          </div>
-          <div style={{fontSize:'0.85rem', color:'#4a5568', display:'flex', gap:'1rem', flexWrap:'wrap'}}>
-            {client.telephone && <span>📞 {client.telephone}</span>}
-            {client.email && <span>📧 {client.email}</span>}
-            {client.pays && <span>🌍 {client.pays}</span>}
-            {client.matricule && <span>🪪 {client.matricule}</span>}
-          </div>
-        </div>
-        <div style={{display:'flex', gap:'0.5rem', textAlign:'center', flexShrink:0}}>
-          <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
-            <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#2b6cb0'}}>{demandes.length}</div>
-            <div style={{fontSize:'0.7rem', color:'#718096'}}>demandes</div>
-          </div>
-          <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
-            <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#276749'}}>{demandes.filter(d=>d.statut==='Traité').length}</div>
-            <div style={{fontSize:'0.7rem', color:'#718096'}}>traitées</div>
-          </div>
-          {moyNote && (
-            <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
-              <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#b7791f'}}>⭐{moyNote}</div>
-              <div style={{fontSize:'0.7rem', color:'#718096'}}>note moy.</div>
-            </div>
-          )}
-        </div>
-      </div>
-      {demandes.length > 0 && (
-        <div style={{marginTop:'0.75rem', borderTop:'1px solid #9ae6b4', paddingTop:'0.75rem'}}>
-          <div style={{fontSize:'0.8rem', color:'#276749', fontWeight:'600', marginBottom:'0.5rem'}}>DERNIÈRES DEMANDES</div>
-          <div style={{display:'flex', flexDirection:'column', gap:'0.4rem'}}>
-            {demandes.slice(0,3).map(d => (
-              <div key={d.id} style={{background:'white', borderRadius:'6px', padding:'0.5rem 0.75rem', display:'flex', justifyContent:'space-between', fontSize:'0.82rem'}}>
-                <span style={{color:'#2b6cb0', fontWeight:'600'}}>{d.numDemande}</span>
-                <span style={{color:'#4a5568'}}>{d.objetDemande}</span>
-                <span style={{color:'#718096'}}>{d.dateReception ? new Date(d.dateReception).toLocaleDateString('fr-FR') : ''}</span>
-                <span style={{background: d.statut==='Traité'?'#f0fff4':'#fffbeb', color: d.statut==='Traité'?'#276749':'#b7791f', padding:'0.1rem 0.4rem', borderRadius:'20px'}}>{d.statut}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // Layout
 function Layout({ onLogout, children, alertes }) {
