@@ -595,11 +595,9 @@ function Demandes() {
           <h3 style={{color:'#1a365d',marginBottom:'1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>👤 Informations client</h3>
           <div style={col2}>
             <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom} onChange={e=>setForm({...form,nomPrenom:e.target.value})} required />
-            <input style={inp} placeholder="Matricule" value={form.matricule} onChange={e=>{
-              const val = e.target.value
-              setForm({...form,matricule:val})
-              if(val.length >= 4) { setFicheSearch({telephone:'', matricule:val}); setShowFiche(true) }
-            }} />
+            <input style={inp} placeholder="Matricule" value={form.matricule} 
+              onChange={e=>setForm({...form,matricule:e.target.value})}
+              onBlur={e=>{ if(e.target.value.length >= 4) { setFicheSearch({telephone:'', matricule:e.target.value}); setShowFiche(true) }}} />
             <input style={inp} placeholder="Adhérent (BOAD, BCEAO...)" value={form.adherent} onChange={e=>setForm({...form,adherent:e.target.value})} />
             <select style={inp} value={form.typeClient} onChange={e=>setForm({...form,typeClient:e.target.value})}>
               <option>Actif</option><option>Retraité</option><option>Ayant droit</option>
@@ -608,11 +606,9 @@ function Demandes() {
               <option value="">-- Pays --</option>
               {["Bénin","Burkina Faso","Côte d'Ivoire","Guinée Bissau","Mali","Niger","Sénégal","Togo","France"].map(p=><option key={p}>{p}</option>)}
             </select>
-            <input style={inp} placeholder="Téléphone" value={form.telephone} onChange={e=>{
-              const val = e.target.value
-              setForm({...form,telephone:val})
-              if(val.replace(/[^0-9]/g,'').length >= 6) { setFicheSearch({telephone:val, matricule:''}); setShowFiche(true) }
-            }} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
+            <input style={inp} placeholder="Téléphone" value={form.telephone}
+              onChange={e=>setForm({...form,telephone:e.target.value})}
+              onBlur={e=>{ if(e.target.value.replace(/[^0-9]/g,'').length >= 6) { setFicheSearch({telephone:e.target.value, matricule:''}); setShowFiche(true) }}} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
             <input style={inp} type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
             <input style={inp} placeholder="Heure appel (ex: 09h00)" value={form.heureAppel} onChange={e=>setForm({...form,heureAppel:e.target.value})} />
           </div>
