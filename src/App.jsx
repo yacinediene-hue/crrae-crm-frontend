@@ -717,7 +717,7 @@ function PanneauCommentaires({ demande, onClose }) {
   )
 }
 
-function Demandes() {
+function Demandes({ onOpenCommentaires }) {
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
@@ -733,7 +733,6 @@ function Demandes() {
   }
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState(null)
-  const [demandeActive, setDemandeActive] = useState(null)
   const [showFiche, setShowFiche] = useState(false)
   const [ficheSearch, setFicheSearch] = useState({ telephone: '', matricule: '' })
   useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
@@ -942,7 +941,7 @@ function Demandes() {
                 <td style={styles.td}>
                   <button onClick={()=>handleEdit(d)} style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.4rem',fontSize:'0.8rem'}}>✏️</button>
                   <button onClick={()=>handleDelete(d.id)} style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem'}}>🗑️</button>
-                  <button onClick={()=>{ console.log('clic demande', d.id); setDemandeActive(d); }} style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>💬</button>
+                  <button onClick={()=> onOpenCommentaires(d)} style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>💬</button>
                 </td>
               </tr>
             ))}
@@ -1160,7 +1159,6 @@ function Rapports() {
           </table>
         </div>
       </div>
-      {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
     </div>
   )
 }
@@ -1227,9 +1225,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Layout onLogout={logout} alertes={alertes}>
+        {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
         <Routes>
           <Route path="/dashboard" element={<Dashboard alertes={alertes} />} />
-          <Route path="/demandes" element={<Demandes />} />
+          <Route path="/demandes" element={<Demandes onOpenCommentaires={setDemandeActive} />} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/deals" element={<Deals />} />
           <Route path="/tickets" element={<Tickets />} />
