@@ -595,17 +595,52 @@ function Demandes() {
     canalCommunication: 'WhatsApp', noteSatisfaction: '',
   }
   const [form, setForm] = useState(emptyForm)
+  const [editId, setEditId] = useState(null)
   const [showFiche, setShowFiche] = useState(false)
   const [ficheSearch, setFicheSearch] = useState({ telephone: '', matricule: '' })
   useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
-      const res = await API.post('/demandes', form)
-      setDemandes([res.data, ...demandes])
+      if (editId) {
+        const res = await API.put(`/demandes/${editId}`, form)
+        setDemandes(demandes.map(d => d.id === editId ? res.data : d))
+        setEditId(null)
+      } else {
+        const res = await API.post('/demandes', form)
+        setDemandes([res.data, ...demandes])
+      }
       setForm(emptyForm)
       setShowForm(false)
     } catch { alert("Erreur enregistrement") }
+  }
+
+  const handleEdit = (d) => {
+    setEditId(d.id)
+    setForm({
+      nomPrenom: d.nomPrenom || '', matricule: d.matricule || '',
+      adherent: d.adherent || '', typeClient: d.typeClient || 'Actif',
+      pays: d.pays || '', heureAppel: d.heureAppel || '',
+      canal: d.canal || 'WhatsApp', telephone: d.telephone || '',
+      email: d.email || '', objetDemande: d.objetDemande || 'Information',
+      commentaire: d.commentaire || '', agentN1: d.agentN1 || '',
+      service: d.service || '', agentN2: d.agentN2 || '',
+      dateReception: d.dateReception ? new Date(d.dateReception).toISOString().split('T')[0] : '',
+      dateTraitement: d.dateTraitement ? new Date(d.dateTraitement).toISOString().split('T')[0] : '',
+      statut: d.statut || 'En cours', actionMenee: d.actionMenee || '',
+      canalCommunication: d.canalCommunication || 'WhatsApp',
+      noteSatisfaction: d.noteSatisfaction || '',
+    })
+    setShowForm(true)
+    window.scrollTo(0, 0)
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Supprimer cette demande ?')) return
+    try {
+      await API.delete(`/demandes/${id}`)
+      setDemandes(demandes.filter(d => d.id !== id))
+    } catch { alert("Erreur suppression") }
   }
   const f = (v) => v || '—'
   const sColor = (s) => ({'Traité': {background:'#f0fff4',color:'#276749'},'En cours': {background:'#fffbeb',color:'#b7791f'},'En attente': {background:'#ebf8ff',color:'#2b6cb0'}}[s] || {background:'#f7fafc',color:'#718096'})
@@ -732,7 +767,7 @@ function Demandes() {
             </select>
           </div>
           <textarea style={{...inp,height:'60px',resize:'vertical',width:'100%'}} placeholder="Action menée" value={form.actionMenee} onChange={e=>setForm({...form,actionMenee:e.target.value})} />
-          <button style={styles.button} type="submit">💾 Enregistrer</button>
+          <button style={styles.button} type="submit">{editId ? '💾 Modifier' : '💾 Enregistrer'}</button>
         </form>
       )}
       <div style={{display:'flex',gap:'0.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
