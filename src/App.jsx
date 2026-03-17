@@ -1277,7 +1277,7 @@ function RechercheGlobale({ onClose }) {
   return (
     <>
       <div onClick={onClose} style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.3)',zIndex:9997}} />
-      <div style={{position:'fixed',top:'80px',left:'50%',transform:'translateX(-50%)',width:'600px',background:'white',borderRadius:'12px',boxShadow:'0 20px 60px rgba(0,0,0,0.2)',zIndex:9998',overflow:'hidden'}}>
+      <div style={{position:'fixed',top:'80px',left:'50%',transform:'translateX(-50%)',width:'600px',background:'white',borderRadius:'12px',boxShadow:'0 20px 60px rgba(0,0,0,0.2)',zIndex:9998,overflow:'hidden'}}>
         <div style={{padding:'1rem',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:'0.75rem'}}>
           <span style={{fontSize:'1.2rem'}}>🔍</span>
           <input
@@ -1347,6 +1347,9 @@ function Layout({ onLogout, children, alertes, onRecherche }) {
         <div style={{textAlign:'center', marginBottom:'1rem'}}>
           <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'140px', borderRadius:'8px', background:'white', padding:'8px', borderRadius:'12px'}} />
         </div>
+        <button onClick={onRecherche} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'white',borderRadius:'8px',padding:'0.5rem 0.75rem',cursor:'pointer',width:'100%',textAlign:'left',fontSize:'0.85rem',marginBottom:'0.5rem'}}>
+          🔍 Rechercher...
+        </button>
         <Link style={styles.navLink} to="/dashboard">📊 Dashboard</Link>
         <Link style={styles.navLink} to="/demandes">
           📋 Suivi Demandes
