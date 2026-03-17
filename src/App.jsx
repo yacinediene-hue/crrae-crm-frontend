@@ -1240,8 +1240,107 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
   )
 }
 
+
+function RechercheGlobale({ onClose }) {
+  const [query, setQuery] = useState('')
+  const [resultats, setResultats] = useState({ demandes: [], contacts: [] })
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (query.length < 2) { setResultats({ demandes: [], contacts: [] }); return }
+    setLoading(true)
+    const q = query.toLowerCase()
+    Promise.all([
+      API.get('/demandes'),
+      API.get('/contacts'),
+    ]).then(([d, c]) => {
+      setResultats({
+        demandes: d.data.filter(x =>
+          (x.nomPrenom||'').toLowerCase().includes(q) ||
+          (x.numDemande||'').toLowerCase().includes(q) ||
+          (x.telephone||'').includes(q) ||
+          (x.matricule||'').toLowerCase().includes(q) ||
+          (x.commentaire||'').toLowerCase().includes(q)
+        ).slice(0, 5),
+        contacts: c.data.filter(x =>
+          (x.name||'').toLowerCase().includes(q) ||
+          (x.email||'').toLowerCase().includes(q) ||
+          (x.phone||'').includes(q)
+        ).slice(0, 3),
+      })
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [query])
+
+  const total = resultats.demandes.length + resultats.contacts.length
+
+  return (
+    <>
+      <div onClick={onClose} style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.3)',zIndex:9997}} />
+      <div style={{position:'fixed',top:'80px',left:'50%',transform:'translateX(-50%)',width:'600px',background:'white',borderRadius:'12px',boxShadow:'0 20px 60px rgba(0,0,0,0.2)',zIndex:9998',overflow:'hidden'}}>
+        <div style={{padding:'1rem',borderBottom:'1px solid #e2e8f0',display:'flex',alignItems:'center',gap:'0.75rem'}}>
+          <span style={{fontSize:'1.2rem'}}>🔍</span>
+          <input
+            autoFocus
+            style={{flex:1,border:'none',outline:'none',fontSize:'1rem',color:'#2d3748'}}
+            placeholder="Rechercher une demande, un contact, un matricule..."
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+          <button onClick={onClose} style={{background:'transparent',border:'none',cursor:'pointer',color:'#718096',fontSize:'1.2rem'}}>✕</button>
+        </div>
+        <div style={{maxHeight:'400px',overflowY:'auto',padding:'0.5rem'}}>
+          {loading && <div style={{padding:'1rem',textAlign:'center',color:'#718096'}}>Recherche...</div>}
+          {!loading && query.length >= 2 && total === 0 && (
+            <div style={{padding:'1rem',textAlign:'center',color:'#718096'}}>Aucun résultat pour "{query}"</div>
+          )}
+          {resultats.demandes.length > 0 && (
+            <div>
+              <div style={{padding:'0.5rem 0.75rem',fontSize:'0.75rem',fontWeight:'600',color:'#718096',textTransform:'uppercase'}}>📋 Demandes</div>
+              {resultats.demandes.map(d => (
+                <div key={d.id} style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#f7fafc'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <div>
+                    <span style={{fontWeight:'600',color:'#2b6cb0',fontSize:'0.85rem'}}>{d.numDemande}</span>
+                    <span style={{color:'#4a5568',fontSize:'0.85rem',margin:'0 0.5rem'}}>—</span>
+                    <span style={{color:'#2d3748',fontSize:'0.85rem'}}>{d.nomPrenom}</span>
+                  </div>
+                  <div style={{display:'flex',gap:'0.5rem'}}>
+                    <span style={{background:'#ebf8ff',color:'#2b6cb0',padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.75rem'}}>{d.objetDemande}</span>
+                    <span style={{background: d.statut==='Traité'?'#f0fff4':'#fffbeb',color: d.statut==='Traité'?'#276749':'#b7791f',padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.75rem'}}>{d.statut}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {resultats.contacts.length > 0 && (
+            <div>
+              <div style={{padding:'0.5rem 0.75rem',fontSize:'0.75rem',fontWeight:'600',color:'#718096',textTransform:'uppercase'}}>👥 Contacts</div>
+              {resultats.contacts.map(c => (
+                <div key={c.id} style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer'}}
+                  onMouseEnter={e=>e.currentTarget.style.background='#f7fafc'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span style={{fontWeight:'600',color:'#2d3748',fontSize:'0.85rem'}}>{c.name}</span>
+                  <span style={{color:'#718096',fontSize:'0.85rem',margin:'0 0.5rem'}}>—</span>
+                  <span style={{color:'#718096',fontSize:'0.85rem'}}>{c.email}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {!loading && query.length < 2 && (
+          <div style={{padding:'1rem',textAlign:'center',color:'#a0aec0',fontSize:'0.85rem'}}>
+            Tapez au moins 2 caractères pour rechercher
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 // Layout
-function Layout({ onLogout, children, alertes }) {
+function Layout({ onLogout, children, alertes, onRecherche }) {
   return (
     <div style={styles.layout}>
       <nav style={styles.nav}>
@@ -1277,6 +1376,7 @@ export default function App() {
   const [alertes, setAlertes] = useState([])
   const [demandeActive, setDemandeActive] = useState(null)
   const [demandeAssignation, setDemandeAssignation] = useState(null)
+  const [showRecherche, setShowRecherche] = useState(false)
 
   useEffect(() => {
     if (auth) {
@@ -1299,7 +1399,8 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout onLogout={logout} alertes={alertes}>
+      <Layout onLogout={logout} alertes={alertes} onRecherche={() => setShowRecherche(true)}>
+        {showRecherche && <RechercheGlobale onClose={() => setShowRecherche(false)} />}
         {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
         {demandeAssignation && <ModalAssignation demande={demandeAssignation} onClose={() => setDemandeAssignation(null)} onAssigned={(d) => { setDemandeAssignation(null) }} />}
         <Routes>
