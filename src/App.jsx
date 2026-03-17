@@ -42,7 +42,10 @@ function Login({ onLogin }) {
   return (
     <div style={styles.loginContainer}>
       <div style={styles.loginBox}>
-        <h1 style={styles.loginTitle}>🏦 CRRAE-UMOA CRM</h1>
+        <div style={{textAlign:'center', marginBottom:'1rem'}}>
+          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'120px'}} />
+        </div>
+        <h1 style={styles.loginTitle}>CRRAE-UMOA CRM</h1>
         <p style={styles.loginSubtitle}>Connectez-vous à votre espace</p>
         {error && <p style={styles.error}>{error}</p>}
         <form onSubmit={handleSubmit}>
@@ -869,7 +872,9 @@ function Layout({ onLogout, children, alertes }) {
   return (
     <div style={styles.layout}>
       <nav style={styles.nav}>
-        <h2 style={styles.navTitle}>🏦 CRRAE CRM</h2>
+        <div style={{textAlign:'center', marginBottom:'1rem'}}>
+          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'80px', borderRadius:'8px'}} />
+        </div>
         <Link style={styles.navLink} to="/dashboard">📊 Dashboard</Link>
         <Link style={styles.navLink} to="/demandes">
           📋 Suivi Demandes
