@@ -582,6 +582,23 @@ function FicheClient({ telephone, matricule, onClose }) {
 
 
 function PanneauCommentaires({ demande, onClose }) {
+  const [onglet, setOnglet] = useState('notes')
+  const [timeline, setTimeline] = useState([])
+
+  useEffect(() => {
+    if (demande) {
+      API.get(`/timeline/demande/${demande.id}`)
+        .then(r => setTimeline(r.data))
+        .catch(() => {})
+    }
+  }, [demande])
+
+  const actionIcons = {
+    'Création': '✅',
+    'Modification': '✏️',
+    'Statut': '🔄',
+    'Note': '💬',
+  }
   const [commentaires, setCommentaires] = useState([])
   const [texte, setTexte] = useState('')
   const auteur = localStorage.getItem('userName') || 'Agent'
@@ -622,10 +639,20 @@ function PanneauCommentaires({ demande, onClose }) {
       <div style={{background:'#1e4a7a', padding:'1.25rem', color:'white', flexShrink:0}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div>
-            <h3 style={{margin:0, fontSize:'1rem'}}>💬 Notes internes</h3>
-            <div style={{opacity:0.8, fontSize:'0.8rem', marginTop:'0.25rem'}}>{demande.numDemande} — {demande.nomPrenom}</div>
+            <h3 style={{margin:0, fontSize:'1rem'}}>📋 {demande.numDemande}</h3>
+            <div style={{opacity:0.8, fontSize:'0.8rem', marginTop:'0.25rem'}}>{demande.nomPrenom}</div>
           </div>
           <button onClick={onClose} style={{background:'transparent', border:'none', color:'white', fontSize:'1.5rem', cursor:'pointer'}}>✕</button>
+        </div>
+        <div style={{display:'flex', gap:'0.5rem', marginTop:'1rem'}}>
+          {['notes','timeline'].map(o => (
+            <button key={o} onClick={() => setOnglet(o)}
+              style={{padding:'0.4rem 1rem', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:'0.85rem',
+                background: onglet === o ? 'white' : 'rgba(255,255,255,0.2)',
+                color: onglet === o ? '#1e4a7a' : 'white', fontWeight: onglet === o ? '600' : '400'}}>
+              {o === 'notes' ? '💬 Notes' : '📅 Timeline'}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -649,7 +676,32 @@ function PanneauCommentaires({ demande, onClose }) {
         ))}
       </div>
 
-      <form onSubmit={handleAdd} style={{padding:'1rem', borderTop:'1px solid #e2e8f0', flexShrink:0}}>
+      {onglet === 'timeline' && (
+        <div style={{flex:1, overflowY:'auto', padding:'1rem'}}>
+          {timeline.length === 0 && (
+            <div style={{textAlign:'center', color:'#718096', padding:'2rem', fontSize:'0.9rem'}}>Aucun événement</div>
+          )}
+          <div style={{position:'relative'}}>
+            <div style={{position:'absolute', left:'16px', top:0, bottom:0, width:'2px', background:'#e2e8f0'}}/>
+            {timeline.map((t, i) => (
+              <div key={t.id} style={{display:'flex', gap:'0.75rem', marginBottom:'1rem', position:'relative'}}>
+                <div style={{width:'32px', height:'32px', borderRadius:'50%', background:'#ebf8ff', border:'2px solid #2b6cb0', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, zIndex:1, fontSize:'0.9rem'}}>
+                  {actionIcons[t.action] || '📌'}
+                </div>
+                <div style={{background:'white', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'0.6rem 0.8rem', flex:1}}>
+                  <div style={{display:'flex', justifyContent:'space-between'}}>
+                    <span style={{fontWeight:'600', color:'#2d3748', fontSize:'0.85rem'}}>{t.action}</span>
+                    <span style={{color:'#718096', fontSize:'0.75rem'}}>{new Date(t.createdAt).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+                  </div>
+                  <div style={{color:'#4a5568', fontSize:'0.82rem', marginTop:'0.2rem'}}>{t.detail}</div>
+                  <div style={{color:'#718096', fontSize:'0.75rem', marginTop:'0.2rem'}}>par {t.auteur}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {onglet === 'notes' && <form onSubmit={handleAdd} style={{padding:'1rem', borderTop:'1px solid #e2e8f0', flexShrink:0}}>
         <textarea
           style={{width:'100%', padding:'0.75rem', border:'1px solid #ddd', borderRadius:'8px', fontSize:'0.9rem', resize:'none', height:'80px', boxSizing:'border-box'}}
           placeholder="Ajouter une note interne..."
@@ -657,7 +709,7 @@ function PanneauCommentaires({ demande, onClose }) {
           onChange={e => setTexte(e.target.value)}
         />
         <button style={{...styles.button, marginTop:'0.5rem'}} type="submit">💾 Ajouter la note</button>
-      </form>
+      </form>}
     </div>
   )
 }
@@ -688,6 +740,12 @@ function Demandes() {
       if (editId) {
         const res = await API.put(`/demandes/${editId}`, form)
         setDemandes(demandes.map(d => d.id === editId ? res.data : d))
+        await API.post('/timeline', {
+          demandeId: editId,
+          auteur: localStorage.getItem('userName') || 'Agent',
+          action: 'Modification',
+          detail: `Statut: ${form.statut} — ${form.actionMenee || 'Mise à jour'}`,
+        }).catch(() => {})
         setEditId(null)
       } else {
         const res = await API.post('/demandes', form)
