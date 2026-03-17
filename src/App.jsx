@@ -873,7 +873,7 @@ function Layout({ onLogout, children, alertes }) {
     <div style={styles.layout}>
       <nav style={styles.nav}>
         <div style={{textAlign:'center', marginBottom:'1rem'}}>
-          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'80px', borderRadius:'8px'}} />
+          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'140px', borderRadius:'8px', background:'white', padding:'8px', borderRadius:'12px'}} />
         </div>
         <Link style={styles.navLink} to="/dashboard">📊 Dashboard</Link>
         <Link style={styles.navLink} to="/demandes">
@@ -950,7 +950,7 @@ const styles = {
   button: { width: '100%', padding: '0.75rem', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer' },
   error: { color: 'red', textAlign: 'center', marginBottom: '1rem' },
   layout: { display: 'flex', minHeight: '100vh' },
-  nav: { width: '220px', background: '#1a365d', padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  nav: { width: '240px', background: '#1e4a7a', padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
   navTitle: { color: 'white', marginBottom: '1rem', fontSize: '1rem' },
   navLink: { color: '#bee3f8', textDecoration: 'none', padding: '0.5rem', borderRadius: '6px', display: 'block' },
   logoutBtn: { marginTop: 'auto', background: 'transparent', color: '#fc8181', border: '1px solid #fc8181', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer' },
