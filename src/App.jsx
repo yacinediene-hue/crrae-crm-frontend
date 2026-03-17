@@ -103,9 +103,9 @@ function Dashboard({ alertes = [] }) {
         <div style={{background:'#fff5f5', border:'1px solid #feb2b2', borderRadius:'12px', padding:'1.25rem', marginBottom:'1.5rem'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem'}}>
             <strong style={{color:'#c53030', fontSize:'1rem'}}>⚠️ {alertes.length} dossier{alertes.length > 1 ? 's' : ''} hors délai</strong>
-            <a href="/demandes" style={{background:'#c53030', color:'white', padding:'0.4rem 0.9rem', borderRadius:'6px', fontSize:'0.82rem', textDecoration:'none', fontWeight:'600'}}>
+            <Link to="/demandes" style={{background:'#c53030', color:'white', padding:'0.4rem 0.9rem', borderRadius:'6px', fontSize:'0.82rem', textDecoration:'none', fontWeight:'600'}}>
               Voir tous →
-            </a>
+            </Link>
           </div>
           <div style={{display:'grid', gap:'0.5rem'}}>
             {alertes.slice(0,5).map(d => (
