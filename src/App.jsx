@@ -596,6 +596,7 @@ function Demandes() {
   }
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState(null)
+  const [demandeActive, setDemandeActive] = useState(null)
   const [showFiche, setShowFiche] = useState(false)
   const [ficheSearch, setFicheSearch] = useState({ telephone: '', matricule: '' })
   useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
@@ -798,6 +799,7 @@ function Demandes() {
                 <td style={styles.td}>
                   <button onClick={()=>handleEdit(d)} style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.4rem',fontSize:'0.8rem'}}>✏️</button>
                   <button onClick={()=>handleDelete(d.id)} style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem'}}>🗑️</button>
+                  <button onClick={()=>setDemandeActive(d)} style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>💬</button>
                 </td>
               </tr>
             ))}
@@ -1020,6 +1022,88 @@ function Rapports() {
 }
 
 
+
+
+function PanneauCommentaires({ demande, onClose }) {
+  const [commentaires, setCommentaires] = useState([])
+  const [texte, setTexte] = useState('')
+  const auteur = localStorage.getItem('userName') || 'Agent'
+
+  useEffect(() => {
+    if (demande) {
+      API.get(`/commentaires/demande/${demande.id}`)
+        .then(r => setCommentaires(r.data))
+        .catch(() => {})
+    }
+  }, [demande])
+
+  const handleAdd = async (e) => {
+    e.preventDefault()
+    if (!texte.trim()) return
+    try {
+      const res = await API.post('/commentaires', {
+        demandeId: demande.id,
+        auteur,
+        contenu: texte,
+      })
+      setCommentaires([...commentaires, res.data])
+      setTexte('')
+    } catch {}
+  }
+
+  const handleDelete = async (id) => {
+    try {
+      await API.delete(`/commentaires/${id}`)
+      setCommentaires(commentaires.filter(c => c.id !== id))
+    } catch {}
+  }
+
+  if (!demande) return null
+
+  return (
+    <div style={{position:'fixed', top:0, right:0, width:'400px', height:'100vh', background:'white', boxShadow:'-4px 0 20px rgba(0,0,0,0.15)', zIndex:1000, display:'flex', flexDirection:'column'}}>
+      <div style={{background:'#1e4a7a', padding:'1.25rem', color:'white', flexShrink:0}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div>
+            <h3 style={{margin:0, fontSize:'1rem'}}>💬 Notes internes</h3>
+            <div style={{opacity:0.8, fontSize:'0.8rem', marginTop:'0.25rem'}}>{demande.numDemande} — {demande.nomPrenom}</div>
+          </div>
+          <button onClick={onClose} style={{background:'transparent', border:'none', color:'white', fontSize:'1.5rem', cursor:'pointer'}}>✕</button>
+        </div>
+      </div>
+
+      <div style={{flex:1, overflowY:'auto', padding:'1rem', display:'flex', flexDirection:'column', gap:'0.75rem'}}>
+        {commentaires.length === 0 && (
+          <div style={{textAlign:'center', color:'#718096', padding:'2rem', fontSize:'0.9rem'}}>
+            Aucune note — ajoutez la première !
+          </div>
+        )}
+        {commentaires.map(c => (
+          <div key={c.id} style={{background:'#fffbeb', border:'1px solid #fbd38d', borderRadius:'8px', padding:'0.75rem'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.4rem'}}>
+              <span style={{fontWeight:'600', color:'#b7791f', fontSize:'0.85rem'}}>👤 {c.auteur}</span>
+              <div style={{display:'flex', alignItems:'center', gap:'0.5rem'}}>
+                <span style={{color:'#718096', fontSize:'0.75rem'}}>{new Date(c.createdAt).toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}</span>
+                <button onClick={() => handleDelete(c.id)} style={{background:'transparent', border:'none', color:'#c53030', cursor:'pointer', fontSize:'0.8rem', padding:'0'}}>🗑️</button>
+              </div>
+            </div>
+            <div style={{color:'#2d3748', fontSize:'0.9rem', lineHeight:'1.5'}}>{c.contenu}</div>
+          </div>
+        ))}
+      </div>
+
+      <form onSubmit={handleAdd} style={{padding:'1rem', borderTop:'1px solid #e2e8f0', flexShrink:0}}>
+        <textarea
+          style={{width:'100%', padding:'0.75rem', border:'1px solid #ddd', borderRadius:'8px', fontSize:'0.9rem', resize:'none', height:'80px', boxSizing:'border-box'}}
+          placeholder="Ajouter une note interne..."
+          value={texte}
+          onChange={e => setTexte(e.target.value)}
+        />
+        <button style={{...styles.button, marginTop:'0.5rem'}} type="submit">💾 Ajouter la note</button>
+      </form>
+    </div>
+  )
+}
 
 // Layout
 function Layout({ onLogout, children, alertes }) {
