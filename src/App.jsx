@@ -717,7 +717,7 @@ function PanneauCommentaires({ demande, onClose }) {
   )
 }
 
-function Demandes({ onOpenCommentaires }) {
+function Demandes({ onOpenCommentaires, onAssigner }) {
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
@@ -942,6 +942,7 @@ function Demandes({ onOpenCommentaires }) {
                   <button onClick={()=>handleEdit(d)} style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.4rem',fontSize:'0.8rem'}}>✏️</button>
                   <button onClick={()=>handleDelete(d.id)} style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem'}}>🗑️</button>
                   <button onClick={()=> onOpenCommentaires(d)} style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>💬</button>
+                  <button onClick={()=> onAssigner(d)} style={{background:'#f0fff4',color:'#276749',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>👤</button>
                 </td>
               </tr>
             ))}
@@ -1167,6 +1168,78 @@ function Rapports() {
 
 
 
+
+function ModalAssignation({ demande, onClose, onAssigned }) {
+  const [agentN1, setAgentN1] = useState(demande.agentN1 || '')
+  const [agentN2, setAgentN2] = useState(demande.agentN2 || '')
+  const [service, setService] = useState(demande.service || '')
+  const auteur = localStorage.getItem('userName') || 'Agent'
+
+  const agents = [
+    'Koffi STEPHANE', 'Fatou KAMAGATE', 'Séverine KPODA',
+    'Caroline OKOBE', 'Fatty KOUAME', 'Michèle KACOU', 'Ismael COULIBALY'
+  ]
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await API.put(`/demandes/${demande.id}`, {
+        ...demande,
+        agentN1, agentN2, service,
+        dateReception: demande.dateReception,
+        dateTraitement: demande.dateTraitement,
+      })
+      await API.post('/timeline', {
+        demandeId: demande.id,
+        auteur,
+        action: 'Assignation',
+        detail: `Réassigné à ${agentN1} (N1) / ${agentN2 || '—'} (N2) — Service: ${service || '—'}`,
+      }).catch(() => {})
+      onAssigned(res.data)
+      onClose()
+    } catch { alert("Erreur lors de l'assignation") }
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{position:'fixed',top:0,left:0,width:'100vw',height:'100vh',background:'rgba(0,0,0,0.5)',zIndex:9998}} />
+      <div style={{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',width:'420px',background:'white',borderRadius:'12px',boxShadow:'0 20px 60px rgba(0,0,0,0.3)',zIndex:9999,overflow:'hidden'}}>
+        <div style={{background:'#1e4a7a',padding:'1.25rem',color:'white',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <div>
+            <h3 style={{margin:0,fontSize:'1rem'}}>👤 Réassigner la demande</h3>
+            <div style={{opacity:0.8,fontSize:'0.8rem',marginTop:'0.25rem'}}>{demande.numDemande} — {demande.nomPrenom}</div>
+          </div>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:'white',fontSize:'1.5rem',cursor:'pointer'}}>✕</button>
+        </div>
+        <form onSubmit={handleSubmit} style={{padding:'1.5rem'}}>
+          <div style={{marginBottom:'1rem'}}>
+            <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Agent N1 (Front Office)</label>
+            <select style={{...styles.input, marginBottom:0}} value={agentN1} onChange={e=>setAgentN1(e.target.value)}>
+              <option value="">-- Sélectionner --</option>
+              {agents.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:'1rem'}}>
+            <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Service</label>
+            <select style={{...styles.input, marginBottom:0}} value={service} onChange={e=>setService(e.target.value)}>
+              <option value="">-- Service --</option>
+              {["DPM","DPR","DSI","DCR","PATRIMOINE","REGISSEUR"].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div style={{marginBottom:'1.5rem'}}>
+            <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Agent N2 (Middle Office)</label>
+            <select style={{...styles.input, marginBottom:0}} value={agentN2} onChange={e=>setAgentN2(e.target.value)}>
+              <option value="">-- Sélectionner --</option>
+              {agents.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <button style={styles.button} type="submit">✅ Confirmer l'assignation</button>
+        </form>
+      </div>
+    </>
+  )
+}
+
 // Layout
 function Layout({ onLogout, children, alertes }) {
   return (
@@ -1203,6 +1276,7 @@ export default function App() {
 
   const [alertes, setAlertes] = useState([])
   const [demandeActive, setDemandeActive] = useState(null)
+  const [demandeAssignation, setDemandeAssignation] = useState(null)
 
   useEffect(() => {
     if (auth) {
@@ -1227,9 +1301,10 @@ export default function App() {
     <BrowserRouter>
       <Layout onLogout={logout} alertes={alertes}>
         {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
+        {demandeAssignation && <ModalAssignation demande={demandeAssignation} onClose={() => setDemandeAssignation(null)} onAssigned={(d) => { setDemandeAssignation(null) }} />}
         <Routes>
           <Route path="/dashboard" element={<Dashboard alertes={alertes} />} />
-          <Route path="/demandes" element={<Demandes onOpenCommentaires={setDemandeActive} />} />
+          <Route path="/demandes" element={<Demandes onOpenCommentaires={setDemandeActive} onAssigner={setDemandeAssignation} />} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/deals" element={<Deals />} />
           <Route path="/tickets" element={<Tickets />} />
