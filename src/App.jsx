@@ -100,14 +100,35 @@ function Dashboard({ alertes = [] }) {
     <div>
       <h2 style={styles.pageTitle}>📊 Dashboard</h2>
       {alertes && alertes.length > 0 && (
-        <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:'8px',padding:'1rem',marginBottom:'1.5rem'}}>
-          <strong style={{color:'#c53030'}}>⚠️ {alertes.length} demande{alertes.length > 1 ? 's' : ''} en retard !</strong>
-          <ul style={{margin:'0.5rem 0 0',paddingLeft:'1.5rem',color:'#c53030',fontSize:'0.9rem'}}>
+        <div style={{background:'#fff5f5', border:'1px solid #feb2b2', borderRadius:'12px', padding:'1.25rem', marginBottom:'1.5rem'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem'}}>
+            <strong style={{color:'#c53030', fontSize:'1rem'}}>⚠️ {alertes.length} dossier{alertes.length > 1 ? 's' : ''} hors délai</strong>
+            <a href="/demandes" style={{background:'#c53030', color:'white', padding:'0.4rem 0.9rem', borderRadius:'6px', fontSize:'0.82rem', textDecoration:'none', fontWeight:'600'}}>
+              Voir tous →
+            </a>
+          </div>
+          <div style={{display:'grid', gap:'0.5rem'}}>
             {alertes.slice(0,5).map(d => (
-              <li key={d.id}>{d.numDemande} — {d.nomPrenom} ({d.service || '?'})</li>
+              <div key={d.id} style={{background:'white', borderRadius:'8px', padding:'0.65rem 1rem', display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid #fed7d7'}}>
+                <div>
+                  <span style={{fontWeight:'700', color:'#c53030', fontSize:'0.85rem'}}>{d.numDemande}</span>
+                  <span style={{color:'#4a5568', fontSize:'0.85rem', margin:'0 0.5rem'}}>—</span>
+                  <span style={{color:'#2d3748', fontSize:'0.85rem'}}>{d.nomPrenom}</span>
+                </div>
+                <div style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
+                  <span style={{background:'#faf5ff', color:'#6b46c1', padding:'0.15rem 0.5rem', borderRadius:'20px', fontSize:'0.75rem'}}>{d.service || '?'}</span>
+                  <span style={{background:'#fff5f5', color:'#c53030', padding:'0.15rem 0.5rem', borderRadius:'20px', fontSize:'0.75rem'}}>
+                    {d.dateReception ? Math.ceil((new Date() - new Date(d.dateReception)) / (1000*60*60*24)) : '?'}j
+                  </span>
+                </div>
+              </div>
             ))}
-            {alertes.length > 5 && <li>...et {alertes.length - 5} autres</li>}
-          </ul>
+            {alertes.length > 5 && (
+              <div style={{textAlign:'center', color:'#c53030', fontSize:'0.85rem', padding:'0.5rem'}}>
+                ... et {alertes.length - 5} autres dossiers en retard
+              </div>
+            )}
+          </div>
         </div>
       )}
       <div style={styles.statsGrid}>
@@ -879,7 +900,7 @@ function Layout({ onLogout, children, alertes }) {
         <Link style={styles.navLink} to="/demandes">
           📋 Suivi Demandes
           {alertes && alertes.length > 0 && (
-            <span style={{background:'#c53030',color:'white',borderRadius:'50%',padding:'0.1rem 0.4rem',fontSize:'0.7rem',marginLeft:'0.5rem'}}>
+            <span style={{background:'#c53030', color:'white', borderRadius:'12px', padding:'0.1rem 0.45rem', fontSize:'0.7rem', marginLeft:'0.5rem', fontWeight:'700', display:'inline-block'}}>
               {alertes.length}
             </span>
           )}
