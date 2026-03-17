@@ -625,6 +625,14 @@ function PanneauCommentaires({ demande, onClose }) {
     } catch {}
   }
 
+  const envoyerEnquete = (d) => {
+    const lien = `https://crrae-crm-frontend.vercel.app/enquete/${d.numDemande}`
+    const sujet = `Évaluation de votre demande ${d.numDemande} — CRRAE-UMOA`
+    const corps = `Bonjour ${d.nomPrenom},%0D%0A%0D%0ANous vous informons que votre demande n°${d.numDemande} a été traitée par nos services.%0D%0A%0D%0ADans le cadre de notre démarche d'amélioration continue, nous vous invitons à évaluer la qualité de notre traitement:%0D%0A%0D%0A👉 ${lien}%0D%0A%0D%0AVotre retour est précieux et contribue à l'amélioration de nos services.%0D%0A%0D%0ACordialement,%0D%0AService Client CRRAE-UMOA`
+    const email = d.email || ''
+    window.open(`mailto:${email}?subject=${sujet}&body=${corps}`)
+  }
+
   const handleDelete = async (id) => {
     try {
       await API.delete(`/commentaires/${id}`)
@@ -776,6 +784,14 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
     })
     setShowForm(true)
     window.scrollTo(0, 0)
+  }
+
+  const envoyerEnquete = (d) => {
+    const lien = `https://crrae-crm-frontend.vercel.app/enquete/${d.numDemande}`
+    const sujet = `Évaluation de votre demande ${d.numDemande} — CRRAE-UMOA`
+    const corps = `Bonjour ${d.nomPrenom},%0D%0A%0D%0ANous vous informons que votre demande n°${d.numDemande} a été traitée par nos services.%0D%0A%0D%0ADans le cadre de notre démarche d'amélioration continue, nous vous invitons à évaluer la qualité de notre traitement:%0D%0A%0D%0A👉 ${lien}%0D%0A%0D%0AVotre retour est précieux et contribue à l'amélioration de nos services.%0D%0A%0D%0ACordialement,%0D%0AService Client CRRAE-UMOA`
+    const email = d.email || ''
+    window.open(`mailto:${email}?subject=${sujet}&body=${corps}`)
   }
 
   const handleDelete = async (id) => {
@@ -943,6 +959,9 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
                   <button onClick={()=>handleDelete(d.id)} style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem'}}>🗑️</button>
                   <button onClick={()=> onOpenCommentaires(d)} style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>💬</button>
                   <button onClick={()=> onAssigner(d)} style={{background:'#f0fff4',color:'#276749',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>👤</button>
+                  {d.statut === 'Traité' && (
+                    <button onClick={()=> envoyerEnquete(d)} style={{background:'#faf5ff',color:'#6b46c1',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}} title="Envoyer enquête satisfaction">⭐</button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -1339,6 +1358,108 @@ function RechercheGlobale({ onClose }) {
   )
 }
 
+
+function PageEnquete() {
+  const numDemande = window.location.pathname.split('/enquete/')[1]
+  const [demande, setDemande] = useState(null)
+  const [note, setNote] = useState(0)
+  const [avis, setAvis] = useState('')
+  const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (numDemande) {
+      API.get(`/enquetes/${numDemande}`)
+        .then(r => { setDemande(r.data); setLoading(false) })
+        .catch(() => { setError('Demande introuvable'); setLoading(false) })
+    }
+  }, [numDemande])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!note) return alert('Veuillez sélectionner une note')
+    try {
+      await API.post(`/enquetes/${numDemande}`, { note, avis })
+      setSubmitted(true)
+    } catch { alert('Erreur lors de la soumission') }
+  }
+
+  if (loading) return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f0f4f8'}}>
+      <div style={{color:'#718096'}}>Chargement...</div>
+    </div>
+  )
+
+  if (error) return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f0f4f8'}}>
+      <div style={{background:'white',padding:'2rem',borderRadius:'12px',textAlign:'center',color:'#c53030'}}>{error}</div>
+    </div>
+  )
+
+  if (submitted) return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#f0f4f8'}}>
+      <div style={{background:'white',padding:'2rem',borderRadius:'12px',textAlign:'center',maxWidth:'400px'}}>
+        <div style={{fontSize:'3rem',marginBottom:'1rem'}}>🎉</div>
+        <h2 style={{color:'#276749',marginBottom:'0.5rem'}}>Merci pour votre retour !</h2>
+        <p style={{color:'#718096'}}>Votre avis nous aide à améliorer notre service client.</p>
+        <p style={{color:'#4a5568',fontWeight:'600'}}>CRRAE-UMOA — Service Client</p>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{minHeight:'100vh',background:'#f0f4f8',display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
+      <div style={{background:'white',borderRadius:'16px',boxShadow:'0 4px 20px rgba(0,0,0,0.1)',width:'100%',maxWidth:'480px',overflow:'hidden'}}>
+        <div style={{background:'#1e4a7a',padding:'2rem',textAlign:'center'}}>
+          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'100px',marginBottom:'1rem'}} />
+          <h2 style={{color:'white',margin:0,fontSize:'1.2rem'}}>Enquête de satisfaction</h2>
+          <p style={{color:'rgba(255,255,255,0.8)',margin:'0.5rem 0 0',fontSize:'0.9rem'}}>Demande {numDemande}</p>
+        </div>
+        <div style={{padding:'2rem'}}>
+          {demande && (
+            <div style={{background:'#f7fafc',borderRadius:'8px',padding:'1rem',marginBottom:'1.5rem'}}>
+              <p style={{margin:0,color:'#4a5568',fontSize:'0.9rem'}}>Bonjour <strong>{demande.nomPrenom}</strong>,</p>
+              <p style={{margin:'0.5rem 0 0',color:'#718096',fontSize:'0.85rem'}}>
+                Votre demande concernant <strong>{demande.objetDemande}</strong> a été traitée. Comment évaluez-vous notre service ?
+              </p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            <p style={{fontWeight:'600',color:'#2d3748',marginBottom:'1rem'}}>Votre note :</p>
+            <div style={{display:'flex',justifyContent:'center',gap:'0.75rem',marginBottom:'1.5rem'}}>
+              {[1,2,3,4,5].map(n => (
+                <button key={n} type="button" onClick={() => setNote(n)}
+                  style={{width:'52px',height:'52px',borderRadius:'50%',border:`2px solid ${note>=n?'#f6ad55':'#e2e8f0'}`,
+                    background: note>=n?'#fbd38d':'white',fontSize:'1.5rem',cursor:'pointer',
+                    transition:'all 0.2s'}}>
+                  ⭐
+                </button>
+              ))}
+            </div>
+            {note > 0 && (
+              <p style={{textAlign:'center',color:'#b7791f',marginBottom:'1rem',fontWeight:'600'}}>
+                {['','Très insatisfait','Insatisfait','Satisfait','Très satisfait','Excellent !'][note]}
+              </p>
+            )}
+            <textarea
+              style={{width:'100%',padding:'0.75rem',border:'1px solid #ddd',borderRadius:'8px',fontSize:'0.95rem',resize:'none',height:'100px',boxSizing:'border-box',marginBottom:'1rem'}}
+              placeholder="Commentaire (optionnel) — Avez-vous des suggestions d'amélioration ?"
+              value={avis}
+              onChange={e => setAvis(e.target.value)}
+            />
+            <button type="submit"
+              style={{width:'100%',padding:'0.85rem',background:'#1e4a7a',color:'white',border:'none',borderRadius:'8px',fontSize:'1rem',cursor:'pointer',fontWeight:'600'}}>
+              ✅ Envoyer mon avis
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Layout
 function Layout({ onLogout, children, alertes, onRecherche }) {
   return (
@@ -1398,6 +1519,7 @@ export default function App() {
 
   const logout = () => { localStorage.removeItem('token'); setAuth(false) }
 
+  if (window.location.pathname.startsWith('/enquete/')) return <PageEnquete />
   if (!auth) return <Login onLogin={() => setAuth(true)} />
 
   return (
