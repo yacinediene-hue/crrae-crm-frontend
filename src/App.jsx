@@ -13,7 +13,7 @@ const INDICATIFS = {
 
 const AGENTS = ["Koffi Stephane", "Kacou Michèle", "Kouame Faty"]
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import API from './api'
 import './App.css'
 import * as XLSX from 'xlsx'
@@ -21,8 +21,8 @@ import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, Resp
 
 // Login
 function Login({ onLogin }) {
-  const [email, setEmail] = useState('admin@crrae-umoa.org')
-  const [password, setPassword] = useState('crrae2026')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
@@ -61,7 +61,37 @@ function Login({ onLogin }) {
 // Dashboard
 function Dashboard({ alertes = [] }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0, tickets: 0, demandes: 0 })
+  const [filesService, setFilesService] = useState({})
   const [demandes, setDemandes] = useState([])
+  const [periode, setPeriode] = useState('30j')
+
+  const demandesFiltrees = demandes.filter((d) => {
+    if (!d.createdAt) return true
+
+    const date = new Date(d.createdAt)
+    const now = new Date()
+
+    if (periode === 'today') {
+      return date.toDateString() === now.toDateString()
+    }
+
+    if (periode === '7j') {
+      const sevenDays = new Date()
+      sevenDays.setDate(now.getDate() - 7)
+      return date >= sevenDays
+    }
+
+    if (periode === '30j') {
+      const thirtyDays = new Date()
+      thirtyDays.setDate(now.getDate() - 30)
+      return date >= thirtyDays
+    }
+
+    return true
+  })
+
+  const [slaStats, setSlaStats] = useState({})
+  const [agentStats, setAgentStats] = useState({})
 
   useEffect(() => {
     Promise.all([
@@ -70,35 +100,269 @@ function Dashboard({ alertes = [] }) {
       API.get('/tickets'),
       API.get('/demandes'),
     ]).then(([c, d, t, dem]) => {
-      setStats({ contacts: c.data.length, deals: d.data.length, tickets: t.data.length, demandes: dem.data.length })
-      setDemandes(dem.data)
+      const demandes = dem.data
+
+      const demandesFiltrees = demandes.filter(d => {
+        if (!d.createdAt) return true
+
+        const date = new Date(d.createdAt)
+        const now = new Date()
+
+        if (periode === 'today') {
+          return date.toDateString() === now.toDateString()
+        }
+
+        if (periode === '7j') {
+          const sevenDays = new Date()
+          sevenDays.setDate(now.getDate() - 7)
+          return date >= sevenDays
+        }
+
+        return true
+      })
+
+      const statsService = {}
+
+      demandesFiltrees.forEach((item) => {
+        const service = item.service || 'Autre'
+
+        if (!statsService[service]) {
+          statsService[service] = {
+            total: 0,
+            slaOk: 0,
+          }
+        }
+
+        statsService[service].total++
+
+        if (item.respectDelai === 'OUI') {
+          statsService[service].slaOk++
+        }
+      })
+
+      console.log('SLA par service', JSON.stringify(statsService, null, 2))
+      setSlaStats(statsService)
+
+      const statsAgent = {}
+
+      demandesFiltrees.forEach((item) => {
+        const agent = item.agentN1 || "Non assigné"
+
+        if (!statsAgent[agent]) {
+          statsAgent[agent] = {
+            total: 0,
+            slaOk: 0
+          }
+        }
+
+        statsAgent[agent].total++
+
+        if (item.respectDelai === "OUI") {
+          statsAgent[agent].slaOk++
+        }
+      })
+
+      setAgentStats(statsAgent)
+
+      setStats({
+        contacts: c.data.length,
+        deals: d.data.length,
+        tickets: t.data.length,
+        demandes: demandesFiltrees.length,
+      })
+
+      setDemandes(demandesFiltrees)
+
+      const files = {}
+
+      dem.data.forEach(d => {
+        const service = d.service || 'Autre'
+
+        if (!files[service]) {
+          files[service] = {
+            enCours: 0,
+            horsSla: 0
+          }
+        }
+
+        if (d.statut === 'En cours') {
+          files[service].enCours++
+        }
+
+        if (d.respectDelai === 'NON') {
+          files[service].horsSla++
+        }
+      })
+
+      setFilesService(files)
     }).catch(() => {})
   }, [])
 
   const byStatut = [
-    { name: 'Traité', value: demandes.filter(d => d.statut === 'Traité').length, color: '#276749' },
-    { name: 'En cours', value: demandes.filter(d => d.statut === 'En cours').length, color: '#b7791f' },
-    { name: 'En attente', value: demandes.filter(d => d.statut === 'En attente').length, color: '#2b6cb0' },
+    { name: 'Traité', value: demandesFiltrees.filter(d => d.statut === 'Traité').length, color: '#276749' },
+    { name: 'En cours', value: demandesFiltrees.filter(d => d.statut === 'En cours').length, color: '#b7791f' },
+    { name: 'En attente', value: demandesFiltrees.filter(d => d.statut === 'En attente').length, color: '#2b6cb0' },
   ]
 
   const services = ['DPM','DPR','DSI','DCR','PATRIMOINE']
   const byService = services.map(s => ({
     name: s,
-    total: demandes.filter(d => d.service === s).length,
-    traite: demandes.filter(d => d.service === s && d.statut === 'Traité').length,
+    total: demandesFiltrees.filter(d => d.service === s).length,
+    traite: demandesFiltrees.filter(d => d.service === s && d.statut === 'Traité').length,
   })).filter(s => s.total > 0)
 
   const canaux = ['WhatsApp','Email','Appel','Courrier']
   const byCanal = canaux.map(c => ({
     name: c,
-    value: demandes.filter(d => d.canal === c).length,
+    value: demandesFiltrees.filter(d => d.canal === c).length,
   })).filter(c => c.value > 0)
 
+
   const COLORS = ['#2b6cb0','#276749','#b7791f','#6b46c1','#c53030']
+
+  const slaRows = Object.entries(slaStats).map(([service, values]) => {
+    const taux = values.total > 0 ? Math.round((values.slaOk / values.total) * 100) : 0
+    return {
+      service,
+      total: values.total,
+      slaOk: values.slaOk,
+      taux,
+    }
+  })
+
+  const slaChartData = Object.entries(slaStats).map(([service, values]) => {
+    const taux = values.total > 0 ? Math.round((values.slaOk / values.total) * 100) : 0
+
+    return {
+      service,
+      taux,
+    }
+  })
+
+  const agentRows = Object.entries(agentStats).map(([agent, values]) => {
+    const taux = values.total > 0 ? Math.round((values.slaOk / values.total) * 100) : 0
+    return {
+      agent,
+      total: values.total,
+      slaOk: values.slaOk,
+      taux,
+    }
+  })
+
+  const npsStats = demandesFiltrees.reduce(
+    (acc, d) => {
+      if (d.noteSatisfaction === null || d.noteSatisfaction === undefined) return acc
+
+      if (d.noteSatisfaction >= 9) acc.promoteurs++
+      else if (d.noteSatisfaction >= 7) acc.passifs++
+      else acc.detracteurs++
+
+      return acc
+    },
+    { promoteurs: 0, passifs: 0, detracteurs: 0 }
+  )
+
+  const totalNps =
+    npsStats.promoteurs + npsStats.passifs + npsStats.detracteurs
+
+  const scoreNps =
+    totalNps > 0
+      ? Math.round(
+          ((npsStats.promoteurs - npsStats.detracteurs) / totalNps) * 100
+        )
+      : 0
+
+  const npsChartData = [
+    { name: 'Promoteurs', value: npsStats.promoteurs, color: '#276749' },
+    { name: 'Passifs', value: npsStats.passifs, color: '#b7791f' },
+    { name: 'Détracteurs', value: npsStats.detracteurs, color: '#c53030' },
+  ]
+
+  const demandesCritiques = demandesFiltrees.filter(d =>
+    d.priorite === 'Critique' ||
+    d.respectDelai === 'NON' ||
+    d.objetDemande === 'Réclamation'
+  )
+
+  const demandesHorsSla = demandesFiltrees.filter(d => d.respectDelai === 'NON')
+
+  const demandesEnCours = demandesFiltrees.filter(d => d.statut === 'En cours')
+
+  const activiteRecente = [...demandesFiltrees]
+    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+    .slice(0, 5)
 
   return (
     <div>
       <h2 style={styles.pageTitle}>📊 Dashboard</h2>
+      <div style={{marginBottom:'1rem'}}>
+        <select
+          value={periode}
+          onChange={(e) => setPeriode(e.target.value)}
+          style={{
+            padding:'0.5rem',
+            borderRadius:'6px',
+            border:'1px solid #ddd'
+          }}
+        >
+          <option value="today">Aujourd'hui</option>
+          <option value="7j">7 derniers jours</option>
+          <option value="30j">30 derniers jours</option>
+        </select>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
+        {[
+          {label:'Total demandes', val:demandesFiltrees.length, bg:'#ebf8ff', col:'#2b6cb0', icon:'📌'},
+          {label:'En cours', val:demandesEnCours.length, bg:'#fffbeb', col:'#b7791f', icon:'⏳'},
+          {label:'Critiques', val:demandesCritiques.length, bg:'#fff5f5', col:'#c53030', icon:'🔥'},
+          {label:'Hors SLA', val:demandesHorsSla.length, bg:'#fffbea', col:'#b7791f', icon:'⚠️'},
+        ].map(card => (
+          <div key={card.label} style={{
+            background:'white',
+            borderRadius:'14px',
+            padding:'1rem',
+            boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+            borderTop:`4px solid ${card.col}`
+          }}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div style={{fontSize:'0.82rem', color:'#718096'}}>{card.label}</div>
+              <div style={{fontSize:'1.05rem'}}>{card.icon}</div>
+            </div>
+            <div style={{fontSize:'1.9rem', fontWeight:'700', color:card.col, marginTop:'0.4rem'}}>
+              {card.val}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {(demandesCritiques.length > 0 || demandesHorsSla.length > 0) && (
+        <div style={{
+          background:'white',
+          borderRadius:'14px',
+          padding:'1rem 1.25rem',
+          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+          marginBottom:'1rem',
+          borderLeft:'5px solid #c53030'
+        }}>
+          <div style={{fontWeight:'700', color:'#1a365d', marginBottom:'0.6rem'}}>
+            🚨 Points de vigilance
+          </div>
+
+          {demandesCritiques.length > 0 && (
+            <div style={{color:'#c53030', marginBottom:'0.35rem'}}>
+              {demandesCritiques.length} demande(s) critique(s)
+            </div>
+          )}
+
+          {demandesHorsSla.length > 0 && (
+            <div style={{color:'#b7791f'}}>
+              {demandesHorsSla.length} demande(s) hors SLA
+            </div>
+          )}
+        </div>
+      )}
+
       {alertes && alertes.length > 0 && (
         <div style={{background:'#fff5f5', border:'1px solid #feb2b2', borderRadius:'12px', padding:'1.25rem', marginBottom:'1.5rem'}}>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem'}}>
@@ -136,6 +400,151 @@ function Dashboard({ alertes = [] }) {
         <div style={styles.statCard}><h3>💼 Deals</h3><p style={styles.statNum}>{stats.deals}</p></div>
         <div style={styles.statCard}><h3>🎫 Tickets</h3><p style={styles.statNum}>{stats.tickets}</p></div>
         <div style={styles.statCard}><h3>📋 Demandes</h3><p style={styles.statNum}>{stats.demandes}</p></div>
+      </div>
+
+      <div style={{
+        background: 'white',
+        padding: '1.5rem',
+        borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        marginTop: '1.5rem'
+      }}>
+        <h3 style={{color:'#1a365d'}}>📊 Respect SLA par service</h3>
+
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={slaChartData}>
+            <XAxis dataKey="service" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="taux" fill="#2b6cb0" name="SLA %" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginTop: '1.5rem' }}>
+        <h3 style={{ color: '#1a365d', marginBottom: '1rem' }}>⏱️ Respect SLA par service</h3>
+
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Service</th>
+              <th style={styles.th}>Demandes</th>
+              <th style={styles.th}>SLA respecté</th>
+              <th style={styles.th}>Taux</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slaRows.map((row) => (
+              <tr key={row.service} style={styles.tr}>
+                <td style={styles.td}>{row.service}</td>
+                <td style={styles.td}>{row.total}</td>
+                <td style={styles.td}>{row.slaOk}</td>
+                <td style={styles.td}>
+                  <span
+                    style={{
+                      ...styles.badge,
+                      background: row.taux >= 80 ? '#f0fff4' : row.taux >= 50 ? '#fffbeb' : '#fff5f5',
+                      color: row.taux >= 80 ? '#276749' : row.taux >= 50 ? '#b7791f' : '#c53030',
+                    }}
+                  >
+                    {row.taux}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginTop: '1.5rem' }}>
+        <h3 style={{ color: '#1a365d', marginBottom: '1rem' }}>👨‍💼 Performance des agents</h3>
+
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Agent</th>
+              <th style={styles.th}>Demandes</th>
+              <th style={styles.th}>SLA respecté</th>
+              <th style={styles.th}>Taux</th>
+            </tr>
+          </thead>
+          <tbody>
+            {agentRows.map((row) => (
+              <tr key={row.agent} style={styles.tr}>
+                <td style={styles.td}>{row.agent}</td>
+                <td style={styles.td}>{row.total}</td>
+                <td style={styles.td}>{row.slaOk}</td>
+                <td style={styles.td}>
+                  <span
+                    style={{
+                      ...styles.badge,
+                      background: row.taux >= 80 ? '#f0fff4' : row.taux >= 50 ? '#fffbeb' : '#fff5f5',
+                      color: row.taux >= 80 ? '#276749' : row.taux >= 50 ? '#b7791f' : '#c53030',
+                    }}
+                  >
+                    {row.taux}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style={{marginTop:'2rem'}}>📥 Files d'attente par service</h3>
+
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:'1rem'}}>
+        {Object.entries(filesService).map(([service, s]) => (
+          <div key={service} style={{
+            background:'#f7fafc',
+            borderRadius:'10px',
+            padding:'1rem',
+            border:'1px solid #e2e8f0'
+          }}>
+            <div style={{fontWeight:'bold',color:'#2b6cb0',marginBottom:'0.5rem'}}>
+              {service}
+            </div>
+            <div>En cours : {s.enCours}</div>
+            <div style={{color:'#c53030'}}>
+              Hors SLA : {s.horsSla}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div
+        style={{
+          background: 'white',
+          padding: '1.5rem',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          marginTop: '1.5rem',
+        }}
+      >
+        <h3 style={{ color: '#1a365d' }}>⭐ Satisfaction clients (NPS)</h3>
+
+        <p style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>
+          Score NPS : {scoreNps}
+        </p>
+
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={npsChartData}
+              dataKey="value"
+              nameKey="name"
+              outerRadius={100}
+              label
+            >
+              {npsChartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
@@ -182,8 +591,8 @@ function Dashboard({ alertes = [] }) {
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie data={[
-                { name: 'OUI', value: demandes.filter(d => d.respectDelai === 'OUI').length, color: '#276749' },
-                { name: 'NON', value: demandes.filter(d => d.respectDelai === 'NON').length, color: '#c53030' },
+                { name: 'OUI', value: demandesFiltrees.filter(d => d.respectDelai === 'OUI').length, color: '#276749' },
+                { name: 'NON', value: demandesFiltrees.filter(d => d.respectDelai === 'NON').length, color: '#c53030' },
               ]} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name,value}) => `${name}: ${value}`}>
                 <Cell fill="#276749" />
                 <Cell fill="#c53030" />
@@ -197,6 +606,78 @@ function Dashboard({ alertes = [] }) {
   )
 }
 
+
+function FileCritique() {
+  const [demandes, setDemandes] = useState([])
+
+  useEffect(() => {
+    API.get('/demandes')
+      .then(r => setDemandes(r.data))
+      .catch(() => {})
+  }, [])
+
+  const critiques = demandes.filter(d =>
+    d.priorite === 'Critique' ||
+    d.respectDelai === 'NON' ||
+    d.objetDemande === 'Réclamation'
+  )
+
+  const f = (v) => v || '—'
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>🔥 File critique</h2>
+      </div>
+
+      <div style={{
+        background:'white',
+        borderRadius:'12px',
+        padding:'1rem',
+        boxShadow:'0 2px 8px rgba(0,0,0,0.08)'
+      }}>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Demande</th>
+              <th style={styles.th}>Client</th>
+              <th style={styles.th}>Objet</th>
+              <th style={styles.th}>Service</th>
+              <th style={styles.th}>Priorité</th>
+              <th style={styles.th}>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {critiques.length === 0 ? (
+              <tr>
+                <td colSpan="6" style={styles.td}>Aucune demande critique</td>
+              </tr>
+            ) : critiques.map(d => (
+              <tr key={d.id} style={styles.tr}>
+                <td style={{...styles.td, color:'#2b6cb0', fontWeight:'600'}}>{f(d.numDemande)}</td>
+                <td style={styles.td}>{f(d.nomPrenom)}</td>
+                <td style={styles.td}>{f(d.objetDemande)}</td>
+                <td style={styles.td}>{f(d.service)}</td>
+                <td style={styles.td}>
+                  <span style={{
+                    background:'#fff5f5',
+                    color:'#c53030',
+                    padding:'2px 8px',
+                    borderRadius:'8px',
+                    fontSize:'0.75rem'
+                  }}>
+                    {d.priorite || 'Critique'}
+                  </span>
+                </td>
+                <td style={styles.td}>{f(d.statut)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 function Contacts() {
   const [contacts, setContacts] = useState([])
@@ -505,8 +986,15 @@ function FicheClient({ telephone, matricule, onClose }) {
     API.get('/demandes').then(r => {
       const all = r.data
       const filtered = all.filter(d =>
-        (telephone && telephone.length >= 6 && d.telephone && d.telephone.replace(/[^0-9]/g,'').includes(telephone.replace(/[^0-9]/g,''))) ||
-        (matricule && matricule.length >= 4 && d.matricule && d.matricule === matricule)
+        (telephone &&
+          telephone.length >= 6 &&
+          d.telephone &&
+          d.telephone.replace(/[^0-9]/g, '').includes(telephone.replace(/[^0-9]/g, ''))) ||
+        (matricule &&
+          matricule.length >= 4 &&
+          d.matricule &&
+          d.matricule === matricule) ||
+        (d.email && client?.email && d.email.toLowerCase() === client.email.toLowerCase())
       )
       if (filtered.length > 0) {
         const last = filtered[0]
@@ -565,7 +1053,7 @@ function FicheClient({ telephone, matricule, onClose }) {
         <div style={{marginTop:'0.75rem', borderTop:'1px solid #9ae6b4', paddingTop:'0.75rem'}}>
           <div style={{fontSize:'0.8rem', color:'#276749', fontWeight:'600', marginBottom:'0.5rem'}}>DERNIÈRES DEMANDES</div>
           <div style={{display:'flex', flexDirection:'column', gap:'0.4rem'}}>
-            {demandes.slice(0,3).map(d => (
+            {demandes.slice(0,5).map(d => (
               <div key={d.id} style={{background:'white', borderRadius:'6px', padding:'0.5rem 0.75rem', display:'flex', justifyContent:'space-between', fontSize:'0.82rem'}}>
                 <span style={{color:'#2b6cb0', fontWeight:'600'}}>{d.numDemande}</span>
                 <span style={{color:'#4a5568'}}>{d.objetDemande}</span>
@@ -573,6 +1061,20 @@ function FicheClient({ telephone, matricule, onClose }) {
                 <span style={{background: d.statut==='Traité'?'#f0fff4':'#fffbeb', color: d.statut==='Traité'?'#276749':'#b7791f', padding:'0.1rem 0.4rem', borderRadius:'20px'}}>{d.statut}</span>
               </div>
             ))}
+          </div>
+          <div style={{marginTop:'0.75rem', display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
+            <span style={{background:'#fff5f5', color:'#c53030', padding:'0.25rem 0.6rem', borderRadius:'20px', fontSize:'0.75rem'}}>
+              Réclamations : {demandes.filter(d => d.objetDemande === 'Réclamation').length}
+            </span>
+            <span style={{background:'#ebf8ff', color:'#2b6cb0', padding:'0.25rem 0.6rem', borderRadius:'20px', fontSize:'0.75rem'}}>
+              Infos : {demandes.filter(d => d.objetDemande === 'Information').length}
+            </span>
+            <span style={{background:'#fffbeb', color:'#b7791f', padding:'0.25rem 0.6rem', borderRadius:'20px', fontSize:'0.75rem'}}>
+              En cours : {demandes.filter(d => d.statut === 'En cours').length}
+            </span>
+            <span style={{background:'#f0fff4', color:'#276749', padding:'0.25rem 0.6rem', borderRadius:'20px', fontSize:'0.75rem'}}>
+              Traitée(s) : {demandes.filter(d => d.statut === 'Traité').length}
+            </span>
           </div>
         </div>
       )}
@@ -623,14 +1125,6 @@ function PanneauCommentaires({ demande, onClose }) {
       setCommentaires([...commentaires, res.data])
       setTexte('')
     } catch {}
-  }
-
-  const envoyerEnquete = (d) => {
-    const lien = `https://crrae-crm-frontend.vercel.app/enquete/${d.numDemande}`
-    const sujet = `Évaluation de votre demande ${d.numDemande} — CRRAE-UMOA`
-    const corps = `Bonjour ${d.nomPrenom},%0D%0A%0D%0ANous vous informons que votre demande n°${d.numDemande} a été traitée par nos services.%0D%0A%0D%0ADans le cadre de notre démarche d'amélioration continue, nous vous invitons à évaluer la qualité de notre traitement:%0D%0A%0D%0A👉 ${lien}%0D%0A%0D%0AVotre retour est précieux et contribue à l'amélioration de nos services.%0D%0A%0D%0ACordialement,%0D%0AService Client CRRAE-UMOA`
-    const email = d.email || ''
-    window.open(`mailto:${email}?subject=${sujet}&body=${corps}`)
   }
 
   const handleDelete = async (id) => {
@@ -704,7 +1198,9 @@ function PanneauCommentaires({ demande, onClose }) {
                     <span style={{color:'#718096', fontSize:'0.75rem'}}>{new Date(t.createdAt).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
                   </div>
                   <div style={{color:'#4a5568', fontSize:'0.82rem', marginTop:'0.2rem'}}>{t.detail}</div>
-                  <div style={{color:'#718096', fontSize:'0.75rem', marginTop:'0.2rem'}}>par {t.auteur}</div>
+                  <div style={{color:'#718096', fontSize:'0.75rem', marginTop:'0.2rem'}}>
+                    par {t.auteur}{t.canal ? ` • canal : ${t.canal}` : ''}
+                  </div>
                 </div>
               </div>
             ))}
@@ -725,7 +1221,7 @@ function PanneauCommentaires({ demande, onClose }) {
   )
 }
 
-function Demandes({ onOpenCommentaires, onAssigner }) {
+function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte }) {
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
@@ -742,20 +1238,73 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState(null)
   const [showFiche, setShowFiche] = useState(false)
-  const [ficheSearch, setFicheSearch] = useState({ telephone: '', matricule: '' })
+  const [clientActif, setClientActif] = useState(null)
+  const [ticketOuvert, setTicketOuvert] = useState(null)
+  const [timelineTicket, setTimelineTicket] = useState([])
+  const [showClient, setShowClient] = useState(false)
+  const [ficheSearch, setFicheSearch] = useState({
+    telephone: '',
+    matricule: '',
+    email: '',
+    nomPrenom: '',
+    numDemande: '',
+  })
   useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
+
+  useEffect(() => {
+    if (ticketOuvert) {
+      API.get(`/timeline/demande/${ticketOuvert.id}`)
+        .then(r => setTimelineTicket(r.data))
+        .catch(() => setTimelineTicket([]))
+    } else {
+      setTimelineTicket([])
+    }
+  }, [ticketOuvert])
+
+  useEffect(() => {
+    const demandeRechercheeId = localStorage.getItem('demandeRechercheeId')
+    if (demandeRechercheeId && demandes.length > 0) {
+      const demandeTrouvee = demandes.find(d => d.id === demandeRechercheeId)
+      if (demandeTrouvee) {
+        onOpenCommentaires(demandeTrouvee)
+      }
+      localStorage.removeItem('demandeRechercheeId')
+    }
+  }, [demandes, onOpenCommentaires])
+
+  useEffect(() => {
+    if (ouvrirNouvelleDemande) {
+      setShowForm(true)
+      if (onNouvelleDemandeOuverte) onNouvelleDemandeOuverte()
+    }
+  }, [ouvrirNouvelleDemande, onNouvelleDemandeOuverte])
+
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
       if (editId) {
+        const ancienneDemande = demandes.find(d => d.id === editId)
+
         const res = await API.put(`/demandes/${editId}`, form)
         setDemandes(demandes.map(d => d.id === editId ? res.data : d))
+
         await API.post('/timeline', {
           demandeId: editId,
           auteur: localStorage.getItem('userName') || 'Agent',
           action: 'Modification',
+          canal: form.canal,
           detail: `Statut: ${form.statut} — ${form.actionMenee || 'Mise à jour'}`,
         }).catch(() => {})
+
+        if (
+          ancienneDemande &&
+          ancienneDemande.statut !== 'Traité' &&
+          res.data.statut === 'Traité' &&
+          res.data.email
+        ) {
+          envoyerEnquete(res.data)
+        }
+
         setEditId(null)
       } else {
         const res = await API.post('/demandes', form)
@@ -786,7 +1335,23 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
     window.scrollTo(0, 0)
   }
 
-  const envoyerEnquete = (d) => {
+  const envoyerEnquete = async (d) => {
+    if (!window.confirm("Envoyer l'enquête de satisfaction au client ?")) return
+
+    try {
+      await API.post('/timeline', {
+        demandeId: d.id,
+        auteur: localStorage.getItem('userName') || 'Agent',
+        action: 'Enquête envoyée',
+        canal: 'CRM',
+        detail: `Enquête de satisfaction envoyée au client (${d.email || 'sans email'})`
+      })
+    } catch (e) {}
+
+    await API.put(`/demandes/${d.id}`, {
+      enqueteEnvoyee: true
+    })
+
     const lien = `https://crrae-crm-frontend.vercel.app/enquete/${d.numDemande}`
     const sujet = `Évaluation de votre demande ${d.numDemande} — CRRAE-UMOA`
     const corps = `Bonjour ${d.nomPrenom},%0D%0A%0D%0ANous vous informons que votre demande n°${d.numDemande} a été traitée par nos services.%0D%0A%0D%0ADans le cadre de notre démarche d'amélioration continue, nous vous invitons à évaluer la qualité de notre traitement:%0D%0A%0D%0A👉 ${lien}%0D%0A%0D%0AVotre retour est précieux et contribue à l'amélioration de nos services.%0D%0A%0D%0ACordialement,%0D%0AService Client CRRAE-UMOA`
@@ -839,6 +1404,22 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
   const userName = localStorage.getItem('userName')
   const isFullAccess = userRole === 'admin' || userRole === 'manager' || userName === 'Ismael COULIBALY'
 
+  const critiques = demandes.filter(d =>
+    d.priorite === 'Critique' ||
+    d.respectDelai === 'NON' ||
+    d.objetDemande === 'Réclamation'
+  )
+
+  const horsSLA = demandes.filter(d => {
+    if (!d.dateReception || d.statut === 'Traité') return false
+
+    const jours = Math.floor(
+      (new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24)
+    )
+
+    return jours > 3
+  })
+
   const filtered = demandes.filter(d => {
     if (!isFullAccess && d.agentN1 !== userName && d.agentN2 !== userName) return false
     const q = search.toLowerCase()
@@ -846,32 +1427,246 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
     const mst = !filterStatut || d.statut === filterStatut
     return ms && mst
   })
+  const demandesClient = (telephone) =>
+    demandes.filter(d => d.telephone === telephone)
+
   const inp = {...styles.input, marginBottom: '0.75rem'}
   const col2 = {display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 1rem'}
+
+  const getSlaBadge = (d) => {
+    if (d.respectDelai === 'NON') {
+      return <span style={{background:'#fff5f5', color:'#c53030', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>🚨 SLA dépassé</span>
+    }
+
+    if (d.statut !== 'Traité' && d.dateReception) {
+      const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24))
+      const delaisService = { DPM: 3, DPR: 5, DSI: 6, PATRIMOINE: 7, DCR: 5, REGISSEUR: 5 }
+      const delaiMax = delaisService[d.service] ?? 3
+
+      if (jours === delaiMax || jours === delaiMax - 1) {
+        return <span style={{background:'#fffbeb', color:'#b7791f', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>⚠️ SLA proche</span>
+      }
+    }
+
+    return null
+  }
+
   return (
     <div>
-      <div style={styles.pageHeader}>
-        <h2 style={styles.pageTitle}>📋 Suivi des Demandes</h2>
-        <div style={{display:'flex', gap:'0.75rem'}}>
-        <button style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#276749'}} onClick={exportExcel}>
-          📥 Exporter Excel
-        </button>
-        <button style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem'}} onClick={() => setShowForm(!showForm)}>
-          {showForm ? '✕ Annuler' : '+ Nouvelle demande'}
-        </button>
+      <div style={{
+        background: 'white',
+        borderRadius: '16px',
+        padding: '1.25rem 1.5rem',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+        marginBottom: '1rem'
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'1rem', flexWrap:'wrap'}}>
+          <div>
+            <h2 style={{margin:0, color:'#1a365d', fontSize:'1.5rem', fontWeight:'700'}}>📋 Suivi des demandes</h2>
+            <div style={{marginTop:'0.35rem', color:'#718096', fontSize:'0.92rem'}}>
+              Pilotage opérationnel des interactions usagers
+            </div>
+          </div>
+
+          <div style={{display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
+            <button
+              style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#276749'}}
+              onClick={exportExcel}
+            >
+              📥 Exporter Excel
+            </button>
+
+            <button
+              style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem'}}
+              onClick={() => setShowForm(!showForm)}
+            >
+              {showForm ? '✕ Annuler' : '+ Nouvelle demande'}
+            </button>
+          </div>
         </div>
       </div>
-      <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'0.75rem', marginBottom:'1.5rem'}}>
-        {[{label:'Total',val:demandes.length,bg:'#ebf8ff',col:'#2b6cb0'},{label:'Traités',val:demandes.filter(d=>d.statut==='Traité').length,bg:'#f0fff4',col:'#276749'},{label:'En cours',val:demandes.filter(d=>d.statut==='En cours').length,bg:'#fffbeb',col:'#b7791f'},{label:'Délai OK',val:demandes.filter(d=>d.respectDelai==='OUI').length,bg:'#faf5ff',col:'#6b46c1'}].map(s => (
-          <div key={s.label} style={{background:s.bg,borderRadius:'10px',padding:'0.75rem',textAlign:'center'}}>
-            <div style={{fontSize:'1.8rem',fontWeight:'bold',color:s.col}}>{s.val}</div>
-            <div style={{fontSize:'0.8rem',color:s.col}}>{s.label}</div>
+
+      {critiques.length > 0 && (
+        <div style={{
+          background:'#fff5f5',
+          border:'1px solid #fed7d7',
+          borderRadius:'14px',
+          padding:'1rem 1.25rem',
+          marginBottom:'1rem',
+          boxShadow:'0 2px 8px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', gap:'1rem', flexWrap:'wrap'}}>
+            <strong style={{color:'#c53030', fontSize:'1rem'}}>🔥 Demandes critiques</strong>
+            <span style={{fontSize:'0.8rem', color:'#9b2c2c', background:'#fff', padding:'0.2rem 0.55rem', borderRadius:'999px'}}>
+              {critiques.length} à surveiller
+            </span>
+          </div>
+
+          <div style={{marginTop:'0.75rem', display:'grid', gap:'0.5rem'}}>
+            {critiques.slice(0,5).map(d => (
+              <div key={d.id} style={{
+                background:'white',
+                borderRadius:'10px',
+                padding:'0.65rem 0.8rem',
+                display:'flex',
+                justifyContent:'space-between',
+                gap:'0.75rem',
+                flexWrap:'wrap',
+                border:'1px solid #fed7d7'
+              }}>
+                <span style={{fontWeight:'600', color:'#c53030'}}>{d.numDemande}</span>
+                <span style={{color:'#2d3748'}}>{d.nomPrenom}</span>
+                <span style={{color:'#718096'}}>{d.objetDemande || '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {horsSLA.length > 0 && (
+        <div style={{
+          background:'#fffbea',
+          border:'1px solid #f6e05e',
+          borderRadius:'14px',
+          padding:'1rem 1.25rem',
+          marginBottom:'1rem',
+          boxShadow:'0 2px 8px rgba(0,0,0,0.04)'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', gap:'1rem', flexWrap:'wrap'}}>
+            <strong style={{color:'#b7791f', fontSize:'1rem'}}>⚠ Demandes hors délai</strong>
+            <span style={{fontSize:'0.8rem', color:'#975a16', background:'#fff', padding:'0.2rem 0.55rem', borderRadius:'999px'}}>
+              {horsSLA.length} en retard
+            </span>
+          </div>
+
+          <div style={{marginTop:'0.75rem', display:'grid', gap:'0.5rem'}}>
+            {horsSLA.slice(0,5).map(d => (
+              <div key={d.id} style={{
+                background:'white',
+                borderRadius:'10px',
+                padding:'0.65rem 0.8rem',
+                display:'flex',
+                justifyContent:'space-between',
+                gap:'0.75rem',
+                flexWrap:'wrap',
+                border:'1px solid #f6e05e'
+              }}>
+                <span style={{fontWeight:'600', color:'#b7791f'}}>{d.numDemande}</span>
+                <span style={{color:'#2d3748'}}>{d.nomPrenom}</span>
+                <span style={{color:'#718096'}}>{d.service || '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
+        {[
+          {label:'Total',val:demandes.length,bg:'#ebf8ff',col:'#2b6cb0', icon:'📌'},
+          {label:'Traitées',val:demandes.filter(d=>d.statut==='Traité').length,bg:'#f0fff4',col:'#276749', icon:'✅'},
+          {label:'En cours',val:demandes.filter(d=>d.statut==='En cours').length,bg:'#fffbeb',col:'#b7791f', icon:'⏳'},
+          {label:'Délai OK',val:demandes.filter(d=>d.respectDelai==='OUI').length,bg:'#faf5ff',col:'#6b46c1', icon:'📊'}
+        ].map(s => (
+          <div key={s.label} style={{
+            background:'white',
+            borderRadius:'14px',
+            padding:'1rem',
+            boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+            borderTop:`4px solid ${s.col}`
+          }}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div style={{fontSize:'0.82rem', color:'#718096'}}>{s.label}</div>
+              <div style={{fontSize:'1.1rem'}}>{s.icon}</div>
+            </div>
+            <div style={{fontSize:'1.9rem', fontWeight:'700', color:s.col, marginTop:'0.4rem'}}>{s.val}</div>
           </div>
         ))}
       </div>
+
+      <div style={{
+        background:'white',
+        borderRadius:'14px',
+        padding:'1rem',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+        marginBottom:'1rem'
+      }}>
+        <div style={{display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
+          <input
+            style={{...styles.input, marginBottom:0, flex:1, minWidth:'260px'}}
+            placeholder="🔍 Rechercher un nom ou un numéro de demande..."
+            value={search}
+            onChange={e=>setSearch(e.target.value)}
+          />
+          <select
+            style={{...styles.input, marginBottom:0, width:'180px'}}
+            value={filterStatut}
+            onChange={e=>setFilterStatut(e.target.value)}
+          >
+            <option value="">Tous statuts</option>
+            <option>Traité</option>
+            <option>En cours</option>
+            <option>En attente</option>
+          </select>
+        </div>
+      </div>
+
       {showForm && (
-        <form onSubmit={handleAdd} style={{...styles.form, marginBottom:'1.5rem'}}>
-          {showFiche && <FicheClient telephone={ficheSearch.telephone} matricule={ficheSearch.matricule} onClose={() => setShowFiche(false)} />}
+        <>
+          <div
+            onClick={() => setShowForm(false)}
+            style={{
+              position:'fixed',
+              top:0,
+              left:0,
+              width:'100vw',
+              height:'100vh',
+              background:'rgba(0,0,0,0.45)',
+              zIndex:9998
+            }}
+          />
+
+          <div
+            style={{
+              position:'fixed',
+              top:'50%',
+              left:'50%',
+              transform:'translate(-50%,-50%)',
+              width:'min(1000px, 92vw)',
+              maxHeight:'88vh',
+              overflowY:'auto',
+              background:'white',
+              borderRadius:'16px',
+              boxShadow:'0 24px 70px rgba(0,0,0,0.25)',
+              zIndex:9999,
+              padding:'1.25rem'
+            }}
+          >
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+              <h3 style={{margin:0, color:'#1a365d'}}>
+                {editId ? '✏️ Modifier la demande' : '➕ Nouvelle demande'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                style={{
+                  background:'transparent',
+                  border:'none',
+                  fontSize:'1.5rem',
+                  cursor:'pointer',
+                  color:'#718096'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAdd} style={{...styles.form, marginBottom:0, boxShadow:'none', padding:0}}>
+          {showFiche && <FicheClient
+            telephone={ficheSearch.telephone}
+            matricule={ficheSearch.matricule}
+            email={ficheSearch.email}
+            onClose={() => setShowFiche(false)}
+          />}
           <h3 style={{color:'#1a365d',marginBottom:'1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>👤 Informations client</h3>
           <div style={col2}>
             <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom} onChange={e=>setForm({...form,nomPrenom:e.target.value})} required />
@@ -889,13 +1684,32 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
             <input style={inp} placeholder="Téléphone" value={form.telephone}
               onChange={e=>setForm({...form,telephone:e.target.value})}
               onBlur={e=>{ if(e.target.value.replace(/[^0-9]/g,'').length >= 6) { setFicheSearch({telephone:e.target.value, matricule:''}); setShowFiche(true) }}} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
-            <input style={inp} type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} />
+            <input style={inp} type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}
+              onBlur={e=>{
+                if(e.target.value.length >= 6){
+                  setFicheSearch({
+                    telephone:'',
+                    matricule:'',
+                    email:e.target.value
+                  })
+                  setShowFiche(true)
+                }
+              }}
+            />
             <input style={inp} placeholder="Heure appel (ex: 09h00)" value={form.heureAppel} onChange={e=>setForm({...form,heureAppel:e.target.value})} />
           </div>
           <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>📨 Demande</h3>
           <div style={col2}>
             <select style={inp} value={form.objetDemande} onChange={e=>setForm({...form,objetDemande:e.target.value})}>
-              <option>Information</option><option>Réclamation</option><option>Demande de document</option><option>Autre</option>
+              <option>Information générale</option>
+              <option>Liquidation pension</option>
+              <option>Pension réversion</option>
+              <option>Prestations santé / FAAM</option>
+              <option>Cotisations</option>
+              <option>Affiliation</option>
+              <option>Réclamation</option>
+              <option>Support services en ligne</option>
+              <option>Autre</option>
             </select>
             <select style={inp} value={form.canal} onChange={e=>setForm({...form,canal:e.target.value})}>
               <option>WhatsApp</option><option>Appel</option><option>Email</option><option>Courrier</option>
@@ -927,52 +1741,294 @@ function Demandes({ onOpenCommentaires, onAssigner }) {
           </div>
           <textarea style={{...inp,height:'60px',resize:'vertical',width:'100%'}} placeholder="Action menée" value={form.actionMenee} onChange={e=>setForm({...form,actionMenee:e.target.value})} />
           <button style={styles.button} type="submit">{editId ? '💾 Modifier' : '💾 Enregistrer'}</button>
-        </form>
+            </form>
+          </div>
+        </>
       )}
-      <div style={{display:'flex',gap:'0.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
-        <input style={{...styles.input,marginBottom:0,flex:1}} placeholder="🔍 Rechercher..." value={search} onChange={e=>setSearch(e.target.value)} />
-        <select style={{...styles.input,marginBottom:0,width:'160px'}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
-          <option value="">Tous statuts</option><option>Traité</option><option>En cours</option><option>En attente</option>
-        </select>
-      </div>
-      <div style={{overflowX:'auto'}}>
-        <table style={styles.table}>
-          <thead><tr>{['N°','Date','Nom','Type','Pays','Objet','Canal','Agent N1','Service','Statut','Délai','Note'].map(h=><th key={h} style={styles.th}>{h}</th>)}</tr></thead>
-          <tbody>
-            {filtered.length===0 ? <tr><td colSpan={12} style={{...styles.td,textAlign:'center',color:'#718096',padding:'3rem'}}>Aucune demande — cliquez sur "+ Nouvelle demande"</td></tr>
-            : filtered.map(d=>(
-              <tr key={d.id} style={styles.tr}>
-                <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
-                <td style={styles.td}>{d.dateReception?new Date(d.dateReception).toLocaleDateString('fr-FR'):'—'}</td>
-                <td style={styles.td}>{f(d.nomPrenom)}</td>
-                <td style={styles.td}><span style={{...styles.badge,...(d.typeClient==='Actif'?{background:'#f0fff4',color:'#276749'}:{background:'#faf5ff',color:'#6b46c1'})}}>{f(d.typeClient)}</span></td>
-                <td style={styles.td}>{f(d.pays)}</td>
-                <td style={styles.td}><span style={{...styles.badge,...(d.objetDemande==='Réclamation'?{background:'#fff5f5',color:'#c53030'}:{background:'#ebf8ff',color:'#2b6cb0'})}}>{f(d.objetDemande)}</span></td>
-                <td style={styles.td}>{f(d.canal)}</td>
-                <td style={styles.td}>{f(d.agentN1)}</td>
-                <td style={styles.td}>{f(d.service)}</td>
-                <td style={styles.td}><span style={{...styles.badge,...sColor(d.statut)}}>{f(d.statut)}</span></td>
-                <td style={styles.td}>{d.delaiTraitement?`${d.delaiTraitement}j`:'—'}</td>
-                <td style={styles.td}>{d.noteSatisfaction?`⭐${d.noteSatisfaction}/5`:'—'}</td>
-                <td style={styles.td}>
-                  <button onClick={()=>handleEdit(d)} style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.4rem',fontSize:'0.8rem'}}>✏️</button>
-                  <button onClick={()=>handleDelete(d.id)} style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem'}}>🗑️</button>
-                  <button onClick={()=> onOpenCommentaires(d)} style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>💬</button>
-                  <button onClick={()=> onAssigner(d)} style={{background:'#f0fff4',color:'#276749',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}}>👤</button>
-                  {d.statut === 'Traité' && (
-                    <button onClick={()=> envoyerEnquete(d)} style={{background:'#faf5ff',color:'#6b46c1',border:'none',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',fontSize:'0.8rem',marginLeft:'0.4rem'}} title="Envoyer enquête satisfaction">⭐</button>
-                  )}
-                </td>
+      <div style={{
+        background:'white',
+        borderRadius:'14px',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+        overflow:'hidden'
+      }}>
+        <div style={{overflowX:'auto'}}>
+          <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
+            <thead>
+              <tr>
+                {['N°','Date','Nom','Type','Pays','Objet','Canal','Agent N1','Service','Statut','Priorité','Délai','Note','Enquête','Actions'].map(h => (
+                  <th
+                    key={h}
+                    style={{
+                      ...styles.th,
+                      background:'#f8fafc',
+                      color:'#4a5568',
+                      fontSize:'0.78rem',
+                      letterSpacing:'0.03em',
+                      borderBottom:'1px solid #e2e8f0'
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.length===0 ? <tr><td colSpan={15} style={{...styles.td,textAlign:'center',color:'#718096',padding:'3rem'}}>Aucune demande — cliquez sur "+ Nouvelle demande"</td></tr>
+              : filtered.map(d=>(
+                <tr
+                  key={d.id}
+                  style={{
+                    ...styles.tr,
+                    background: d.priorite === 'Critique' ? '#fffaf0' : 'white',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setTicketOuvert(d)}
+                >
+                  <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
+                  <td style={styles.td}>{d.dateReception?new Date(d.dateReception).toLocaleDateString('fr-FR'):'—'}</td>
+                  <td style={styles.td}>{f(d.nomPrenom)}</td>
+                  <td style={styles.td}><span style={{...styles.badge,...(d.typeClient==='Actif'?{background:'#f0fff4',color:'#276749'}:{background:'#faf5ff',color:'#6b46c1'})}}>{f(d.typeClient)}</span></td>
+                  <td style={styles.td}>{f(d.pays)}</td>
+                  <td style={styles.td}><span style={{...styles.badge,...(d.objetDemande==='Réclamation'?{background:'#fff5f5',color:'#c53030'}:{background:'#ebf8ff',color:'#2b6cb0'})}}>{f(d.objetDemande)}</span></td>
+                  <td style={styles.td}>{f(d.canal)}</td>
+                  <td style={styles.td}>{f(d.agentN1)}</td>
+                  <td style={styles.td}>{f(d.service)}</td>
+                  <td style={styles.td}>
+                    <span style={{...styles.badge,...sColor(d.statut)}}>{f(d.statut)}</span>
+                    {getSlaBadge(d)}
+                  </td>
+                  <td style={styles.td}>
+                    <span style={{
+                      padding:'0.2rem 0.5rem',
+                      borderRadius:'20px',
+                      fontSize:'0.75rem',
+                      background:
+                        d.priorite === 'Critique' ? '#fff5f5' :
+                        d.priorite === 'Élevée' ? '#fffbeb' :
+                        '#f0fff4',
+                      color:
+                        d.priorite === 'Critique' ? '#c53030' :
+                        d.priorite === 'Élevée' ? '#b7791f' :
+                        '#276749'
+                    }}>
+                      {d.priorite || 'Normale'}
+                    </span>
+                  </td>
+                  <td style={styles.td}>{d.delaiTraitement?`${d.delaiTraitement}j`:'—'}</td>
+                  <td style={styles.td}>{d.noteSatisfaction?`⭐${d.noteSatisfaction}/5`:'—'}</td>
+                  <td style={styles.td}>
+                    {d.enqueteEnvoyee ?
+                      <span style={{color:'#276749'}}>✔ envoyée</span> :
+                      <span style={{color:'#b7791f'}}>—</span>
+                    }
+                  </td>
+                  <td style={{...styles.td, whiteSpace:'nowrap'}}>
+                    <button
+                      title="Modifier"
+                      onClick={()=>handleEdit(d)}
+                      style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                    >
+                      ✏️
+                    </button>
+
+                    <button
+                      title="Supprimer"
+                      onClick={()=>handleDelete(d.id)}
+                      style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                    >
+                      🗑️
+                    </button>
+
+                    <button
+                      title="Notes et timeline"
+                      onClick={()=> onOpenCommentaires(d)}
+                      style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                    >
+                      💬
+                    </button>
+
+                    <button
+                      title="Assigner"
+                      onClick={()=> onAssigner(d)}
+                      style={{background:'#f0fff4',color:'#276749',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                    >
+                      📤
+                    </button>
+
+                    <button
+                      title="Voir fiche client"
+                      onClick={() => {
+                        setClientActif(d)
+                        setShowClient(true)
+                      }}
+                      style={{background:'#edf2f7',color:'#4a5568',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                    >
+                      🪪
+                    </button>
+
+                    {d.statut === 'Traité' && (
+                      <button
+                        title="Envoyer enquête satisfaction"
+                        onClick={()=> envoyerEnquete(d)}
+                        style={{background:'#faf5ff',color:'#6b46c1',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',fontSize:'0.8rem'}}
+                      >
+                        ⭐
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {showClient && (
+        <FicheClient360
+          client={clientActif}
+          demandes={demandes}
+          onClose={() => setShowClient(false)}
+        />
+      )}
+
+      {ticketOuvert && (
+        <div style={{ position:'fixed', top:'0', right:'0', width:'420px', height:'100vh', background:'#fff', boxShadow:'-4px 0 24px rgba(0,0,0,0.13)', zIndex:10000, overflowY:'auto', padding:'2rem 1.5rem' }}>
+          <button onClick={() => setTicketOuvert(null)} style={{ float:'right', background:'none', border:'none', fontSize:'1.5rem', cursor:'pointer', color:'#888' }}>✕</button>
+          <h2 style={{ marginTop:0, fontSize:'1.15rem', color:'#1e3a5f' }}>📋 Détail de la demande</h2>
+          <p style={{ color:'#666', fontSize:'0.85rem', marginBottom:'1rem' }}>{ticketOuvert.numDemande}</p>
+
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.5rem 1rem', marginBottom:'1.5rem' }}>
+            {[
+              ['Client', ticketOuvert.nomPrenom],
+              ['Téléphone', ticketOuvert.telephone],
+              ['Type', ticketOuvert.typeClient],
+              ['Canal', ticketOuvert.canal],
+              ['Objet', ticketOuvert.objetDemande],
+              ['Service', ticketOuvert.service],
+              ['Agent N1', ticketOuvert.agentN1],
+              ['Agent N2', ticketOuvert.agentN2],
+              ['Statut', ticketOuvert.statut],
+              ['Priorité', ticketOuvert.priorite],
+              ['Date réception', ticketOuvert.dateReception ? new Date(ticketOuvert.dateReception).toLocaleDateString('fr-FR') : '—'],
+              ['Date traitement', ticketOuvert.dateTraitement ? new Date(ticketOuvert.dateTraitement).toLocaleDateString('fr-FR') : '—'],
+              ['Délai (j)', ticketOuvert.delaiTraitement ?? '—'],
+              ['Respect délai', ticketOuvert.respectDelai ?? '—'],
+              ['Note satisfaction', ticketOuvert.noteSatisfaction ?? '—'],
+            ].map(([label, val]) => (
+              <div key={label}>
+                <div style={{ fontSize:'0.72rem', color:'#999', textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</div>
+                <div style={{ fontSize:'0.9rem', fontWeight:600, color:'#1e3a5f' }}>{val || '—'}</div>
+              </div>
+            ))}
+          </div>
+
+          {ticketOuvert.commentaire && (
+            <div style={{ background:'#f8fafc', borderRadius:'8px', padding:'0.75rem 1rem', marginBottom:'1rem' }}>
+              <div style={{ fontSize:'0.72rem', color:'#999', textTransform:'uppercase', marginBottom:'0.25rem' }}>Commentaire</div>
+              <div style={{ fontSize:'0.88rem', color:'#333' }}>{ticketOuvert.commentaire}</div>
+            </div>
+          )}
+
+          <div style={{ marginBottom:'1rem' }}>
+            <strong>Timeline :</strong>
+            <div style={{ marginTop:'0.6rem', display:'grid', gap:'0.55rem' }}>
+              {timelineTicket.length === 0 ? (
+                <div style={{ color:'#718096', fontSize:'0.9rem' }}>Aucun événement</div>
+              ) : (
+                timelineTicket.map(t => (
+                  <div key={t.id} style={{ border:'1px solid #e2e8f0', borderRadius:'10px', padding:'0.65rem 0.75rem', background:'#f8fafc' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', gap:'0.75rem' }}>
+                      <span style={{ fontWeight:'600', color:'#2d3748' }}>{t.action}</span>
+                      <span style={{ fontSize:'0.75rem', color:'#718096' }}>
+                        {new Date(t.createdAt).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}
+                      </span>
+                    </div>
+                    <div style={{ marginTop:'0.25rem', color:'#4a5568', fontSize:'0.85rem' }}>{t.detail || '—'}</div>
+                    <div style={{ marginTop:'0.2rem', color:'#718096', fontSize:'0.75rem' }}>par {t.auteur}{t.canal ? ` • ${t.canal}` : ''}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {ticketOuvert.actionMenee && (
+            <div style={{ background:'#f0fdf4', borderRadius:'8px', padding:'0.75rem 1rem', marginBottom:'1rem' }}>
+              <div style={{ fontSize:'0.72rem', color:'#999', textTransform:'uppercase', marginBottom:'0.25rem' }}>Action menée</div>
+              <div style={{ fontSize:'0.88rem', color:'#333' }}>{ticketOuvert.actionMenee}</div>
+            </div>
+          )}
+
+          <div style={{ marginTop:'1.5rem', display:'flex', gap:'0.5rem' }}>
+            <button onClick={() => { setSelected(ticketOuvert); setModalOpen(true); setTicketOuvert(null); }} style={{ flex:1, padding:'0.6rem', background:'#1e3a5f', color:'#fff', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:600 }}>✏️ Modifier</button>
+            <button onClick={() => setTicketOuvert(null)} style={{ flex:1, padding:'0.6rem', background:'#f1f5f9', color:'#555', border:'none', borderRadius:'8px', cursor:'pointer' }}>Fermer</button>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
 
 
+
+function FicheClient360({ client, demandes, onClose }) {
+
+  const historique = demandes.filter(d =>
+    d.telephone === client.telephone ||
+    d.email === client.email ||
+    d.matricule === client.matricule
+  )
+
+  return (
+    <div style={{
+      position:'fixed',
+      top:0,
+      right:0,
+      width:'420px',
+      height:'100%',
+      background:'white',
+      boxShadow:'-5px 0 20px rgba(0,0,0,0.1)',
+      padding:'1.5rem',
+      zIndex:9999
+    }}>
+
+      <h3>👤 Fiche client</h3>
+
+      <p><strong>{client.nomPrenom}</strong></p>
+      <p>📞 {client.telephone}</p>
+      <p>📧 {client.email || '—'}</p>
+      <p>🪪 {client.matricule || '—'}</p>
+
+      <hr style={{margin:'1rem 0'}} />
+
+      <h4>Historique des demandes</h4>
+
+      {historique.map(d => (
+        <div key={d.id} style={{
+          padding:'0.5rem',
+          borderBottom:'1px solid #eee'
+        }}>
+          {d.numDemande} — {d.objetDemande} — {d.statut}
+        </div>
+      ))}
+
+      <button
+        onClick={onClose}
+        style={{
+          marginTop:'1rem',
+          padding:'0.5rem 1rem',
+          border:'none',
+          background:'#2b6cb0',
+          color:'white',
+          borderRadius:'6px'
+        }}
+      >
+        Fermer
+      </button>
+
+    </div>
+  )
+}
 
 function Users() {
   const [users, setUsers] = useState([])
@@ -987,7 +2043,13 @@ function Users() {
     e.preventDefault()
     try {
       if (editUser) {
-        const res = await API.put(`/users/${editUser.id}`, form)
+        const data = { ...form }
+
+        if (!data.password) {
+          delete data.password
+        }
+
+        const res = await API.put(`/users/${editUser.id}`, data)
         setUsers(users.map(u => u.id === editUser.id ? res.data : u))
         setEditUser(null)
       } else {
@@ -1003,6 +2065,17 @@ function Users() {
     setEditUser(u)
     setForm({ name: u.name, email: u.email, password: '', role: u.role })
     setShowForm(true)
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Supprimer cet utilisateur ?')) return
+
+    try {
+      await API.delete(`/users/${id}`)
+      setUsers(users.filter(u => u.id !== id))
+    } catch {
+      alert("Erreur lors de la suppression")
+    }
   }
 
   const roleColor = (r) => ({
@@ -1054,7 +2127,18 @@ function Users() {
               <td style={styles.td}><span style={{...styles.badge,...(u.active?{background:'#f0fff4',color:'#276749'}:{background:'#fff5f5',color:'#c53030'})}}>{u.active?'Actif':'Inactif'}</span></td>
               <td style={styles.td}>{u.createdAt?new Date(u.createdAt).toLocaleDateString('fr-FR'):'—'}</td>
               <td style={styles.td}>
-                <button onClick={()=>handleEdit(u)} style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'6px',padding:'0.3rem 0.75rem',cursor:'pointer',marginRight:'0.5rem'}}>✏️ Modifier</button>
+                <button
+                  onClick={() => handleEdit(u)}
+                  style={{background:'#ebf8ff',color:'#2b6cb0',border:'none',borderRadius:'6px',padding:'0.3rem 0.75rem',cursor:'pointer',marginRight:'0.5rem'}}
+                >
+                  ✏️ Modifier
+                </button>
+                <button
+                  onClick={() => handleDelete(u.id)}
+                  style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.3rem 0.75rem',cursor:'pointer'}}
+                >
+                  🗑️ Supprimer
+                </button>
               </td>
             </tr>
           ))}
@@ -1101,6 +2185,13 @@ function Rapports() {
   }).filter(s => s.total > 0)
 
   const notes = filtered.filter(d => d.noteSatisfaction).map(d => d.noteSatisfaction)
+
+  const enqueteEnvoyees = filtered.filter(d => d.enqueteEnvoyee).length
+  const enqueteRepondues = filtered.filter(d => d.noteSatisfaction).length
+
+  const tauxReponse = enqueteEnvoyees > 0
+    ? Math.round((enqueteRepondues / enqueteEnvoyees) * 100)
+    : 0
   const moyNote = notes.length > 0 ? (notes.reduce((a,b) => a+b, 0) / notes.length).toFixed(1) : '—'
 
   const tauxTraite = filtered.length > 0 ? Math.round(filtered.filter(d => d.statut === 'Traité').length / filtered.length * 100) : 0
@@ -1122,24 +2213,108 @@ function Rapports() {
         </div>
       </div>
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'0.75rem', marginBottom:'1.5rem'}}>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
-          {label:'Total demandes', val:filtered.length, bg:'#ebf8ff', col:'#2b6cb0'},
-          {label:'Taux traitement', val:`${tauxTraite}%`, bg:'#f0fff4', col:'#276749'},
-          {label:'Respect délais', val:`${tauxDelai}%`, bg:'#faf5ff', col:'#6b46c1'},
-          {label:'Note moyenne', val:`${moyNote}/5`, bg:'#fffbeb', col:'#b7791f'},
-        ].map(s => (
-          <div key={s.label} style={{background:s.bg, borderRadius:'10px', padding:'1rem', textAlign:'center'}}>
-            <div style={{fontSize:'1.8rem', fontWeight:'bold', color:s.col}}>{s.val}</div>
-            <div style={{fontSize:'0.8rem', color:s.col, opacity:0.85}}>{s.label}</div>
+          {label:'Demandes', val:demandesFiltrees.length, bg:'#ebf8ff', col:'#2b6cb0', icon:'📥'},
+          {label:'En cours', val:demandesFiltrees.filter(d => d.statut === 'En cours').length, bg:'#fffbeb', col:'#b7791f', icon:'⏳'},
+          {label:'Traitées', val:demandesFiltrees.filter(d => d.statut === 'Traité').length, bg:'#f0fff4', col:'#276749', icon:'✅'},
+          {label:'Hors SLA', val:demandesFiltrees.filter(d => d.respectDelai === 'NON').length, bg:'#fff5f5', col:'#c53030', icon:'⚠️'},
+        ].map(card => (
+          <div key={card.label} style={{
+            background:'white',
+            borderRadius:'14px',
+            padding:'1rem',
+            boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+            borderTop:`4px solid ${card.col}`
+          }}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div style={{fontSize:'0.82rem', color:'#718096'}}>{card.label}</div>
+              <div style={{fontSize:'1.05rem'}}>{card.icon}</div>
+            </div>
+            <div style={{fontSize:'1.9rem', fontWeight:'700', color:card.col, marginTop:'0.4rem'}}>
+              {card.val}
+            </div>
           </div>
         ))}
       </div>
 
+      {(demandesFiltrees.filter(d => d.priorite === 'Critique').length > 0 || demandesFiltrees.filter(d => d.respectDelai === 'NON').length > 0) && (
+        <div style={{
+          background:'white',
+          borderRadius:'14px',
+          padding:'1rem 1.25rem',
+          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+          marginBottom:'1rem',
+          borderLeft:'5px solid #c53030'
+        }}>
+          <div style={{fontWeight:'700', color:'#1a365d', marginBottom:'0.6rem'}}>
+            🚨 Points de vigilance
+          </div>
+
+          {demandesFiltrees.filter(d => d.priorite === 'Critique').length > 0 && (
+            <div style={{color:'#c53030', marginBottom:'0.35rem'}}>
+              {demandesFiltrees.filter(d => d.priorite === 'Critique').length} demande(s) critique(s)
+            </div>
+          )}
+
+          {demandesFiltrees.filter(d => d.respectDelai === 'NON').length > 0 && (
+            <div style={{color:'#b7791f'}}>
+              {demandesFiltrees.filter(d => d.respectDelai === 'NON').length} demande(s) hors SLA
+            </div>
+          )}
+        </div>
+      )}
+
+      {demandesCritiques.length > 0 && (
+        <div style={{
+          background:'white',
+          borderRadius:'14px',
+          padding:'1rem 1.25rem',
+          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+          marginBottom:'1rem'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem'}}>
+            <div style={{fontWeight:'700', color:'#1a365d'}}>🔥 Demandes critiques</div>
+            <div style={{fontSize:'0.8rem', color:'#718096'}}>
+              {demandesCritiques.length} au total
+            </div>
+          </div>
+
+          <div style={{display:'grid', gap:'0.55rem'}}>
+            {demandesCritiques.slice(0,5).map(d => (
+              <div key={d.id} style={{
+                border:'1px solid #edf2f7',
+                borderRadius:'10px',
+                padding:'0.75rem 0.85rem',
+                display:'flex',
+                justifyContent:'space-between',
+                gap:'0.75rem',
+                flexWrap:'wrap',
+                background: d.priorite === 'Critique' ? '#fffaf0' : '#fafafa'
+              }}>
+                <div style={{fontWeight:'600', color:'#2b6cb0'}}>{d.numDemande}</div>
+                <div style={{color:'#2d3748'}}>{d.nomPrenom}</div>
+                <div style={{color:'#718096'}}>{d.objetDemande || '—'}</div>
+                <div style={{color:'#4a5568'}}>{d.service || '—'}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem'}}>
-        <div style={{background:'white', borderRadius:'12px', padding:'1.5rem', boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
-          <h3 style={{color:'#1a365d', marginBottom:'1rem', fontSize:'1rem'}}>👤 Performance par agent</h3>
-          <table style={styles.table}>
+        <div style={{
+          background:'white',
+          borderRadius:'14px',
+          padding:'1.25rem',
+          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+          marginBottom:'1rem'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>👤 Performance par agent</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>Suivi du traitement</span>
+          </div>
+          <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
             <thead><tr><th style={styles.th}>Agent</th><th style={styles.th}>Total</th><th style={styles.th}>Traités</th><th style={styles.th}>Taux</th></tr></thead>
             <tbody>
               {perfAgents.map(a => (
@@ -1158,9 +2333,18 @@ function Rapports() {
           </table>
         </div>
 
-        <div style={{background:'white', borderRadius:'12px', padding:'1.5rem', boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
-          <h3 style={{color:'#1a365d', marginBottom:'1rem', fontSize:'1rem'}}>🏢 Respect délais par service</h3>
-          <table style={styles.table}>
+        <div style={{
+          background:'white',
+          borderRadius:'14px',
+          padding:'1.25rem',
+          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+          marginBottom:'1rem'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>🏢 Respect des délais par service</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>Qualité de traitement</span>
+          </div>
+          <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
             <thead><tr><th style={styles.th}>Service</th><th style={styles.th}>Total</th><th style={styles.th}>Délai max</th><th style={styles.th}>Taux</th></tr></thead>
             <tbody>
               {perfServices.map(s => (
@@ -1179,6 +2363,46 @@ function Rapports() {
           </table>
         </div>
       </div>
+
+      <div style={{
+        background:'white',
+        borderRadius:'14px',
+        padding:'1.25rem',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+        marginBottom:'1rem'
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+          <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>🕒 Activité récente</h3>
+          <span style={{fontSize:'0.8rem', color:'#718096'}}>Dernières mises à jour</span>
+        </div>
+
+        <div style={{display:'grid', gap:'0.55rem'}}>
+          {activiteRecente.map(d => (
+            <div key={d.id} style={{
+              border:'1px solid #edf2f7',
+              borderRadius:'10px',
+              padding:'0.75rem 0.85rem',
+              display:'flex',
+              justifyContent:'space-between',
+              gap:'0.75rem',
+              flexWrap:'wrap'
+            }}>
+              <span style={{fontWeight:'600', color:'#2b6cb0'}}>{d.numDemande}</span>
+              <span style={{color:'#2d3748'}}>{d.nomPrenom}</span>
+              <span style={{color:'#718096'}}>{d.statut}</span>
+              <span style={{color:'#4a5568'}}>
+                {d.updatedAt ? new Date(d.updatedAt).toLocaleString('fr-FR', {
+                  day:'2-digit',
+                  month:'2-digit',
+                  hour:'2-digit',
+                  minute:'2-digit'
+                }) : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   )
 }
@@ -1279,6 +2503,9 @@ function RechercheGlobale({ onClose }) {
           (x.numDemande||'').toLowerCase().includes(q) ||
           (x.telephone||'').includes(q) ||
           (x.matricule||'').toLowerCase().includes(q) ||
+          (x.email||'').toLowerCase().includes(q) ||
+          (x.pays||'').toLowerCase().includes(q) ||
+          (x.service||'').toLowerCase().includes(q) ||
           (x.commentaire||'').toLowerCase().includes(q)
         ).slice(0, 5),
         contacts: c.data.filter(x =>
@@ -1292,6 +2519,12 @@ function RechercheGlobale({ onClose }) {
   }, [query])
 
   const total = resultats.demandes.length + resultats.contacts.length
+
+  const ouvrirDemande = (demande) => {
+    localStorage.setItem('demandeRechercheeId', demande.id)
+    onClose()
+    window.location.href = '/demandes'
+  }
 
   return (
     <>
@@ -1317,9 +2550,13 @@ function RechercheGlobale({ onClose }) {
             <div>
               <div style={{padding:'0.5rem 0.75rem',fontSize:'0.75rem',fontWeight:'600',color:'#718096',textTransform:'uppercase'}}>📋 Demandes</div>
               {resultats.demandes.map(d => (
-                <div key={d.id} style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
+                <div
+                  key={d.id}
+                  onClick={() => ouvrirDemande(d)}
+                  style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
                   onMouseEnter={e=>e.currentTarget.style.background='#f7fafc'}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                >
                   <div>
                     <span style={{fontWeight:'600',color:'#2b6cb0',fontSize:'0.85rem'}}>{d.numDemande}</span>
                     <span style={{color:'#4a5568',fontSize:'0.85rem',margin:'0 0.5rem'}}>—</span>
@@ -1461,46 +2698,149 @@ function PageEnquete() {
 }
 
 // Layout
-function Layout({ onLogout, children, alertes, onRecherche }) {
+function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, demandes = [] }) {
+  const navigate = useNavigate()
+
+  const critiques = demandes.filter(d =>
+    d.priorite === 'Critique' || d.respectDelai === 'NON'
+  ).length
+
+  const enCours = demandes.filter(d =>
+    d.statut === 'En cours'
+  ).length
+
   return (
     <div style={styles.layout}>
       <nav style={styles.nav}>
-        <div style={{textAlign:'center', marginBottom:'1rem'}}>
-          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'140px', borderRadius:'8px', background:'white', padding:'8px', borderRadius:'12px'}} />
+        <div style={{textAlign:'center', marginBottom:'1.25rem'}}>
+          <img
+            src="/Logo-crrae.png"
+            alt="CRRAE"
+            style={{
+              width:'140px',
+              background:'white',
+              padding:'10px',
+              borderRadius:'14px',
+              boxShadow:'0 4px 12px rgba(0,0,0,0.15)'
+            }}
+          />
+          <div style={{color:'rgba(255,255,255,0.75)', fontSize:'0.78rem', marginTop:'0.75rem'}}>
+            CRM Service Client
+          </div>
         </div>
-        <button onClick={onRecherche} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'white',borderRadius:'8px',padding:'0.5rem 0.75rem',cursor:'pointer',width:'100%',textAlign:'left',fontSize:'0.85rem',marginBottom:'0.5rem'}}>
+
+        <button
+          onClick={onRecherche}
+          style={{
+            background:'rgba(255,255,255,0.14)',
+            border:'1px solid rgba(255,255,255,0.12)',
+            color:'white',
+            borderRadius:'10px',
+            padding:'0.65rem 0.8rem',
+            cursor:'pointer',
+            width:'100%',
+            textAlign:'left',
+            fontSize:'0.88rem',
+            marginBottom:'1rem'
+          }}
+        >
           🔍 Rechercher...
         </button>
-        <Link style={styles.navLink} to="/dashboard">📊 Dashboard</Link>
-        <Link style={styles.navLink} to="/demandes">
-          📋 Suivi Demandes
-          {alertes && alertes.length > 0 && (
-            <span style={{background:'#c53030', color:'white', borderRadius:'12px', padding:'0.1rem 0.45rem', fontSize:'0.7rem', marginLeft:'0.5rem', fontWeight:'700', display:'inline-block'}}>
-              {alertes.length}
-            </span>
+
+        <div style={{fontSize:'0.72rem', color:'rgba(255,255,255,0.55)', textTransform:'uppercase', margin:'0.5rem 0 0.35rem 0.35rem', letterSpacing:'0.05em'}}>
+          Exploitation
+        </div>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/dashboard"><span style={styles.sidebarIcon}>📊</span>Dashboard</NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/demandes">
+          <span style={styles.sidebarIcon}>📋</span>Demandes
+          {enCours > 0 && (
+            <span style={styles.sidebarBadge}>{enCours}</span>
           )}
-        </Link>
-        <Link style={styles.navLink} to="/contacts">👥 Contacts</Link>
-        <Link style={styles.navLink} to="/deals">💼 Deals</Link>
-        <Link style={styles.navLink} to="/tickets">🎫 Tickets</Link>
-        <Link style={styles.navLink} to="/campagnes">📣 Campagnes</Link>
-        <Link style={styles.navLink} to="/rapports">📈 Rapports</Link>
-        <Link style={styles.navLink} to="/users">👤 Utilisateurs</Link>
+        </NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/critiques">
+          <span style={styles.sidebarIcon}>🔥</span>File critique
+          {critiques > 0 && (
+            <span style={{...styles.sidebarBadge, background:'#e53e3e'}}>{critiques}</span>
+          )}
+        </NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/contacts"><span style={styles.sidebarIcon}>👥</span>Contacts</NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/deals"><span style={styles.sidebarIcon}>💼</span>Deals</NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/tickets"><span style={styles.sidebarIcon}>🎫</span>Tickets</NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/campagnes"><span style={styles.sidebarIcon}>📣</span>Campagnes</NavLink>
+
+        <div style={{height:'1px', background:'rgba(255,255,255,0.12)', margin:'0.9rem 0'}} />
+
+        <div style={{fontSize:'0.72rem', color:'rgba(255,255,255,0.55)', textTransform:'uppercase', margin:'0.5rem 0 0.35rem 0.35rem', letterSpacing:'0.05em'}}>
+          Pilotage
+        </div>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/rapports"><span style={styles.sidebarIcon}>📈</span>Rapports</NavLink>
+
+        <div style={{height:'1px', background:'rgba(255,255,255,0.12)', margin:'0.9rem 0'}} />
+
+        <div style={{fontSize:'0.72rem', color:'rgba(255,255,255,0.55)', textTransform:'uppercase', margin:'0.5rem 0 0.35rem 0.35rem', letterSpacing:'0.05em'}}>
+          Administration
+        </div>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/users"><span style={styles.sidebarIcon}>👤</span>Utilisateurs</NavLink>
+
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
       </nav>
-      <main style={styles.main}>{children}</main>
+      <main style={styles.main}>
+        <div style={{
+          display:'flex',
+          justifyContent:'flex-end',
+          marginBottom:'1rem'
+        }}>
+          <button
+            onClick={() => {
+              if (onNouvelleDemande) onNouvelleDemande()
+              navigate('/demandes')
+            }}
+            style={{
+              background:'#2b6cb0',
+              color:'white',
+              border:'none',
+              borderRadius:'10px',
+              padding:'0.8rem 1rem',
+              fontSize:'0.92rem',
+              fontWeight:'600',
+              cursor:'pointer',
+              boxShadow:'0 2px 8px rgba(0,0,0,0.08)'
+            }}
+          >
+            ➕ Nouvelle demande
+          </button>
+        </div>
+        {children}
+      </main>
     </div>
   )
 }
 
 // App
 export default function App() {
-  const [auth, setAuth] = useState(!!localStorage.getItem('token'))
+  const [auth, setAuth] = useState(() => !!localStorage.getItem('token'))
+
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('token')
+      setAuth(!!token)
+    }
+
+    window.addEventListener('storage', checkAuth)
+    window.addEventListener('focus', checkAuth)
+
+    return () => {
+      window.removeEventListener('storage', checkAuth)
+      window.removeEventListener('focus', checkAuth)
+    }
+  }, [])
 
   const [alertes, setAlertes] = useState([])
+  const [demandesApp, setDemandesApp] = useState([])
   const [demandeActive, setDemandeActive] = useState(null)
   const [demandeAssignation, setDemandeAssignation] = useState(null)
   const [showRecherche, setShowRecherche] = useState(false)
+  const [ouvrirNouvelleDemande, setOuvrirNouvelleDemande] = useState(false)
 
   useEffect(() => {
     if (auth) {
@@ -1513,24 +2853,50 @@ export default function App() {
           return jours > (delaisMax[d.service] || 3)
         })
         setAlertes(retard)
+        setDemandesApp(r.data)
       }).catch(() => {})
     }
   }, [auth])
 
-  const logout = () => { localStorage.removeItem('token'); setAuth(false) }
+  const logout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('userName')
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('userEmail')
+    setAuth(false)
+  }
 
   if (window.location.pathname.startsWith('/enquete/')) return <PageEnquete />
   if (!auth) return <Login onLogin={() => setAuth(true)} />
 
   return (
     <BrowserRouter>
-      <Layout onLogout={logout} alertes={alertes} onRecherche={() => setShowRecherche(true)}>
+      <Layout
+        onLogout={logout}
+        alertes={alertes}
+        demandes={demandesApp}
+        onRecherche={() => setShowRecherche(true)}
+        onNouvelleDemande={() => {
+          setOuvrirNouvelleDemande(true)
+        }}
+      >
         {showRecherche && <RechercheGlobale onClose={() => setShowRecherche(false)} />}
         {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
         {demandeAssignation && <ModalAssignation demande={demandeAssignation} onClose={() => setDemandeAssignation(null)} onAssigned={(d) => { setDemandeAssignation(null) }} />}
         <Routes>
           <Route path="/dashboard" element={<Dashboard alertes={alertes} />} />
-          <Route path="/demandes" element={<Demandes onOpenCommentaires={setDemandeActive} onAssigner={setDemandeAssignation} />} />
+          <Route path="/critiques" element={<FileCritique />} />
+          <Route
+            path="/demandes"
+            element={
+              <Demandes
+                onOpenCommentaires={setDemandeActive}
+                onAssigner={setDemandeAssignation}
+                ouvrirNouvelleDemande={ouvrirNouvelleDemande}
+                onNouvelleDemandeOuverte={() => setOuvrirNouvelleDemande(false)}
+              />
+            }
+          />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/deals" element={<Deals />} />
           <Route path="/tickets" element={<Tickets />} />
@@ -1553,10 +2919,48 @@ const styles = {
   button: { width: '100%', padding: '0.75rem', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer' },
   error: { color: 'red', textAlign: 'center', marginBottom: '1rem' },
   layout: { display: 'flex', minHeight: '100vh' },
-  nav: { width: '240px', background: '#1e4a7a', padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
+  nav: {
+    width: '250px',
+    background: 'linear-gradient(180deg, #163a63 0%, #1e4a7a 100%)',
+    padding: '1.25rem 1rem',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.35rem'
+  },
   navTitle: { color: 'white', marginBottom: '1rem', fontSize: '1rem' },
-  navLink: { color: '#bee3f8', textDecoration: 'none', padding: '0.5rem', borderRadius: '6px', display: 'block' },
+  navLink: {
+    color: '#e6f0fb',
+    textDecoration: 'none',
+    padding: '0.72rem 0.8rem',
+    borderRadius: '10px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    fontSize: '0.92rem',
+    transition: 'all 0.2s ease',
+  },
   logoutBtn: { marginTop: 'auto', background: 'transparent', color: '#fc8181', border: '1px solid #fc8181', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer' },
+  sidebarIcon: { width: '20px', textAlign: 'center', fontSize: '0.95rem' },
+  sidebarLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '0.65rem 0.9rem',
+    borderRadius: '8px',
+    color: 'white',
+    textDecoration: 'none',
+    fontSize: '0.9rem',
+    marginBottom: '0.35rem'
+  },
+  sidebarBadge: {
+    marginLeft: 'auto',
+    background: '#2b6cb0',
+    color: 'white',
+    fontSize: '0.75rem',
+    padding: '2px 7px',
+    borderRadius: '12px',
+    fontWeight: '600'
+  },
   main: { flex: 1, padding: '2rem', background: '#f7fafc' },
   pageTitle: { color: '#1a365d', marginBottom: '1.5rem' },
   pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' },
