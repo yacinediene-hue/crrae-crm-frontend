@@ -1242,6 +1242,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [ticketOuvert, setTicketOuvert] = useState(null)
   const [timelineTicket, setTimelineTicket] = useState([])
   const [showClient, setShowClient] = useState(false)
+  const [importData, setImportData] = useState(null) // { lignes, doublons, aImporter }
   const [ficheSearch, setFicheSearch] = useState({
     telephone: '',
     matricule: '',
@@ -1400,6 +1401,69 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     XLSX.writeFile(wb, `Demandes_CRRAE_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`)
   }
 
+  const handleImportExcel = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const wb = XLSX.read(ev.target.result, { type: 'array', cellDates: true })
+      const ws = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
+
+      const lignes = rows.map(r => ({
+        nomPrenom: r['Nom & Prénom'] || r['nomPrenom'] || '',
+        matricule: r['Matricule'] || r['matricule'] || '',
+        adherent: r['Adhérent'] || r['adherent'] || '',
+        typeClient: r['Type client'] || r['typeClient'] || 'Actif',
+        pays: r['Pays'] || r['pays'] || '',
+        telephone: String(r['Téléphone'] || r['telephone'] || ''),
+        email: r['Email'] || r['email'] || '',
+        heureAppel: r['Heure appel'] || r['heureAppel'] || '',
+        canal: r['Canal'] || r['canal'] || 'WhatsApp',
+        objetDemande: r['Objet'] || r['objetDemande'] || 'Information',
+        commentaire: r['Commentaire'] || r['commentaire'] || '',
+        agentN1: r['Agent N1'] || r['agentN1'] || '',
+        service: r['Service'] || r['service'] || '',
+        agentN2: r['Agent N2'] || r['agentN2'] || '',
+        dateReception: r['Date réception'] ? (r['Date réception'] instanceof Date ? r['Date réception'].toISOString().split('T')[0] : r['Date réception']) : new Date().toISOString().split('T')[0],
+        dateTraitement: r['Date traitement'] ? (r['Date traitement'] instanceof Date ? r['Date traitement'].toISOString().split('T')[0] : r['Date traitement']) : '',
+        statut: r['Statut'] || r['statut'] || 'En cours',
+        actionMenee: r['Action menée'] || r['actionMenee'] || '',
+        canalCommunication: r['Canal communication'] || r['canalCommunication'] || 'WhatsApp',
+        noteSatisfaction: r['Note satisfaction'] || r['noteSatisfaction'] || '',
+      }))
+
+      // Détection doublons : même téléphone + même date réception + même objet
+      const estDoublon = (ligne) => demandes.some(d =>
+        d.telephone && ligne.telephone && d.telephone === ligne.telephone &&
+        d.objetDemande === ligne.objetDemande &&
+        d.dateReception && ligne.dateReception &&
+        new Date(d.dateReception).toISOString().split('T')[0] === ligne.dateReception
+      )
+
+      const lignesAvecStatut = lignes.map(l => ({ ...l, _doublon: estDoublon(l) }))
+      const doublons = lignesAvecStatut.filter(l => l._doublon).length
+      setImportData({ lignes: lignesAvecStatut, doublons })
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleConfirmerImport = async () => {
+    const aImporter = importData.lignes.filter(l => !l._doublon)
+    let importes = 0
+    for (const ligne of aImporter) {
+      try {
+        const { _doublon, ...data } = ligne
+        const res = await API.post('/demandes', data)
+        setDemandes(prev => [res.data, ...prev])
+        importes++
+      } catch {}
+    }
+    alert(`Import terminé : ${importes} demande(s) importée(s), ${importData.doublons} doublon(s) ignoré(s).`)
+    setImportData(null)
+  }
+
   const userRole = localStorage.getItem('userRole')
   const userName = localStorage.getItem('userName')
   const isFullAccess = userRole === 'admin' || userRole === 'manager' || userName === 'Ismael COULIBALY'
@@ -1476,6 +1540,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               📥 Exporter Excel
             </button>
 
+            <label style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#6b46c1', cursor:'pointer', display:'inline-block', textAlign:'center'}}>
+              📤 Importer Excel
+              <input type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={handleImportExcel} />
+            </label>
+
             <button
               style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem'}}
               onClick={() => setShowForm(!showForm)}
@@ -1485,6 +1554,60 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           </div>
         </div>
       </div>
+
+      {/* Modale prévisualisation import Excel */}
+      {importData && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
+          <div style={{background:'white',borderRadius:'16px',padding:'2rem',width:'100%',maxWidth:'800px',maxHeight:'85vh',overflowY:'auto',boxShadow:'0 8px 40px rgba(0,0,0,0.2)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
+              <h3 style={{margin:0,color:'#1a365d'}}>📤 Prévisualisation de l'import</h3>
+              <button onClick={() => setImportData(null)} style={{background:'none',border:'none',fontSize:'1.5rem',cursor:'pointer',color:'#718096'}}>✕</button>
+            </div>
+            <div style={{display:'flex',gap:'1rem',marginBottom:'1rem',flexWrap:'wrap'}}>
+              <div style={{background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:'8px',padding:'0.5rem 1rem',fontSize:'0.9rem',color:'#276749'}}>
+                ✅ {importData.lignes.filter(l=>!l._doublon).length} à importer
+              </div>
+              <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:'8px',padding:'0.5rem 1rem',fontSize:'0.9rem',color:'#c53030'}}>
+                ⚠ {importData.doublons} doublon(s) ignoré(s)
+              </div>
+            </div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.82rem',marginBottom:'1.25rem'}}>
+              <thead>
+                <tr style={{background:'#f7fafc'}}>
+                  {['Statut','Nom','Téléphone','Objet','Date réception','Statut demande'].map(h => (
+                    <th key={h} style={{padding:'0.5rem 0.75rem',textAlign:'left',borderBottom:'2px solid #e2e8f0',color:'#4a5568'}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {importData.lignes.map((l, i) => (
+                  <tr key={i} style={{background: l._doublon ? '#fff5f5' : 'white', opacity: l._doublon ? 0.7 : 1}}>
+                    <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>
+                      {l._doublon
+                        ? <span style={{color:'#c53030',fontWeight:'600'}}>⚠ Doublon</span>
+                        : <span style={{color:'#276749',fontWeight:'600'}}>✅ Nouveau</span>}
+                    </td>
+                    <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.nomPrenom}</td>
+                    <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.telephone}</td>
+                    <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.objetDemande}</td>
+                    <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.dateReception}</td>
+                    <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.statut}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
+              <button onClick={() => setImportData(null)} style={{...styles.button,width:'auto',padding:'0.75rem 1.5rem',background:'#718096'}}>
+                Annuler
+              </button>
+              <button onClick={handleConfirmerImport} disabled={importData.lignes.filter(l=>!l._doublon).length === 0}
+                style={{...styles.button,width:'auto',padding:'0.75rem 1.5rem',background: importData.lignes.filter(l=>!l._doublon).length === 0 ? '#cbd5e0' : '#2b6cb0',cursor: importData.lignes.filter(l=>!l._doublon).length === 0 ? 'not-allowed' : 'pointer'}}>
+                Importer {importData.lignes.filter(l=>!l._doublon).length} demande(s)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {critiques.length > 0 && (
         <div style={{
