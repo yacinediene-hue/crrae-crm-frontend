@@ -1322,7 +1322,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       }
       setForm(emptyForm)
       setShowForm(false)
-    } catch { alert("Erreur enregistrement") }
+    } catch(err) { alert("Erreur enregistrement : " + (err?.response?.data?.message || err?.message || JSON.stringify(err))) }
   }
 
   const handleEdit = (d) => {
