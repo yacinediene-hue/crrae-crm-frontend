@@ -1233,6 +1233,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [filterDateDebut, setFilterDateDebut] = useState('')
   const [filterDateFin, setFilterDateFin] = useState('')
   const [showFiltres, setShowFiltres] = useState(false)
+  const [colFilters, setColFilters] = useState({})
+  const [colDropdown, setColDropdown] = useState(null) // clé de colonne ouverte
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WhatsApp', telephone: '', email: '',
@@ -1507,6 +1509,15 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (filterObjet && d.objetDemande !== filterObjet) return false
     if (filterDateDebut && d.dateReception && new Date(d.dateReception) < new Date(filterDateDebut)) return false
     if (filterDateFin && d.dateReception && new Date(d.dateReception) > new Date(filterDateFin + 'T23:59:59')) return false
+    // Filtres colonnes
+    if (colFilters.typeClient && d.typeClient !== colFilters.typeClient) return false
+    if (colFilters.pays && d.pays !== colFilters.pays) return false
+    if (colFilters.objetDemande && d.objetDemande !== colFilters.objetDemande) return false
+    if (colFilters.canal && d.canal !== colFilters.canal) return false
+    if (colFilters.agentN1 && d.agentN1 !== colFilters.agentN1) return false
+    if (colFilters.service && d.service !== colFilters.service) return false
+    if (colFilters.statut && d.statut !== colFilters.statut) return false
+    if (colFilters.priorite && d.priorite !== colFilters.priorite) return false
     return true
   })
   const demandesClient = (telephone) =>
@@ -1749,7 +1760,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             )}
           </button>
           {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search) && (
-            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('') }}
+            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setColFilters({}) }}
               style={{padding:'0.6rem 0.9rem',borderRadius:'8px',border:'1px solid #fed7d7',background:'#fff5f5',color:'#c53030',cursor:'pointer',fontSize:'0.85rem',whiteSpace:'nowrap'}}>
               ✕ Réinitialiser
             </button>
@@ -1936,22 +1947,94 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         <div style={{overflowX:'auto'}}>
           <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
             <thead>
-              <tr>
-                {['N°','Date','Nom','Type','Pays','Objet','Canal','Agent N1','Service','Statut','Priorité','Délai','Note','Enquête','Actions'].map(h => (
-                  <th
-                    key={h}
-                    style={{
-                      ...styles.th,
-                      background:'#f8fafc',
-                      color:'#4a5568',
-                      fontSize:'0.78rem',
-                      letterSpacing:'0.03em',
-                      borderBottom:'1px solid #e2e8f0'
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
+              <tr onClick={() => setColDropdown(null)}>
+                {[
+                  {label:'N°', key:null},
+                  {label:'Date', key:null},
+                  {label:'Nom', key:null},
+                  {label:'Type', key:'typeClient'},
+                  {label:'Pays', key:'pays'},
+                  {label:'Objet', key:'objetDemande'},
+                  {label:'Canal', key:'canal'},
+                  {label:'Agent N1', key:'agentN1'},
+                  {label:'Service', key:'service'},
+                  {label:'Statut', key:'statut'},
+                  {label:'Priorité', key:'priorite'},
+                  {label:'Délai', key:null},
+                  {label:'Note', key:null},
+                  {label:'Enquête', key:null},
+                  {label:'Actions', key:null},
+                ].map(({label, key}) => {
+                  const actif = key && colFilters[key]
+                  const valeurs = key ? [...new Set(demandes.map(d => d[key]).filter(Boolean))].sort() : []
+                  return (
+                    <th
+                      key={label}
+                      style={{
+                        ...styles.th,
+                        background: actif ? '#ebf8ff' : '#f8fafc',
+                        color: actif ? '#2b6cb0' : '#4a5568',
+                        fontSize:'0.78rem',
+                        letterSpacing:'0.03em',
+                        borderBottom:'1px solid #e2e8f0',
+                        position:'relative',
+                        cursor: key ? 'pointer' : 'default',
+                        userSelect:'none',
+                        whiteSpace:'nowrap',
+                      }}
+                      onClick={e => {
+                        if (!key) return
+                        e.stopPropagation()
+                        setColDropdown(colDropdown === key ? null : key)
+                      }}
+                    >
+                      {label}
+                      {key && <span style={{marginLeft:'0.3rem', opacity:0.5, fontSize:'0.7rem'}}>{actif ? '●' : '▾'}</span>}
+                      {colDropdown === key && (
+                        <div
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            position:'absolute',
+                            top:'100%',
+                            left:0,
+                            zIndex:200,
+                            background:'white',
+                            border:'1px solid #e2e8f0',
+                            borderRadius:'8px',
+                            boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
+                            minWidth:'160px',
+                            maxHeight:'220px',
+                            overflowY:'auto',
+                            padding:'0.25rem 0',
+                          }}
+                        >
+                          <div
+                            style={{padding:'0.45rem 0.75rem',cursor:'pointer',fontSize:'0.82rem',color:'#718096',borderBottom:'1px solid #f0f0f0',fontStyle:'italic'}}
+                            onClick={() => { setColFilters(f=>({...f,[key]:''})); setColDropdown(null) }}
+                          >
+                            Tout afficher
+                          </div>
+                          {valeurs.map(v => (
+                            <div
+                              key={v}
+                              style={{
+                                padding:'0.45rem 0.75rem',
+                                cursor:'pointer',
+                                fontSize:'0.82rem',
+                                background: colFilters[key]===v ? '#ebf8ff' : 'white',
+                                color: colFilters[key]===v ? '#2b6cb0' : '#2d3748',
+                                fontWeight: colFilters[key]===v ? '600' : '400',
+                              }}
+                              onClick={() => { setColFilters(f=>({...f,[key]:v})); setColDropdown(null) }}
+                            >
+                              {v}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
