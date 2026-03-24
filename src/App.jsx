@@ -1306,13 +1306,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           detail: `Statut: ${form.statut} — ${form.actionMenee || 'Mise à jour'}`,
         }).catch(() => {})
 
-        if (
-          ancienneDemande &&
-          ancienneDemande.statut !== 'Traité' &&
-          res.data.statut === 'Traité' &&
-          res.data.email
-        ) {
-          envoyerEnquete(res.data)
+        // Enquête automatique quand statut passe à Traité
+        if (ancienneDemande && ancienneDemande.statut !== 'Traité' && res.data.statut === 'Traité' && !res.data.enqueteEnvoyee) {
+          // Email → envoi immédiat via mailto
+          // WhatsApp/Appel → géré par polling whatsapp-instance.js (pas d'action ici)
+          if (res.data.canal === 'Email' && res.data.email) {
+            envoyerEnquete(res.data, true)
+          }
         }
 
         setEditId(null)
@@ -1345,28 +1345,28 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     window.scrollTo(0, 0)
   }
 
-  const envoyerEnquete = async (d) => {
-    if (!window.confirm("Envoyer l'enquête de satisfaction au client ?")) return
+  const ENQUETE_URL = 'https://thriving-cassata-92f38e.netlify.app'
 
+  const envoyerEnquete = async (d, auto = false) => {
+    if (!auto && !window.confirm("Envoyer l'enquête de satisfaction au client ?")) return
+    const lien = `${ENQUETE_URL}?ref=${d.numDemande}`
     try {
       await API.post('/timeline', {
         demandeId: d.id,
         auteur: localStorage.getItem('userName') || 'Agent',
         action: 'Enquête envoyée',
-        canal: 'CRM',
-        detail: `Enquête de satisfaction envoyée au client (${d.email || 'sans email'})`
+        canal: d.canal || 'CRM',
+        detail: `Enquête de satisfaction envoyée (${d.canal || '?'})`
       })
     } catch (e) {}
-
-    await API.put(`/demandes/${d.id}`, {
-      enqueteEnvoyee: true
-    })
-
-    const lien = `https://crrae-crm-frontend.vercel.app/enquete/${d.numDemande}`
-    const sujet = `Évaluation de votre demande ${d.numDemande} — CRRAE-UMOA`
-    const corps = `Bonjour ${d.nomPrenom},%0D%0A%0D%0ANous vous informons que votre demande n°${d.numDemande} a été traitée par nos services.%0D%0A%0D%0ADans le cadre de notre démarche d'amélioration continue, nous vous invitons à évaluer la qualité de notre traitement:%0D%0A%0D%0A👉 ${lien}%0D%0A%0D%0AVotre retour est précieux et contribue à l'amélioration de nos services.%0D%0A%0D%0ACordialement,%0D%0AService Client CRRAE-UMOA`
-    const email = d.email || ''
-    window.open(`mailto:${email}?subject=${sujet}&body=${corps}`)
+    await API.put(`/demandes/${d.id}`, { enqueteEnvoyee: true }).catch(() => {})
+    // WhatsApp / Appel → géré par le polling whatsapp-instance.js
+    // Email → ouvre le client mail
+    if (d.canal === 'Email' && d.email) {
+      const sujet = `Évaluation de votre demande ${d.numDemande} — CRRAE-UMOA`
+      const corps = `Bonjour,%0D%0A%0D%0AVotre demande n°${d.numDemande} a été traitée par nos services.%0D%0A%0D%0ANous vous invitons à évaluer la qualité de notre traitement :%0D%0A%0D%0A👉 ${lien}%0D%0A%0D%0AVotre retour est précieux.%0D%0A%0D%0ACordialement,%0D%0AService Client CRRAE-UMOA`
+      window.open(`mailto:${d.email}?subject=${sujet}&body=${corps}`)
+    }
   }
 
   const handleDelete = async (id) => {
