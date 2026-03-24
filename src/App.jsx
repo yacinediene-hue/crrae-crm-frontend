@@ -1533,7 +1533,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (colFilters.statut && d.statut !== colFilters.statut) return false
     if (colFilters.priorite && d.priorite !== colFilters.priorite) return false
     return true
-  })
+  }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   const demandesClient = (telephone) =>
     demandes.filter(d => d.telephone === telephone)
 
