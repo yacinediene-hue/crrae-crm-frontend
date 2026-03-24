@@ -653,7 +653,10 @@ function FileCritique() {
                 <td colSpan="6" style={styles.td}>Aucune demande critique</td>
               </tr>
             ) : critiques.map(d => (
-              <tr key={d.id} style={styles.tr}>
+              <tr key={d.id} style={{...styles.tr, cursor:'pointer'}} onClick={() => {
+                localStorage.setItem('demandeRechercheeId', d.id)
+                window.location.href = '/demandes'
+              }}>
                 <td style={{...styles.td, color:'#2b6cb0', fontWeight:'600'}}>{f(d.numDemande)}</td>
                 <td style={styles.td}>{f(d.nomPrenom)}</td>
                 <td style={styles.td}>{f(d.objetDemande)}</td>
