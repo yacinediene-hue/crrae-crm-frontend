@@ -1226,6 +1226,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
+  const [filterCanal, setFilterCanal] = useState('')
+  const [filterService, setFilterService] = useState('')
+  const [filterTypeClient, setFilterTypeClient] = useState('')
+  const [filterObjet, setFilterObjet] = useState('')
+  const [filterDateDebut, setFilterDateDebut] = useState('')
+  const [filterDateFin, setFilterDateFin] = useState('')
+  const [showFiltres, setShowFiltres] = useState(false)
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WhatsApp', telephone: '', email: '',
@@ -1487,9 +1494,20 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const filtered = demandes.filter(d => {
     if (!isFullAccess && d.agentN1 !== userName && d.agentN2 !== userName) return false
     const q = search.toLowerCase()
-    const ms = !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q)
-    const mst = !filterStatut || d.statut === filterStatut
-    return ms && mst
+    if (q && !(
+      (d.nomPrenom||'').toLowerCase().includes(q) ||
+      (d.numDemande||'').toLowerCase().includes(q) ||
+      (d.telephone||'').includes(q) ||
+      (d.matricule||'').toLowerCase().includes(q)
+    )) return false
+    if (filterStatut && d.statut !== filterStatut) return false
+    if (filterCanal && d.canal !== filterCanal) return false
+    if (filterService && d.service !== filterService) return false
+    if (filterTypeClient && d.typeClient !== filterTypeClient) return false
+    if (filterObjet && d.objetDemande !== filterObjet) return false
+    if (filterDateDebut && d.dateReception && new Date(d.dateReception) < new Date(filterDateDebut)) return false
+    if (filterDateFin && d.dateReception && new Date(d.dateReception) > new Date(filterDateFin + 'T23:59:59')) return false
+    return true
   })
   const demandesClient = (telephone) =>
     demandes.filter(d => d.telephone === telephone)
@@ -1706,30 +1724,71 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         ))}
       </div>
 
-      <div style={{
-        background:'white',
-        borderRadius:'14px',
-        padding:'1rem',
-        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-        marginBottom:'1rem'
-      }}>
-        <div style={{display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
+      <div style={{background:'white',borderRadius:'14px',padding:'1rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+        {/* Barre principale */}
+        <div style={{display:'flex',gap:'0.75rem',flexWrap:'wrap',alignItems:'center'}}>
           <input
-            style={{...styles.input, marginBottom:0, flex:1, minWidth:'260px'}}
-            placeholder="🔍 Rechercher un nom ou un numéro de demande..."
+            style={{...styles.input,marginBottom:0,flex:1,minWidth:'220px'}}
+            placeholder="🔍 Nom, N° demande, téléphone, matricule..."
             value={search}
             onChange={e=>setSearch(e.target.value)}
           />
-          <select
-            style={{...styles.input, marginBottom:0, width:'180px'}}
-            value={filterStatut}
-            onChange={e=>setFilterStatut(e.target.value)}
-          >
+          <select style={{...styles.input,marginBottom:0,width:'160px'}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
             <option value="">Tous statuts</option>
-            <option>Traité</option>
-            <option>En cours</option>
-            <option>En attente</option>
+            <option>Traité</option><option>En cours</option><option>En attente</option>
           </select>
+          <button
+            onClick={() => setShowFiltres(f => !f)}
+            style={{padding:'0.6rem 1rem',borderRadius:'8px',border:'1px solid #e2e8f0',background: showFiltres ? '#ebf8ff' : 'white',color: showFiltres ? '#2b6cb0' : '#4a5568',cursor:'pointer',fontWeight:'500',fontSize:'0.9rem',whiteSpace:'nowrap'}}
+          >
+            {showFiltres ? '▲' : '▼'} Filtres avancés
+            {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin) && (
+              <span style={{marginLeft:'0.4rem',background:'#2b6cb0',color:'white',borderRadius:'999px',padding:'0 0.4rem',fontSize:'0.75rem'}}>
+                {[filterCanal,filterService,filterTypeClient,filterObjet,filterDateDebut,filterDateFin].filter(Boolean).length}
+              </span>
+            )}
+          </button>
+          {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search) && (
+            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('') }}
+              style={{padding:'0.6rem 0.9rem',borderRadius:'8px',border:'1px solid #fed7d7',background:'#fff5f5',color:'#c53030',cursor:'pointer',fontSize:'0.85rem',whiteSpace:'nowrap'}}>
+              ✕ Réinitialiser
+            </button>
+          )}
+        </div>
+
+        {/* Filtres avancés */}
+        {showFiltres && (
+          <div style={{marginTop:'0.75rem',paddingTop:'0.75rem',borderTop:'1px solid #e2e8f0',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'0.6rem'}}>
+            <select style={{...styles.input,marginBottom:0}} value={filterCanal} onChange={e=>setFilterCanal(e.target.value)}>
+              <option value="">Tous canaux</option>
+              <option>WhatsApp</option><option>Appel</option><option>Email</option><option>Courrier</option>
+            </select>
+            <select style={{...styles.input,marginBottom:0}} value={filterService} onChange={e=>setFilterService(e.target.value)}>
+              <option value="">Tous services</option>
+              {['DPM','DPR','DSI','DCR','PATRIMOINE','REGISSEUR'].map(s=><option key={s}>{s}</option>)}
+            </select>
+            <select style={{...styles.input,marginBottom:0}} value={filterTypeClient} onChange={e=>setFilterTypeClient(e.target.value)}>
+              <option value="">Tous types</option>
+              <option>Actif</option><option>Retraité</option><option>Ayant droit</option>
+            </select>
+            <select style={{...styles.input,marginBottom:0}} value={filterObjet} onChange={e=>setFilterObjet(e.target.value)}>
+              <option value="">Tous objets</option>
+              {['Information','Réclamation','Demande de document','Information générale','Liquidation pension','Pension réversion','Prestations santé / FAAM','Cotisations','Affiliation','Autre'].map(o=><option key={o}>{o}</option>)}
+            </select>
+            <div>
+              <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>Date début</label>
+              <input type="date" style={{...styles.input,marginBottom:0}} value={filterDateDebut} onChange={e=>setFilterDateDebut(e.target.value)} />
+            </div>
+            <div>
+              <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>Date fin</label>
+              <input type="date" style={{...styles.input,marginBottom:0}} value={filterDateFin} onChange={e=>setFilterDateFin(e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {/* Résumé résultats */}
+        <div style={{marginTop:'0.6rem',fontSize:'0.82rem',color:'#718096'}}>
+          {filtered.length} résultat{filtered.length > 1 ? 's' : ''} sur {demandes.length} demandes
         </div>
       </div>
 
