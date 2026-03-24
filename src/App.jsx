@@ -1295,7 +1295,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       if (editId) {
         const ancienneDemande = demandes.find(d => d.id === editId)
 
-        const res = await API.put(`/demandes/${editId}`, form)
+        const payload = {
+          ...form,
+          dateReception: form.dateReception ? new Date(form.dateReception).toISOString() : null,
+          dateTraitement: form.dateTraitement ? new Date(form.dateTraitement).toISOString() : null,
+          noteSatisfaction: form.noteSatisfaction !== '' && form.noteSatisfaction !== null && form.noteSatisfaction !== undefined
+            ? parseInt(form.noteSatisfaction, 10) : null,
+        }
+        const res = await API.put(`/demandes/${editId}`, payload)
         setDemandes(demandes.map(d => d.id === editId ? res.data : d))
 
         await API.post('/timeline', {
@@ -1317,7 +1324,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
         setEditId(null)
       } else {
-        const res = await API.post('/demandes', form)
+        const createPayload = {
+          ...form,
+          dateReception: form.dateReception ? new Date(form.dateReception).toISOString() : null,
+          dateTraitement: form.dateTraitement ? new Date(form.dateTraitement).toISOString() : null,
+          noteSatisfaction: form.noteSatisfaction !== '' && form.noteSatisfaction !== null && form.noteSatisfaction !== undefined
+            ? parseInt(form.noteSatisfaction, 10) : null,
+        }
+        const res = await API.post('/demandes', createPayload)
         setDemandes([res.data, ...demandes])
       }
       setForm(emptyForm)
