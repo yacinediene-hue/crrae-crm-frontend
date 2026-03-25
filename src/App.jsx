@@ -60,141 +60,52 @@ function Login({ onLogin }) {
 
 // Dashboard
 function Dashboard({ alertes = [] }) {
-  const [stats, setStats] = useState({ contacts: 0, deals: 0, tickets: 0, demandes: 0 })
-  const [filesService, setFilesService] = useState({})
+  const [stats, setStats] = useState({ contacts: 0, deals: 0 })
   const [demandes, setDemandes] = useState([])
   const [periode, setPeriode] = useState('30j')
 
   const demandesFiltrees = demandes.filter((d) => {
     if (!d.createdAt) return true
-
     const date = new Date(d.createdAt)
     const now = new Date()
-
-    if (periode === 'today') {
-      return date.toDateString() === now.toDateString()
-    }
-
-    if (periode === '7j') {
-      const sevenDays = new Date()
-      sevenDays.setDate(now.getDate() - 7)
-      return date >= sevenDays
-    }
-
-    if (periode === '30j') {
-      const thirtyDays = new Date()
-      thirtyDays.setDate(now.getDate() - 30)
-      return date >= thirtyDays
-    }
-
+    if (periode === 'today') return date.toDateString() === now.toDateString()
+    if (periode === '7j') { const t = new Date(); t.setDate(now.getDate() - 7); return date >= t }
+    if (periode === '30j') { const t = new Date(); t.setDate(now.getDate() - 30); return date >= t }
     return true
   })
 
-  const [slaStats, setSlaStats] = useState({})
-  const [agentStats, setAgentStats] = useState({})
+  const slaStats = demandesFiltrees.reduce((acc, item) => {
+    const service = item.service || 'Autre'
+    if (!acc[service]) acc[service] = { total: 0, slaOk: 0 }
+    acc[service].total++
+    if (item.respectDelai === 'OUI') acc[service].slaOk++
+    return acc
+  }, {})
+
+  const agentStats = demandesFiltrees.reduce((acc, item) => {
+    const agent = item.agentN1 || 'Non assigné'
+    if (!acc[agent]) acc[agent] = { total: 0, slaOk: 0 }
+    acc[agent].total++
+    if (item.respectDelai === 'OUI') acc[agent].slaOk++
+    return acc
+  }, {})
+
+  const filesService = demandesFiltrees.reduce((acc, d) => {
+    const service = d.service || 'Autre'
+    if (!acc[service]) acc[service] = { enCours: 0, horsSla: 0 }
+    if (d.statut === 'En cours') acc[service].enCours++
+    if (d.statut !== 'Traité' && d.respectDelai === 'NON') acc[service].horsSla++
+    return acc
+  }, {})
 
   useEffect(() => {
     Promise.all([
       API.get('/contacts'),
       API.get('/deals'),
-      API.get('/tickets'),
       API.get('/demandes'),
-    ]).then(([c, d, t, dem]) => {
-      const demandes = dem.data
-
-      const demandesFiltrees = demandes.filter(d => {
-        if (!d.createdAt) return true
-
-        const date = new Date(d.createdAt)
-        const now = new Date()
-
-        if (periode === 'today') {
-          return date.toDateString() === now.toDateString()
-        }
-
-        if (periode === '7j') {
-          const sevenDays = new Date()
-          sevenDays.setDate(now.getDate() - 7)
-          return date >= sevenDays
-        }
-
-        return true
-      })
-
-      const statsService = {}
-
-      demandesFiltrees.forEach((item) => {
-        const service = item.service || 'Autre'
-
-        if (!statsService[service]) {
-          statsService[service] = {
-            total: 0,
-            slaOk: 0,
-          }
-        }
-
-        statsService[service].total++
-
-        if (item.respectDelai === 'OUI') {
-          statsService[service].slaOk++
-        }
-      })
-
-      console.log('SLA par service', JSON.stringify(statsService, null, 2))
-      setSlaStats(statsService)
-
-      const statsAgent = {}
-
-      demandesFiltrees.forEach((item) => {
-        const agent = item.agentN1 || "Non assigné"
-
-        if (!statsAgent[agent]) {
-          statsAgent[agent] = {
-            total: 0,
-            slaOk: 0
-          }
-        }
-
-        statsAgent[agent].total++
-
-        if (item.respectDelai === "OUI") {
-          statsAgent[agent].slaOk++
-        }
-      })
-
-      setAgentStats(statsAgent)
-
-      setStats({
-        contacts: c.data.length,
-        deals: d.data.length,
-        tickets: t.data.length,
-        demandes: demandesFiltrees.length,
-      })
-
-      setDemandes(demandesFiltrees)
-
-      const files = {}
-
-      dem.data.forEach(d => {
-        const service = d.service || 'Autre'
-
-        if (!files[service]) {
-          files[service] = {
-            enCours: 0,
-            horsSla: 0
-          }
-        }
-
-        if (d.statut === 'En cours') {
-          files[service].enCours++
-        }
-
-        if (d.respectDelai === 'NON') {
-          files[service].horsSla++
-        }
-      })
-
-      setFilesService(files)
+    ]).then(([c, d, dem]) => {
+      setStats({ contacts: c.data.length, deals: d.data.length })
+      setDemandes(dem.data)
     }).catch(() => {})
   }, [])
 
@@ -279,12 +190,14 @@ function Dashboard({ alertes = [] }) {
   ]
 
   const demandesCritiques = demandesFiltrees.filter(d =>
-    d.priorite === 'Critique' ||
-    d.respectDelai === 'NON' ||
-    d.objetDemande === 'Réclamation'
+    d.statut !== 'Traité' && (
+      d.priorite === 'Urgent' ||
+      d.respectDelai === 'NON' ||
+      d.objetDemande === 'Réclamation'
+    )
   )
 
-  const demandesHorsSla = demandesFiltrees.filter(d => d.respectDelai === 'NON')
+  const demandesHorsSla = demandesFiltrees.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON')
 
   const demandesEnCours = demandesFiltrees.filter(d => d.statut === 'En cours')
 
@@ -398,8 +311,7 @@ function Dashboard({ alertes = [] }) {
       <div style={styles.statsGrid}>
         <div style={styles.statCard}><h3>👥 Contacts</h3><p style={styles.statNum}>{stats.contacts}</p></div>
         <div style={styles.statCard}><h3>💼 Deals</h3><p style={styles.statNum}>{stats.deals}</p></div>
-        <div style={styles.statCard}><h3>🎫 Tickets</h3><p style={styles.statNum}>{stats.tickets}</p></div>
-        <div style={styles.statCard}><h3>📋 Demandes</h3><p style={styles.statNum}>{stats.demandes}</p></div>
+        <div style={styles.statCard}><h3>📋 Demandes</h3><p style={styles.statNum}>{demandesFiltrees.length}</p></div>
       </div>
 
       <div style={{
@@ -617,9 +529,11 @@ function FileCritique() {
   }, [])
 
   const critiques = demandes.filter(d =>
-    d.priorite === 'Critique' ||
-    d.respectDelai === 'NON' ||
-    d.objetDemande === 'Réclamation'
+    d.statut !== 'Traité' && (
+      d.priorite === 'Urgent' ||
+      d.respectDelai === 'NON' ||
+      d.objetDemande === 'Réclamation'
+    )
   )
 
   const f = (v) => v || '—'
@@ -669,7 +583,7 @@ function FileCritique() {
                     borderRadius:'8px',
                     fontSize:'0.75rem'
                   }}>
-                    {d.priorite || 'Critique'}
+                    {d.priorite || 'Urgent'}
                   </span>
                 </td>
                 <td style={styles.td}>{f(d.statut)}</td>
@@ -708,7 +622,7 @@ function Contacts() {
       {showForm && (
         <form onSubmit={handleAdd} style={styles.form}>
           <input style={styles.input} placeholder="Nom" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-          <input style={styles.input} placeholder="Email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} required />
+          <input style={styles.input} placeholder="Email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
           <input style={styles.input} placeholder="Téléphone" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
           <input style={styles.input} placeholder="Entreprise" value={form.company} onChange={e => setForm({...form, company: e.target.value})} />
           <button style={styles.button} type="submit">Enregistrer</button>
@@ -804,90 +718,6 @@ function Deals() {
   )
 }
 
-// Tickets
-function Tickets() {
-  const [tickets, setTickets] = useState([])
-  const [form, setForm] = useState({ subject: '', description: '', priority: 'medium', status: 'open' })
-  const [showForm, setShowForm] = useState(false)
-
-  useEffect(() => { API.get('/tickets').then(r => setTickets(r.data)).catch(() => {}) }, [])
-
-  const handleAdd = async (e) => {
-    e.preventDefault()
-    try {
-      const res = await API.post('/tickets', form)
-      setTickets([...tickets, res.data])
-      setForm({ subject: '', description: '', priority: 'medium', status: 'open' })
-      setShowForm(false)
-    } catch {}
-  }
-
-  const priorityColor = (priority) => {
-    const map = {
-      low: { background: '#f0fff4', color: '#276749' },
-      medium: { background: '#fffbeb', color: '#b7791f' },
-      high: { background: '#fff5f5', color: '#c53030' },
-    }
-    return map[priority] || map.medium
-  }
-
-  const statusColor = (status) => {
-    const map = {
-      open: { background: '#ebf8ff', color: '#2b6cb0' },
-      in_progress: { background: '#faf5ff', color: '#6b46c1' },
-      closed: { background: '#f7fafc', color: '#718096' },
-    }
-    return map[status] || map.open
-  }
-
-  return (
-    <div>
-      <div style={styles.pageHeader}>
-        <h2 style={styles.pageTitle}>🎫 Tickets</h2>
-        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
-      </div>
-      {showForm && (
-        <form onSubmit={handleAdd} style={styles.form}>
-          <input style={styles.input} placeholder="Sujet" value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} required />
-          <textarea style={{...styles.input, height: '80px', resize: 'vertical'}} placeholder="Description" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
-          <select style={styles.input} value={form.priority} onChange={e => setForm({...form, priority: e.target.value})}>
-            <option value="low">Priorité basse</option>
-            <option value="medium">Priorité moyenne</option>
-            <option value="high">Priorité haute</option>
-          </select>
-          <select style={styles.input} value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
-            <option value="open">Ouvert</option>
-            <option value="in_progress">En cours</option>
-            <option value="closed">Fermé</option>
-          </select>
-          <button style={styles.button} type="submit">Enregistrer</button>
-        </form>
-      )}
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>Sujet</th>
-            <th style={styles.th}>Description</th>
-            <th style={styles.th}>Priorité</th>
-            <th style={styles.th}>Statut</th>
-            <th style={styles.th}>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tickets.map(t => (
-            <tr key={t.id} style={styles.tr}>
-              <td style={styles.td}>{t.subject}</td>
-              <td style={styles.td}>{t.description ? t.description.substring(0, 50) + (t.description.length > 50 ? '...' : '') : '—'}</td>
-              <td style={styles.td}><span style={{...styles.badge, ...priorityColor(t.priority)}}>{t.priority}</span></td>
-              <td style={styles.td}><span style={{...styles.badge, ...statusColor(t.status)}}>{t.status}</span></td>
-              <td style={styles.td}>{t.createdAt ? new Date(t.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
 
 // Campagnes
 function Campagnes() {
@@ -1035,7 +865,7 @@ function FicheClient({ telephone, matricule, onClose }) {
             {client.matricule && <span>🪪 {client.matricule}</span>}
           </div>
         </div>
-        <div style={{display:'flex', gap:'0.5rem', textAlign:'center', flexShrink:0}}>
+        <div style={{display:'flex', gap:'0.5rem', textAlign:'center', flexShrink:0, alignItems:'flex-start'}}>
           <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
             <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#2b6cb0'}}>{demandes.length}</div>
             <div style={{fontSize:'0.7rem', color:'#718096'}}>demandes</div>
@@ -1050,6 +880,7 @@ function FicheClient({ telephone, matricule, onClose }) {
               <div style={{fontSize:'0.7rem', color:'#718096'}}>note moy.</div>
             </div>
           )}
+          <button onClick={onClose} style={{background:'transparent', border:'none', fontSize:'1.25rem', cursor:'pointer', color:'#276749', lineHeight:1, padding:'0.25rem'}} title="Fermer la fiche">✕</button>
         </div>
       </div>
       {demandes.length > 0 && (
@@ -1236,8 +1067,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [filterDateDebut, setFilterDateDebut] = useState('')
   const [filterDateFin, setFilterDateFin] = useState('')
   const [showFiltres, setShowFiltres] = useState(false)
-  const [colFilters, setColFilters] = useState({})
-  const [colDropdown, setColDropdown] = useState(null) // clé de colonne ouverte
+  const [filtresColonnes, setFiltresColonnes] = useState({})
+  const [colonneActive, setColonneActive] = useState(null)
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WhatsApp', telephone: '', email: '',
@@ -1291,6 +1122,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       if (onNouvelleDemandeOuverte) onNouvelleDemandeOuverte()
     }
   }, [ouvrirNouvelleDemande, onNouvelleDemandeOuverte])
+
+  useEffect(() => {
+    const fermerMenus = () => setColonneActive(null)
+    window.addEventListener('click', fermerMenus)
+    return () => window.removeEventListener('click', fermerMenus)
+  }, [])
 
   const handleAdd = async (e) => {
     e.preventDefault()
@@ -1495,9 +1332,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const isFullAccess = userRole === 'admin' || userRole === 'manager' || userName === 'Ismael COULIBALY'
 
   const critiques = demandes.filter(d =>
-    d.priorite === 'Critique' ||
-    d.respectDelai === 'NON' ||
-    d.objetDemande === 'Réclamation'
+    d.statut !== 'Traité' && (
+      d.priorite === 'Urgent' ||
+      d.respectDelai === 'NON' ||
+      d.objetDemande === 'Réclamation'
+    )
   )
 
   const horsSLA = demandes.filter(d => {
@@ -1527,14 +1366,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (filterDateDebut && d.dateReception && new Date(d.dateReception) < new Date(filterDateDebut)) return false
     if (filterDateFin && d.dateReception && new Date(d.dateReception) > new Date(filterDateFin + 'T23:59:59')) return false
     // Filtres colonnes
-    if (colFilters.typeClient && d.typeClient !== colFilters.typeClient) return false
-    if (colFilters.pays && d.pays !== colFilters.pays) return false
-    if (colFilters.objetDemande && d.objetDemande !== colFilters.objetDemande) return false
-    if (colFilters.canal && d.canal !== colFilters.canal) return false
-    if (colFilters.agentN1 && d.agentN1 !== colFilters.agentN1) return false
-    if (colFilters.service && d.service !== colFilters.service) return false
-    if (colFilters.statut && d.statut !== colFilters.statut) return false
-    if (colFilters.priorite && d.priorite !== colFilters.priorite) return false
+    if (filtresColonnes.typeClient && d.typeClient !== filtresColonnes.typeClient) return false
+    if (filtresColonnes.pays && d.pays !== filtresColonnes.pays) return false
+    if (filtresColonnes.objetDemande && d.objetDemande !== filtresColonnes.objetDemande) return false
+    if (filtresColonnes.canal && d.canal !== filtresColonnes.canal) return false
+    if (filtresColonnes.agentN1 && d.agentN1 !== filtresColonnes.agentN1) return false
+    if (filtresColonnes.service && d.service !== filtresColonnes.service) return false
+    if (filtresColonnes.statut && d.statut !== filtresColonnes.statut) return false
+    if (filtresColonnes.priorite && d.priorite !== filtresColonnes.priorite) return false
     return true
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   const demandesClient = (telephone) =>
@@ -1560,6 +1399,85 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
     return null
   }
+
+  const valeursUniques = ['typeClient','pays','objetDemande','canal','agentN1','service','statut','priorite'].reduce((acc, cle) => {
+    acc[cle] = [...new Set(demandes.map(d => d[cle]).filter(Boolean))].sort()
+    return acc
+  }, {})
+
+  const renderHeaderFiltrable = (label, cle) => (
+    <th key={cle} style={{ ...styles.th, position: 'relative', overflow: 'visible' }}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setColonneActive(colonneActive === cle ? null : cle)
+        }}
+        style={{
+          background: filtresColonnes[cle] ? '#ebf8ff' : 'transparent',
+          border: 'none',
+          padding: '0.1rem 0.3rem',
+          borderRadius: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.35rem',
+          cursor: 'pointer',
+          font: 'inherit',
+          color: filtresColonnes[cle] ? '#2b6cb0' : 'inherit',
+          fontWeight: filtresColonnes[cle] ? '700' : 'inherit',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <span>{label}</span>
+        <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{filtresColonnes[cle] ? '●' : '▾'}</span>
+      </button>
+
+      {colonneActive === cle && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            left: 0,
+            width: '180px',
+            maxHeight: '220px',
+            overflowY: 'auto',
+            background: '#fff',
+            border: '1px solid #e2e8f0',
+            borderRadius: '10px',
+            boxShadow: '0 10px 24px rgba(0,0,0,0.14)',
+            zIndex: 5000,
+            padding: '0.35rem',
+          }}
+        >
+          <div
+            onClick={() => { setFiltresColonnes({ ...filtresColonnes, [cle]: '' }); setColonneActive(null) }}
+            style={{ padding: '0.5rem 0.65rem', cursor: 'pointer', borderRadius: '8px', fontSize: '0.85rem', color: '#4a5568', whiteSpace: 'nowrap' }}
+          >
+            Tout afficher
+          </div>
+          {valeursUniques[cle]?.map((val) => (
+            <div
+              key={val}
+              onClick={() => { setFiltresColonnes({ ...filtresColonnes, [cle]: val }); setColonneActive(null) }}
+              style={{
+                padding: '0.5rem 0.65rem',
+                cursor: 'pointer',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                whiteSpace: 'nowrap',
+                background: filtresColonnes[cle] === val ? '#ebf8ff' : 'transparent',
+                color: filtresColonnes[cle] === val ? '#2b6cb0' : '#2d3748',
+                fontWeight: filtresColonnes[cle] === val ? '600' : '400',
+              }}
+            >
+              {val}
+            </div>
+          ))}
+        </div>
+      )}
+    </th>
+  )
 
   return (
     <div>
@@ -1777,7 +1695,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             )}
           </button>
           {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search) && (
-            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setColFilters({}) }}
+            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setFiltresColonnes({}) }}
               style={{padding:'0.6rem 0.9rem',borderRadius:'8px',border:'1px solid #fed7d7',background:'#fff5f5',color:'#c53030',cursor:'pointer',fontSize:'0.85rem',whiteSpace:'nowrap'}}>
               ✕ Réinitialiser
             </button>
@@ -1959,99 +1877,27 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         background:'white',
         borderRadius:'14px',
         boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-        overflow:'hidden'
+        overflow:'visible'
       }}>
-        <div style={{overflowX:'auto'}}>
+        <div style={{overflowX:'auto', overflowY:'visible'}}>
           <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
             <thead>
-              <tr onClick={() => setColDropdown(null)}>
-                {[
-                  {label:'N°', key:null},
-                  {label:'Date', key:null},
-                  {label:'Nom', key:null},
-                  {label:'Type', key:'typeClient'},
-                  {label:'Pays', key:'pays'},
-                  {label:'Objet', key:'objetDemande'},
-                  {label:'Canal', key:'canal'},
-                  {label:'Agent N1', key:'agentN1'},
-                  {label:'Service', key:'service'},
-                  {label:'Statut', key:'statut'},
-                  {label:'Priorité', key:'priorite'},
-                  {label:'Délai', key:null},
-                  {label:'Note', key:null},
-                  {label:'Enquête', key:null},
-                  {label:'Actions', key:null},
-                ].map(({label, key}) => {
-                  const actif = key && colFilters[key]
-                  const valeurs = key ? [...new Set(demandes.map(d => d[key]).filter(Boolean))].sort() : []
-                  return (
-                    <th
-                      key={label}
-                      style={{
-                        ...styles.th,
-                        background: actif ? '#ebf8ff' : '#f8fafc',
-                        color: actif ? '#2b6cb0' : '#4a5568',
-                        fontSize:'0.78rem',
-                        letterSpacing:'0.03em',
-                        borderBottom:'1px solid #e2e8f0',
-                        position:'relative',
-                        cursor: key ? 'pointer' : 'default',
-                        userSelect:'none',
-                        whiteSpace:'nowrap',
-                      }}
-                      onClick={e => {
-                        if (!key) return
-                        e.stopPropagation()
-                        setColDropdown(colDropdown === key ? null : key)
-                      }}
-                    >
-                      {label}
-                      {key && <span style={{marginLeft:'0.3rem', opacity:0.5, fontSize:'0.7rem'}}>{actif ? '●' : '▾'}</span>}
-                      {colDropdown === key && (
-                        <div
-                          onClick={e => e.stopPropagation()}
-                          style={{
-                            position:'absolute',
-                            top:'100%',
-                            left:0,
-                            zIndex:200,
-                            background:'white',
-                            border:'1px solid #e2e8f0',
-                            borderRadius:'8px',
-                            boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
-                            minWidth:'160px',
-                            maxHeight:'220px',
-                            overflowY:'auto',
-                            padding:'0.25rem 0',
-                          }}
-                        >
-                          <div
-                            style={{padding:'0.45rem 0.75rem',cursor:'pointer',fontSize:'0.82rem',color:'#718096',borderBottom:'1px solid #f0f0f0',fontStyle:'italic'}}
-                            onClick={() => { setColFilters(f=>({...f,[key]:''})); setColDropdown(null) }}
-                          >
-                            Tout afficher
-                          </div>
-                          {valeurs.map(v => (
-                            <div
-                              key={v}
-                              style={{
-                                padding:'0.45rem 0.75rem',
-                                cursor:'pointer',
-                                fontSize:'0.82rem',
-                                background: colFilters[key]===v ? '#ebf8ff' : 'white',
-                                color: colFilters[key]===v ? '#2b6cb0' : '#2d3748',
-                                fontWeight: colFilters[key]===v ? '600' : '400',
-                              }}
-                              onClick={() => { setColFilters(f=>({...f,[key]:v})); setColDropdown(null) }}
-                            >
-                              {v}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </th>
-                  )
-                })}
+              <tr>
+                <th style={styles.th}>N°</th>
+                <th style={styles.th}>Date</th>
+                <th style={styles.th}>Nom</th>
+                {renderHeaderFiltrable('Type', 'typeClient')}
+                {renderHeaderFiltrable('Pays', 'pays')}
+                {renderHeaderFiltrable('Objet', 'objetDemande')}
+                {renderHeaderFiltrable('Canal', 'canal')}
+                {renderHeaderFiltrable('Agent N1', 'agentN1')}
+                {renderHeaderFiltrable('Service', 'service')}
+                {renderHeaderFiltrable('Statut', 'statut')}
+                {renderHeaderFiltrable('Priorité', 'priorite')}
+                <th style={styles.th}>Délai</th>
+                <th style={styles.th}>Note</th>
+                <th style={styles.th}>Enquête</th>
+                <th style={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -2061,7 +1907,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                   key={d.id}
                   style={{
                     ...styles.tr,
-                    background: d.priorite === 'Critique' ? '#fffaf0' : 'white',
+                    background: d.priorite === 'Urgent' ? '#fffaf0' : 'white',
                     cursor: 'pointer'
                   }}
                   onClick={() => setTicketOuvert(d)}
@@ -2085,15 +1931,17 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       borderRadius:'20px',
                       fontSize:'0.75rem',
                       background:
-                        d.priorite === 'Critique' ? '#fff5f5' :
-                        d.priorite === 'Élevée' ? '#fffbeb' :
+                        d.priorite === 'Urgent' ? '#fff5f5' :
+                        d.priorite === 'Élevé' ? '#fffbeb' :
+                        d.priorite === 'Moyen' ? '#ebf8ff' :
                         '#f0fff4',
                       color:
-                        d.priorite === 'Critique' ? '#c53030' :
-                        d.priorite === 'Élevée' ? '#b7791f' :
+                        d.priorite === 'Urgent' ? '#c53030' :
+                        d.priorite === 'Élevé' ? '#b7791f' :
+                        d.priorite === 'Moyen' ? '#2b6cb0' :
                         '#276749'
                     }}>
-                      {d.priorite || 'Normale'}
+                      {d.priorite || 'Moyen'}
                     </span>
                   </td>
                   <td style={styles.td}>{d.delaiTraitement?`${d.delaiTraitement}j`:'—'}</td>
@@ -2452,6 +2300,12 @@ function Rapports() {
     return true
   })
 
+  const demandesCritiques = filtered.filter(d =>
+    d.statut !== 'Traité' && (d.priorite === 'Urgent' || d.respectDelai === 'NON' || d.objetDemande === 'Réclamation')
+  )
+
+  const activiteRecente = [...filtered].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 5)
+
   const agents = [...new Set(demandes.map(d => d.agentN1).filter(Boolean))]
   const perfAgents = agents.map(a => ({
     name: a.split(' ')[0],
@@ -2497,10 +2351,10 @@ function Rapports() {
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
-          {label:'Demandes', val:demandesFiltrees.length, bg:'#ebf8ff', col:'#2b6cb0', icon:'📥'},
-          {label:'En cours', val:demandesFiltrees.filter(d => d.statut === 'En cours').length, bg:'#fffbeb', col:'#b7791f', icon:'⏳'},
-          {label:'Traitées', val:demandesFiltrees.filter(d => d.statut === 'Traité').length, bg:'#f0fff4', col:'#276749', icon:'✅'},
-          {label:'Hors SLA', val:demandesFiltrees.filter(d => d.respectDelai === 'NON').length, bg:'#fff5f5', col:'#c53030', icon:'⚠️'},
+          {label:'Demandes', val:filtered.length, bg:'#ebf8ff', col:'#2b6cb0', icon:'📥'},
+          {label:'En cours', val:filtered.filter(d => d.statut === 'En cours').length, bg:'#fffbeb', col:'#b7791f', icon:'⏳'},
+          {label:'Traitées', val:filtered.filter(d => d.statut === 'Traité').length, bg:'#f0fff4', col:'#276749', icon:'✅'},
+          {label:'Hors SLA', val:filtered.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON').length, bg:'#fff5f5', col:'#c53030', icon:'⚠️'},
         ].map(card => (
           <div key={card.label} style={{
             background:'white',
@@ -2520,7 +2374,7 @@ function Rapports() {
         ))}
       </div>
 
-      {(demandesFiltrees.filter(d => d.priorite === 'Critique').length > 0 || demandesFiltrees.filter(d => d.respectDelai === 'NON').length > 0) && (
+      {demandesCritiques.length > 0 && (
         <div style={{
           background:'white',
           borderRadius:'14px',
@@ -2533,15 +2387,15 @@ function Rapports() {
             🚨 Points de vigilance
           </div>
 
-          {demandesFiltrees.filter(d => d.priorite === 'Critique').length > 0 && (
+          {filtered.filter(d => d.statut !== 'Traité' && d.priorite === 'Urgent').length > 0 && (
             <div style={{color:'#c53030', marginBottom:'0.35rem'}}>
-              {demandesFiltrees.filter(d => d.priorite === 'Critique').length} demande(s) critique(s)
+              {filtered.filter(d => d.statut !== 'Traité' && d.priorite === 'Urgent').length} demande(s) critique(s)
             </div>
           )}
 
-          {demandesFiltrees.filter(d => d.respectDelai === 'NON').length > 0 && (
+          {filtered.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON').length > 0 && (
             <div style={{color:'#b7791f'}}>
-              {demandesFiltrees.filter(d => d.respectDelai === 'NON').length} demande(s) hors SLA
+              {filtered.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON').length} demande(s) hors SLA
             </div>
           )}
         </div>
@@ -2572,7 +2426,7 @@ function Rapports() {
                 justifyContent:'space-between',
                 gap:'0.75rem',
                 flexWrap:'wrap',
-                background: d.priorite === 'Critique' ? '#fffaf0' : '#fafafa'
+                background: d.priorite === 'Urgent' ? '#fffaf0' : '#fafafa'
               }}>
                 <div style={{fontWeight:'600', color:'#2b6cb0'}}>{d.numDemande}</div>
                 <div style={{color:'#2d3748'}}>{d.nomPrenom}</div>
@@ -2698,11 +2552,22 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
   const [agentN1, setAgentN1] = useState(demande.agentN1 || '')
   const [agentN2, setAgentN2] = useState(demande.agentN2 || '')
   const [service, setService] = useState(demande.service || '')
+  const [priorite, setPriorite] = useState(demande.priorite || 'Moyen')
+  const [users, setUsers] = useState([])
   const auteur = localStorage.getItem('userName') || 'Agent'
 
-  const agents = [
-    'Koffi STEPHANE', 'Fatou KAMAGATE', 'Séverine KPODA',
-    'Caroline OKOBE', 'Fatty KOUAME', 'Michèle KACOU', 'Ismael COULIBALY'
+  useEffect(() => {
+    API.get('/users').then(r => setUsers(r.data.filter(u => u.active !== false))).catch(() => {})
+  }, [])
+
+  const agentsN1 = users.filter(u => u.role === 'agent').map(u => u.name)
+  const agentsN2 = users.filter(u => u.role === 'manager' || u.role === 'admin').map(u => u.name)
+
+  const priorites = [
+    { value: 'Faible', label: 'Faible', color: '#276749', bg: '#f0fff4' },
+    { value: 'Moyen', label: 'Moyen', color: '#2b6cb0', bg: '#ebf8ff' },
+    { value: 'Élevé', label: 'Élevé', color: '#b7791f', bg: '#fffbeb' },
+    { value: 'Urgent', label: 'Urgent', color: '#c53030', bg: '#fff5f5' },
   ]
 
   const handleSubmit = async (e) => {
@@ -2710,7 +2575,7 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
     try {
       const res = await API.put(`/demandes/${demande.id}`, {
         ...demande,
-        agentN1, agentN2, service,
+        agentN1, agentN2, service, priorite,
         dateReception: demande.dateReception,
         dateTraitement: demande.dateTraitement,
       })
@@ -2718,7 +2583,7 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
         demandeId: demande.id,
         auteur,
         action: 'Assignation',
-        detail: `Réassigné à ${agentN1} (N1) / ${agentN2 || '—'} (N2) — Service: ${service || '—'}`,
+        detail: `Réassigné à ${agentN1} (N1) / ${agentN2 || '—'} (N2) — Service: ${service || '—'} — Priorité: ${priorite}`,
       }).catch(() => {})
       onAssigned(res.data)
       onClose()
@@ -2741,7 +2606,7 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
             <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Agent N1 (Front Office)</label>
             <select style={{...styles.input, marginBottom:0}} value={agentN1} onChange={e=>setAgentN1(e.target.value)}>
               <option value="">-- Sélectionner --</option>
-              {agents.map(a => <option key={a} value={a}>{a}</option>)}
+              {agentsN1.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
           <div style={{marginBottom:'1rem'}}>
@@ -2751,12 +2616,41 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
               {["DPM","DPR","DSI","DCR","PATRIMOINE","REGISSEUR"].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
-          <div style={{marginBottom:'1.5rem'}}>
+          <div style={{marginBottom:'1rem'}}>
             <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Agent N2 (Middle Office)</label>
             <select style={{...styles.input, marginBottom:0}} value={agentN2} onChange={e=>setAgentN2(e.target.value)}>
               <option value="">-- Sélectionner --</option>
-              {agents.map(a => <option key={a} value={a}>{a}</option>)}
+              {agentsN2.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
+          </div>
+          <div style={{marginBottom:'1.5rem'}}>
+            <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Niveau de priorité</label>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'0.5rem'}}>
+              {priorites.map(p => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => setPriorite(p.value)}
+                  style={{
+                    padding:'0.5rem 0.75rem',
+                    border: priorite === p.value ? `2px solid ${p.color}` : '2px solid #e2e8f0',
+                    borderRadius:'8px',
+                    background: priorite === p.value ? p.bg : 'white',
+                    color: priorite === p.value ? p.color : '#718096',
+                    fontWeight: priorite === p.value ? '700' : '500',
+                    fontSize:'0.85rem',
+                    cursor:'pointer',
+                    transition:'all 0.15s',
+                  }}
+                >
+                  {p.value === 'Faible' && '🟢 '}
+                  {p.value === 'Moyen' && '🔵 '}
+                  {p.value === 'Élevé' && '🟡 '}
+                  {p.value === 'Urgent' && '🔴 '}
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </div>
           <button style={styles.button} type="submit">✅ Confirmer l'assignation</button>
         </form>
@@ -2984,7 +2878,7 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
   const navigate = useNavigate()
 
   const critiques = demandes.filter(d =>
-    d.priorite === 'Critique' || d.respectDelai === 'NON'
+    d.statut !== 'Traité' && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
   ).length
 
   const enCours = demandes.filter(d =>
@@ -3047,7 +2941,6 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         </NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/contacts"><span style={styles.sidebarIcon}>👥</span>Contacts</NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/deals"><span style={styles.sidebarIcon}>💼</span>Deals</NavLink>
-        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/tickets"><span style={styles.sidebarIcon}>🎫</span>Tickets</NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/campagnes"><span style={styles.sidebarIcon}>📣</span>Campagnes</NavLink>
 
         <div style={{height:'1px', background:'rgba(255,255,255,0.12)', margin:'0.9rem 0'}} />
@@ -3181,7 +3074,6 @@ export default function App() {
           />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/deals" element={<Deals />} />
-          <Route path="/tickets" element={<Tickets />} />
           <Route path="/campagnes" element={<Campagnes />} />
           <Route path="/rapports" element={<Rapports />} />
           <Route path="/users" element={<Users />} />
