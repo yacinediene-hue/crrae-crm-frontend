@@ -189,21 +189,47 @@ function Dashboard({ alertes = [] }) {
     { name: 'Détracteurs', value: npsStats.detracteurs, color: '#c53030' },
   ]
 
+  const demandesEnCours = demandesFiltrees.filter(d => d.statut === 'En cours')
+  const demandesTraitees = demandesFiltrees.filter(d => d.statut === 'Traité')
   const demandesCritiques = demandesFiltrees.filter(d =>
-    d.statut !== 'Traité' && (
+    ['En cours', 'En attente'].includes(d.statut) && (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
       d.objetDemande === 'Réclamation'
     )
   )
+  const demandesHorsSla = demandesFiltrees.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.respectDelai === 'NON')
 
-  const demandesHorsSla = demandesFiltrees.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON')
-
-  const demandesEnCours = demandesFiltrees.filter(d => d.statut === 'En cours')
-
-  const activiteRecente = [...demandesFiltrees]
-    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+  const demandesEntrantes = [...demandesFiltrees]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5)
+
+  const chargeParAgent = Object.entries(
+    demandesFiltrees.reduce((acc, d) => {
+      const agent = d.agentN1 || 'Non assigné'
+      acc[agent] = (acc[agent] || 0) + 1
+      return acc
+    }, {})
+  ).map(([agent, total]) => ({ agent, total }))
+   .sort((a, b) => b.total - a.total)
+
+  const chargeParService = Object.entries(
+    demandesFiltrees.reduce((acc, d) => {
+      const service = d.service || 'Non défini'
+      acc[service] = (acc[service] || 0) + 1
+      return acc
+    }, {})
+  ).map(([service, total]) => ({ service, total }))
+   .sort((a, b) => b.total - a.total)
+
+  const chargeParCanal = Object.entries(
+    demandesFiltrees.reduce((acc, d) => {
+      const canal = d.canal || 'Non défini'
+      acc[canal] = (acc[canal] || 0) + 1
+      return acc
+    }, {})
+  ).map(([canal, total]) => ({ canal, total }))
+   .sort((a, b) => b.total - a.total)
 
   return (
     <div>
@@ -226,27 +252,286 @@ function Dashboard({ alertes = [] }) {
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
-          {label:'Total demandes', val:demandesFiltrees.length, bg:'#ebf8ff', col:'#2b6cb0', icon:'📌'},
-          {label:'En cours', val:demandesEnCours.length, bg:'#fffbeb', col:'#b7791f', icon:'⏳'},
-          {label:'Critiques', val:demandesCritiques.length, bg:'#fff5f5', col:'#c53030', icon:'🔥'},
-          {label:'Hors SLA', val:demandesHorsSla.length, bg:'#fffbea', col:'#b7791f', icon:'⚠️'},
+          {label:'Demandes', val:demandesFiltrees.length, col:'#2b6cb0', icon:'📥'},
+          {label:'En cours', val:demandesEnCours.length, col:'#b7791f', icon:'⏳'},
+          {label:'Traitées', val:demandesTraitees.length, col:'#276749', icon:'✅'},
+          {label:'Hors SLA', val:demandesHorsSla.length, col:'#c53030', icon:'⚠️'},
         ].map(card => (
-          <div key={card.label} style={{
-            background:'white',
-            borderRadius:'14px',
-            padding:'1rem',
-            boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-            borderTop:`4px solid ${card.col}`
-          }}>
+          <div
+            key={card.label}
+            style={{
+              background:'white',
+              borderRadius:'14px',
+              padding:'1rem',
+              boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+              borderTop:`4px solid ${card.col}`
+            }}
+          >
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
               <div style={{fontSize:'0.82rem', color:'#718096'}}>{card.label}</div>
-              <div style={{fontSize:'1.05rem'}}>{card.icon}</div>
+              <div style={{
+                width:'36px',
+                height:'36px',
+                borderRadius:'10px',
+                background:card.col,
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'center',
+                color:'white',
+                fontSize:'1rem'
+              }}>
+                {card.icon}
+              </div>
             </div>
-            <div style={{fontSize:'1.9rem', fontWeight:'700', color:card.col, marginTop:'0.4rem'}}>
+
+            <div style={{fontSize:'2rem', fontWeight:'700', color:card.col, marginTop:'0.45rem'}}>
               {card.val}
             </div>
           </div>
         ))}
+      </div>
+
+      <div style={{
+        background:'white',
+        borderRadius:'12px',
+        padding:'0.9rem 1rem',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+        marginBottom:'1rem',
+        color:'#4a5568',
+        fontSize:'0.9rem'
+      }}>
+        Vue consolidée du service client : suivi des volumes, urgences, charge opérationnelle et canaux d'entrée.
+      </div>
+
+      <div style={{
+        background:'white',
+        borderRadius:'14px',
+        padding:'1.25rem',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+        marginBottom:'1rem',
+        borderLeft:'5px solid #c53030'
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+          <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>🚨 Alertes opérationnelles</h3>
+          <span style={{fontSize:'0.8rem', color:'#718096'}}>
+            Points de vigilance
+          </span>
+        </div>
+
+        <div style={{display:'grid', gap:'0.65rem'}}>
+          <div style={{
+            display:'flex',
+            justifyContent:'space-between',
+            alignItems:'center',
+            padding:'0.8rem 0.9rem',
+            background:'#fff5f5',
+            border:'1px solid #fed7d7',
+            borderRadius:'10px'
+          }}>
+            <span style={{color:'#9b2c2c', fontWeight:'600'}}>Demandes critiques</span>
+            <span style={{
+              background:'#c53030',
+              color:'white',
+              borderRadius:'999px',
+              padding:'0.2rem 0.6rem',
+              fontSize:'0.8rem',
+              fontWeight:'700'
+            }}>
+              {demandesCritiques.length}
+            </span>
+          </div>
+
+          <div style={{
+            display:'flex',
+            justifyContent:'space-between',
+            alignItems:'center',
+            padding:'0.8rem 0.9rem',
+            background:'#fffbea',
+            border:'1px solid #f6e05e',
+            borderRadius:'10px'
+          }}>
+            <span style={{color:'#975a16', fontWeight:'600'}}>Demandes hors SLA</span>
+            <span style={{
+              background:'#b7791f',
+              color:'white',
+              borderRadius:'999px',
+              padding:'0.2rem 0.6rem',
+              fontSize:'0.8rem',
+              fontWeight:'700'
+            }}>
+              {demandesHorsSla.length}
+            </span>
+          </div>
+
+          <div style={{
+            display:'flex',
+            justifyContent:'space-between',
+            alignItems:'center',
+            padding:'0.8rem 0.9rem',
+            background:'#fffbeb',
+            border:'1px solid #fbd38d',
+            borderRadius:'10px'
+          }}>
+            <span style={{color:'#b7791f', fontWeight:'600'}}>Demandes en cours</span>
+            <span style={{
+              background:'#d69e2e',
+              color:'white',
+              borderRadius:'999px',
+              padding:'0.2rem 0.6rem',
+              fontSize:'0.8rem',
+              fontWeight:'700'
+            }}>
+              {demandesEnCours.length}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        background:'white',
+        borderRadius:'14px',
+        padding:'1.25rem',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+        marginBottom:'1rem'
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+          <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>📡 Demandes entrantes récentes</h3>
+          <span style={{fontSize:'0.8rem', color:'#718096'}}>
+            Dernières demandes reçues
+          </span>
+        </div>
+
+        <div style={{display:'grid', gap:'0.55rem'}}>
+          {demandesEntrantes.length === 0 ? (
+            <div style={{color:'#718096', fontSize:'0.9rem'}}>Aucune demande récente</div>
+          ) : (
+            demandesEntrantes.map(d => (
+              <div
+                key={d.id}
+                style={{
+                  border:'1px solid #edf2f7',
+                  borderRadius:'10px',
+                  padding:'0.75rem 0.85rem',
+                  display:'flex',
+                  justifyContent:'space-between',
+                  gap:'0.75rem',
+                  flexWrap:'wrap'
+                }}
+              >
+                <span style={{fontWeight:'600', color:'#2b6cb0'}}>{d.numDemande}</span>
+                <span style={{color:'#2d3748'}}>{d.nomPrenom}</span>
+                <span style={{color:'#718096'}}>{d.canal || '—'}</span>
+                <span style={{color:'#4a5568'}}>
+                  {d.createdAt ? new Date(d.createdAt).toLocaleString('fr-FR', {
+                    day:'2-digit',
+                    month:'2-digit',
+                    hour:'2-digit',
+                    minute:'2-digit'
+                  }) : '—'}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem'}}>
+        <div style={{
+          background:'white',
+          borderRadius:'14px',
+          padding:'1.25rem',
+          boxShadow:'0 2px 10px rgba(0,0,0,0.06)'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>👤 Charge par agent</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>Répartition des demandes</span>
+          </div>
+          <div style={{display:'grid', gap:'0.55rem'}}>
+            {chargeParAgent.length === 0 ? (
+              <div style={{color:'#718096', fontSize:'0.9rem'}}>Aucune donnée</div>
+            ) : (
+              chargeParAgent.slice(0, 6).map(item => (
+                <div key={item.agent} style={{
+                  border:'1px solid #edf2f7', borderRadius:'10px',
+                  padding:'0.75rem 0.85rem', display:'flex',
+                  justifyContent:'space-between', alignItems:'center'
+                }}>
+                  <span style={{color:'#2d3748', fontWeight:'500'}}>{item.agent}</span>
+                  <span style={{
+                    background:'#ebf8ff', color:'#2b6cb0',
+                    borderRadius:'999px', padding:'0.2rem 0.6rem',
+                    fontSize:'0.8rem', fontWeight:'700'
+                  }}>{item.total}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div style={{
+          background:'white',
+          borderRadius:'14px',
+          padding:'1.25rem',
+          boxShadow:'0 2px 10px rgba(0,0,0,0.06)'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>🏢 Charge par service</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>Répartition opérationnelle</span>
+          </div>
+          <div style={{display:'grid', gap:'0.55rem'}}>
+            {chargeParService.length === 0 ? (
+              <div style={{color:'#718096', fontSize:'0.9rem'}}>Aucune donnée</div>
+            ) : (
+              chargeParService.slice(0, 6).map(item => (
+                <div key={item.service} style={{
+                  border:'1px solid #edf2f7', borderRadius:'10px',
+                  padding:'0.75rem 0.85rem', display:'flex',
+                  justifyContent:'space-between', alignItems:'center'
+                }}>
+                  <span style={{color:'#2d3748', fontWeight:'500'}}>{item.service}</span>
+                  <span style={{
+                    background:'#f0fff4', color:'#276749',
+                    borderRadius:'999px', padding:'0.2rem 0.6rem',
+                    fontSize:'0.8rem', fontWeight:'700'
+                  }}>{item.total}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        background:'white',
+        borderRadius:'14px',
+        padding:'1.25rem',
+        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
+        marginBottom:'1rem'
+      }}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
+          <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>📡 Répartition par canal</h3>
+          <span style={{fontSize:'0.8rem', color:'#718096'}}>Origine des demandes</span>
+        </div>
+        <div style={{display:'grid', gap:'0.55rem'}}>
+          {chargeParCanal.length === 0 ? (
+            <div style={{color:'#718096', fontSize:'0.9rem'}}>Aucune donnée</div>
+          ) : (
+            chargeParCanal.map(item => (
+              <div key={item.canal} style={{
+                border:'1px solid #edf2f7', borderRadius:'10px',
+                padding:'0.75rem 0.85rem', display:'flex',
+                justifyContent:'space-between', alignItems:'center'
+              }}>
+                <span style={{color:'#2d3748', fontWeight:'500'}}>{item.canal}</span>
+                <span style={{
+                  background:'#faf5ff', color:'#6b46c1',
+                  borderRadius:'999px', padding:'0.2rem 0.6rem',
+                  fontSize:'0.8rem', fontWeight:'700'
+                }}>{item.total}</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {(demandesCritiques.length > 0 || demandesHorsSla.length > 0) && (
@@ -529,7 +814,7 @@ function FileCritique() {
   }, [])
 
   const critiques = demandes.filter(d =>
-    d.statut !== 'Traité' && (
+    ['En cours', 'En attente'].includes(d.statut) && (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
       d.objetDemande === 'Réclamation'
@@ -1332,7 +1617,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const isFullAccess = userRole === 'admin' || userRole === 'manager' || userName === 'Ismael COULIBALY'
 
   const critiques = demandes.filter(d =>
-    d.statut !== 'Traité' && (
+    ['En cours', 'En attente'].includes(d.statut) && (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
       d.objetDemande === 'Réclamation'
@@ -1340,7 +1625,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   )
 
   const horsSLA = demandes.filter(d => {
-    if (!d.dateReception || d.statut === 'Traité') return false
+    if (!d.dateReception || !['En cours', 'En attente'].includes(d.statut)) return false
 
     const jours = Math.floor(
       (new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24)
@@ -1432,50 +1717,58 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{filtresColonnes[cle] ? '●' : '▾'}</span>
       </button>
 
-      {colonneActive === cle && (
+      {colonneActive === cle ? (
         <div
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
             top: 'calc(100% + 6px)',
             left: 0,
-            width: '180px',
-            maxHeight: '220px',
-            overflowY: 'auto',
-            background: '#fff',
+            minWidth: '180px',
+            background: 'white',
             border: '1px solid #e2e8f0',
             borderRadius: '10px',
-            boxShadow: '0 10px 24px rgba(0,0,0,0.14)',
+            boxShadow: '0 10px 24px rgba(0,0,0,0.12)',
             zIndex: 5000,
-            padding: '0.35rem',
+            padding: '0.35rem'
           }}
         >
           <div
-            onClick={() => { setFiltresColonnes({ ...filtresColonnes, [cle]: '' }); setColonneActive(null) }}
-            style={{ padding: '0.5rem 0.65rem', cursor: 'pointer', borderRadius: '8px', fontSize: '0.85rem', color: '#4a5568', whiteSpace: 'nowrap' }}
+            onClick={() => {
+              setFiltresColonnes((prev) => ({ ...prev, [cle]: '' }))
+              setColonneActive(null)
+            }}
+            style={{
+              padding: '0.6rem 0.7rem',
+              cursor: 'pointer',
+              borderRadius: '8px',
+              fontSize: '0.85rem',
+              fontWeight: '600'
+            }}
           >
             Tout afficher
           </div>
+
           {valeursUniques[cle]?.map((val) => (
             <div
               key={val}
-              onClick={() => { setFiltresColonnes({ ...filtresColonnes, [cle]: val }); setColonneActive(null) }}
+              onClick={() => {
+                setFiltresColonnes({ ...filtresColonnes, [cle]: val })
+                setColonneActive(null)
+              }}
               style={{
                 padding: '0.5rem 0.65rem',
                 cursor: 'pointer',
                 borderRadius: '8px',
                 fontSize: '0.85rem',
-                whiteSpace: 'nowrap',
-                background: filtresColonnes[cle] === val ? '#ebf8ff' : 'transparent',
-                color: filtresColonnes[cle] === val ? '#2b6cb0' : '#2d3748',
-                fontWeight: filtresColonnes[cle] === val ? '600' : '400',
+                whiteSpace: 'nowrap'
               }}
             >
               {val}
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </th>
   )
 
@@ -1591,16 +1884,21 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
           <div style={{marginTop:'0.75rem', display:'grid', gap:'0.5rem'}}>
             {critiques.slice(0,5).map(d => (
-              <div key={d.id} style={{
-                background:'white',
-                borderRadius:'10px',
-                padding:'0.65rem 0.8rem',
-                display:'flex',
-                justifyContent:'space-between',
-                gap:'0.75rem',
-                flexWrap:'wrap',
-                border:'1px solid #fed7d7'
-              }}>
+              <div
+                key={d.id}
+                onClick={() => setTicketOuvert(d)}
+                style={{
+                  background:'white',
+                  borderRadius:'10px',
+                  padding:'0.65rem 0.8rem',
+                  display:'flex',
+                  justifyContent:'space-between',
+                  gap:'0.75rem',
+                  flexWrap:'wrap',
+                  border:'1px solid #fed7d7',
+                  cursor:'pointer'
+                }}
+              >
                 <span style={{fontWeight:'600', color:'#c53030'}}>{d.numDemande}</span>
                 <span style={{color:'#2d3748'}}>{d.nomPrenom}</span>
                 <span style={{color:'#718096'}}>{d.objetDemande || '—'}</span>
@@ -1628,16 +1926,21 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
           <div style={{marginTop:'0.75rem', display:'grid', gap:'0.5rem'}}>
             {horsSLA.slice(0,5).map(d => (
-              <div key={d.id} style={{
-                background:'white',
-                borderRadius:'10px',
-                padding:'0.65rem 0.8rem',
-                display:'flex',
-                justifyContent:'space-between',
-                gap:'0.75rem',
-                flexWrap:'wrap',
-                border:'1px solid #f6e05e'
-              }}>
+              <div
+                key={d.id}
+                onClick={() => setTicketOuvert(d)}
+                style={{
+                  background:'white',
+                  borderRadius:'10px',
+                  padding:'0.65rem 0.8rem',
+                  display:'flex',
+                  justifyContent:'space-between',
+                  gap:'0.75rem',
+                  flexWrap:'wrap',
+                  border:'1px solid #f6e05e',
+                  cursor:'pointer'
+                }}
+              >
                 <span style={{fontWeight:'600', color:'#b7791f'}}>{d.numDemande}</span>
                 <span style={{color:'#2d3748'}}>{d.nomPrenom}</span>
                 <span style={{color:'#718096'}}>{d.service || '—'}</span>
@@ -2301,7 +2604,7 @@ function Rapports() {
   })
 
   const demandesCritiques = filtered.filter(d =>
-    d.statut !== 'Traité' && (d.priorite === 'Urgent' || d.respectDelai === 'NON' || d.objetDemande === 'Réclamation')
+    ['En cours', 'En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON' || d.objetDemande === 'Réclamation')
   )
 
   const activiteRecente = [...filtered].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 5)
@@ -2387,15 +2690,15 @@ function Rapports() {
             🚨 Points de vigilance
           </div>
 
-          {filtered.filter(d => d.statut !== 'Traité' && d.priorite === 'Urgent').length > 0 && (
+          {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.priorite === 'Urgent').length > 0 && (
             <div style={{color:'#c53030', marginBottom:'0.35rem'}}>
-              {filtered.filter(d => d.statut !== 'Traité' && d.priorite === 'Urgent').length} demande(s) critique(s)
+              {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.priorite === 'Urgent').length} demande(s) critique(s)
             </div>
           )}
 
-          {filtered.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON').length > 0 && (
+          {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.respectDelai === 'NON').length > 0 && (
             <div style={{color:'#b7791f'}}>
-              {filtered.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON').length} demande(s) hors SLA
+              {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.respectDelai === 'NON').length} demande(s) hors SLA
             </div>
           )}
         </div>
@@ -2878,7 +3181,7 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
   const navigate = useNavigate()
 
   const critiques = demandes.filter(d =>
-    d.statut !== 'Traité' && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
+    ['En cours', 'En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
   ).length
 
   const enCours = demandes.filter(d =>
@@ -3022,7 +3325,7 @@ export default function App() {
       const delaisMax = { DPM:3, DPR:5, DSI:6, PATRIMOINE:7, DCR:5, REGISSEUR:5 }
       API.get('/demandes').then(r => {
         const retard = r.data.filter(d => {
-          if (d.statut === 'Traite') return false
+          if (!['En cours', 'En attente'].includes(d.statut)) return false
           if (!d.dateReception) return false
           const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000*60*60*24))
           return jours > (delaisMax[d.service] || 3)
@@ -3146,5 +3449,5 @@ const styles = {
   tr: { borderBottom: '1px solid #e2e8f0' },
   td: { padding: '0.75rem 1rem', color: '#2d3748', fontSize: '0.95rem' },
   form: { background: 'white', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  badge: { background: '#ebf8ff', color: '#2b6cb0', padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.85rem' },
+  badge: { background: '#ebf8ff', color: '#2b6cb0', padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.85rem', whiteSpace: 'nowrap' },
 }
