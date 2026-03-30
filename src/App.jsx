@@ -806,12 +806,24 @@ function Dashboard({ alertes = [] }) {
 
 function FileCritique() {
   const [demandes, setDemandes] = useState([])
+  const [ticketOuvert, setTicketOuvert] = useState(null)
+  const [timelineTicket, setTimelineTicket] = useState([])
 
   useEffect(() => {
     API.get('/demandes')
       .then(r => setDemandes(r.data))
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (ticketOuvert) {
+      API.get(`/timeline/demande/${ticketOuvert.id}`)
+        .then(r => setTimelineTicket(r.data))
+        .catch(() => setTimelineTicket([]))
+    } else {
+      setTimelineTicket([])
+    }
+  }, [ticketOuvert])
 
   const critiques = demandes.filter(d =>
     ['En cours', 'En attente'].includes(d.statut) && (
@@ -852,10 +864,11 @@ function FileCritique() {
                 <td colSpan="6" style={styles.td}>Aucune demande critique</td>
               </tr>
             ) : critiques.map(d => (
-              <tr key={d.id} style={{...styles.tr, cursor:'pointer'}} onClick={() => {
-                localStorage.setItem('demandeRechercheeId', d.id)
-                window.location.href = '/demandes'
-              }}>
+              <tr
+                key={d.id}
+                style={{...styles.tr, cursor:'pointer'}}
+                onClick={() => setTicketOuvert(d)}
+              >
                 <td style={{...styles.td, color:'#2b6cb0', fontWeight:'600'}}>{f(d.numDemande)}</td>
                 <td style={styles.td}>{f(d.nomPrenom)}</td>
                 <td style={styles.td}>{f(d.objetDemande)}</td>
@@ -877,128 +890,1160 @@ function FileCritique() {
           </tbody>
         </table>
       </div>
+
+      {ticketOuvert && (
+        <div style={{
+          position:'fixed',
+          top:0,
+          right:0,
+          width:'420px',
+          height:'100vh',
+          background:'white',
+          boxShadow:'-6px 0 20px rgba(0,0,0,0.15)',
+          zIndex:9999,
+          padding:'1.25rem',
+          overflowY:'auto'
+        }}>
+          <div style={{display:'flex', justifyContent:'space-between', marginBottom:'1rem'}}>
+            <h3 style={{margin:0}}>🎫 {ticketOuvert.numDemande}</h3>
+            <button
+              onClick={() => setTicketOuvert(null)}
+              style={{background:'transparent', border:'none', fontSize:'1.4rem', cursor:'pointer'}}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={{marginBottom:'1rem'}}><strong>Client :</strong> {ticketOuvert.nomPrenom}</div>
+          <div style={{marginBottom:'1rem'}}><strong>Objet :</strong> {ticketOuvert.objetDemande}</div>
+          <div style={{marginBottom:'1rem'}}><strong>Service :</strong> {ticketOuvert.service || '—'}</div>
+          <div style={{marginBottom:'1rem'}}><strong>Statut :</strong> {ticketOuvert.statut}</div>
+          <div style={{marginBottom:'1rem'}}>
+            <strong>Commentaire :</strong>
+            <div style={{marginTop:'0.3rem', color:'#4a5568'}}>{ticketOuvert.commentaire || '—'}</div>
+          </div>
+
+          <div style={{marginBottom:'1rem'}}>
+            <strong>Timeline :</strong>
+            <div style={{marginTop:'0.6rem', display:'grid', gap:'0.55rem'}}>
+              {timelineTicket.length === 0 ? (
+                <div style={{color:'#718096', fontSize:'0.9rem'}}>Aucun événement</div>
+              ) : (
+                timelineTicket.map(t => (
+                  <div key={t.id} style={{
+                    border:'1px solid #e2e8f0',
+                    borderRadius:'10px',
+                    padding:'0.65rem 0.75rem',
+                    background:'#f8fafc'
+                  }}>
+                    <div style={{display:'flex', justifyContent:'space-between', gap:'0.75rem'}}>
+                      <span style={{fontWeight:'600', color:'#2d3748'}}>{t.action}</span>
+                      <span style={{fontSize:'0.75rem', color:'#718096'}}>
+                        {new Date(t.createdAt).toLocaleString('fr-FR', {
+                          day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <div style={{marginTop:'0.25rem', color:'#4a5568', fontSize:'0.85rem'}}>{t.detail || '—'}</div>
+                    <div style={{marginTop:'0.2rem', color:'#718096', fontSize:'0.75rem'}}>
+                      par {t.auteur}{t.canal ? ` • ${t.canal}` : ''}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 function Contacts() {
   const [contacts, setContacts] = useState([])
-  const [form, setForm] = useState({ name: '', email: '', phone: '', company: '' })
   const [showForm, setShowForm] = useState(false)
+  const [contactOuvert, setContactOuvert] = useState(null)
+  const [contactDetail, setContactDetail] = useState(null)
+  const [loadingContactDetail, setLoadingContactDetail] = useState(false)
+  const [previewContacts, setPreviewContacts] = useState([])
+  const [showPreview, setShowPreview] = useState(false)
+  const [formActivite, setFormActivite] = useState({
+    type: 'Appel',
+    date: new Date().toISOString().slice(0, 10),
+    note: '',
+  })
+  const [savingActivite, setSavingActivite] = useState(false)
+  const [formTicket, setFormTicket] = useState({
+    subject: '',
+    description: '',
+    type: 'Information',
+    priority: 'normal',
+  })
+  const [savingTicket, setSavingTicket] = useState(false)
+  const [searchContact, setSearchContact] = useState('')
+  const [filtreStatutContact, setFiltreStatutContact] = useState('')
+  const [filtreProfilClient, setFiltreProfilClient] = useState('')
 
-  useEffect(() => { API.get('/contacts').then(r => setContacts(r.data)).catch(() => {}) }, [])
+  const formVide = {
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    profilClient: '',
+    status: 'prospect',
+  }
+
+  const [form, setForm] = useState(formVide)
+
+  useEffect(() => {
+    API.get('/contacts').then(r => setContacts(r.data)).catch(() => {})
+  }, [])
 
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
       const res = await API.post('/contacts', form)
-      setContacts([...contacts, res.data])
-      setForm({ name: '', email: '', phone: '', company: '' })
+      setContacts([res.data, ...contacts])
+      setForm(formVide)
       setShowForm(false)
-    } catch {}
+    } catch (err) {
+      console.error('Erreur création contact', err)
+      alert('Erreur lors de la création du contact')
+    }
+  }
+
+  const statusColor = (status) => {
+    const map = {
+      active: { background: '#f0fff4', color: '#276749' },
+      prospect: { background: '#ebf8ff', color: '#2b6cb0' },
+      inactive: { background: '#f7fafc', color: '#718096' },
+      relance: { background: '#fff5f5', color: '#c53030' },
+    }
+    return map[status] || { background: '#f7fafc', color: '#718096' }
+  }
+
+  const contactsFiltres = [...contacts]
+    .filter(c => {
+      const q = searchContact.toLowerCase()
+      const matchSearch =
+        !q ||
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.email || '').toLowerCase().includes(q) ||
+        (c.phone || '').toLowerCase().includes(q) ||
+        (c.company || '').toLowerCase().includes(q)
+      const matchStatut = !filtreStatutContact || c.status === filtreStatutContact
+      const matchProfil = !filtreProfilClient || c.profilClient === filtreProfilClient
+      return matchSearch && matchStatut && matchProfil
+    })
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+
+  const handleImportExcel = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    const data = await file.arrayBuffer()
+    const workbook = XLSX.read(data)
+    const sheet = workbook.Sheets[workbook.SheetNames[0]]
+    const rows = XLSX.utils.sheet_to_json(sheet)
+    const contacts = rows.map(r => ({
+      name: r.Nom || r.name || '',
+      email: r.Email || '',
+      phone: r.Telephone || r.Téléphone || '',
+      company: r.Entreprise || '',
+      status: r.Statut || 'prospect',
+    }))
+    setPreviewContacts(contacts)
+    setShowPreview(true)
+  }
+
+  const confirmImportContacts = async () => {
+    try {
+      const res = await API.post('/contacts/import', previewContacts)
+      const rapport = res.data
+      alert(
+        `Import terminé\n\nTotal : ${rapport.total}\nImportés : ${rapport.imported}\nDoublons : ${rapport.duplicates}\nIgnorés : ${rapport.skipped}\nErreurs : ${rapport.errors}`
+      )
+      const updated = await API.get('/contacts')
+      setContacts(updated.data)
+      setShowPreview(false)
+      setPreviewContacts([])
+    } catch (err) {
+      console.error(err)
+      alert("Erreur lors de l'import")
+    }
+  }
+
+  const ajouterActiviteContact = async () => {
+    const contactData = contactDetail || contactOuvert
+    if (!contactData?.id) return
+    try {
+      setSavingActivite(true)
+      await API.post('/activities', {
+        contactId: contactData.id,
+        type: formActivite.type,
+        date: formActivite.date,
+        note: formActivite.note,
+      })
+      const res = await API.get(`/contacts/${contactData.id}`)
+      setContactDetail(res.data)
+      setFormActivite({
+        type: 'Appel',
+        date: new Date().toISOString().slice(0, 10),
+        note: '',
+      })
+    } catch (err) {
+      console.error('Erreur création activité', err)
+      alert("Erreur lors de l'ajout de l'activité")
+    } finally {
+      setSavingActivite(false)
+    }
+  }
+
+  const PROFILS_CLIENTS = [
+    'Participant Cadre',
+    'Participant Non-cadre',
+    'Participant Volontaire',
+    'Participant Individuel',
+    'Participant RVC',
+    'Retraité',
+    'Réversataire',
+    'Adhérent (institution)',
+    'Locataire',
+    'Prospect',
+    'Autres',
+  ]
+
+  const ajouterTicketContact = async () => {
+    const contactData = contactDetail || contactOuvert
+    if (!contactData?.id) return
+    try {
+      setSavingTicket(true)
+      await API.post('/tickets', {
+        contactId: contactData.id,
+        subject: formTicket.subject,
+        description: formTicket.description,
+        type: formTicket.type,
+        priority: formTicket.priority,
+      })
+      const res = await API.get(`/contacts/${contactData.id}`)
+      setContactDetail(res.data)
+      setFormTicket({
+        subject: '',
+        description: '',
+        type: 'Information',
+        priority: 'normal',
+      })
+    } catch (err) {
+      console.error('Erreur création ticket', err)
+      alert('Erreur lors de la création du ticket')
+    } finally {
+      setSavingTicket(false)
+    }
+  }
+
+  const ouvrirContact = async (contact) => {
+    setContactOuvert(contact)
+    setContactDetail(null)
+    setLoadingContactDetail(true)
+    try {
+      const res = await API.get(`/contacts/${contact.id}`)
+      setContactDetail(res.data)
+    } catch (err) {
+      console.error('Erreur chargement contact', err)
+      setContactDetail(contact)
+    } finally {
+      setLoadingContactDetail(false)
+    }
+  }
+
+  const statsContacts = {
+    total: contacts.length,
+    actifs: contacts.filter(c => c.status === 'active').length,
+    prospects: contacts.filter(c => c.status === 'prospect').length,
+    aRelancer: contacts.filter(c => c.status === 'relance').length,
   }
 
   return (
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>👥 Contacts</h2>
-        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
+          <label style={{ ...styles.button, cursor: 'pointer' }}>
+            Importer Excel
+            <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
+          </label>
+        </div>
       </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+        {[
+          { label: 'Total', value: statsContacts.total, color: '#2b6cb0' },
+          { label: 'Actifs', value: statsContacts.actifs, color: '#276749' },
+          { label: 'Prospects', value: statsContacts.prospects, color: '#b7791f' },
+          { label: 'À relancer', value: statsContacts.aRelancer, color: '#c53030' },
+        ].map(card => (
+          <div key={card.label} style={{ background: 'white', borderRadius: '12px', padding: '0.9rem 1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', borderTop: `4px solid ${card.color}` }}>
+            <div style={{ fontSize: '0.78rem', color: '#718096' }}>{card.label}</div>
+            <div style={{ fontSize: '1.6rem', fontWeight: '700', color: card.color }}>{card.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <input
+          style={{ ...styles.input, maxWidth: '320px', marginBottom: 0 }}
+          placeholder="Rechercher un contact"
+          value={searchContact}
+          onChange={e => setSearchContact(e.target.value)}
+        />
+        <select
+          style={{ ...styles.input, maxWidth: '220px', marginBottom: 0 }}
+          value={filtreStatutContact}
+          onChange={e => setFiltreStatutContact(e.target.value)}
+        >
+          <option value="">Tous les statuts</option>
+          <option value="active">Actif</option>
+          <option value="prospect">Prospect</option>
+          <option value="inactive">Inactif</option>
+          <option value="relance">À relancer</option>
+        </select>
+        <select
+          style={{ ...styles.input, maxWidth: '240px', marginBottom: 0 }}
+          value={filtreProfilClient}
+          onChange={e => setFiltreProfilClient(e.target.value)}
+        >
+          <option value="">Tous les profils</option>
+          {PROFILS_CLIENTS.map(p => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        <button type="button"
+          onClick={() => { setSearchContact(''); setFiltreStatutContact(''); setFiltreProfilClient('') }}
+          style={{ border: 'none', background: '#edf2f7', color: '#4a5568', borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer' }}>
+          Réinitialiser
+        </button>
+      </div>
+
       {showForm && (
-        <form onSubmit={handleAdd} style={styles.form}>
-          <input style={styles.input} placeholder="Nom" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-          <input style={styles.input} placeholder="Email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-          <input style={styles.input} placeholder="Téléphone" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
-          <input style={styles.input} placeholder="Entreprise" value={form.company} onChange={e => setForm({...form, company: e.target.value})} />
-          <button style={styles.button} type="submit">Enregistrer</button>
+        <form onSubmit={handleAdd} style={{ ...styles.form, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+          <input style={styles.input} placeholder="Nom" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+          <input style={styles.input} placeholder="Entreprise / Institution" value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} />
+          <input style={styles.input} placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+          <input style={styles.input} placeholder="Téléphone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+          <select style={styles.input} value={form.profilClient} onChange={e => setForm({ ...form, profilClient: e.target.value })}>
+            <option value="">Profil client</option>
+            {PROFILS_CLIENTS.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <select style={styles.input} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+            <option value="prospect">Prospect</option>
+            <option value="active">Actif</option>
+            <option value="inactive">Inactif</option>
+            <option value="relance">À relancer</option>
+          </select>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button style={styles.button} type="submit">Enregistrer</button>
+            <button type="button" onClick={() => { setShowForm(false); setForm(formVide) }} style={{ ...styles.button, background: '#718096' }}>Annuler</button>
+          </div>
         </form>
       )}
+
+      {showPreview && (
+        <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem', marginBottom: '1rem' }}>
+          <h3 style={{ marginBottom: '0.5rem' }}>Prévisualisation import</h3>
+          <div style={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #edf2f7' }}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Nom</th>
+                  <th style={styles.th}>Email</th>
+                  <th style={styles.th}>Téléphone</th>
+                  <th style={styles.th}>Entreprise</th>
+                  <th style={styles.th}>Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {previewContacts.slice(0, 50).map((c, i) => (
+                  <tr key={i}>
+                    <td style={styles.td}>{c.name}</td>
+                    <td style={styles.td}>{c.email}</td>
+                    <td style={styles.td}>{c.phone}</td>
+                    <td style={styles.td}>{c.company}</td>
+                    <td style={styles.td}>{c.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem' }}>
+            <button style={styles.button} onClick={confirmImportContacts}>
+              Importer {previewContacts.length} contacts
+            </button>
+            <button style={{ ...styles.button, background: '#718096' }} onClick={() => setShowPreview(false)}>
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
       <table style={styles.table}>
-        <thead><tr><th style={styles.th}>Nom</th><th style={styles.th}>Email</th><th style={styles.th}>Téléphone</th><th style={styles.th}>Entreprise</th><th style={styles.th}>Statut</th></tr></thead>
+        <thead>
+          <tr>
+            <th style={styles.th}>Nom</th>
+            <th style={styles.th}>Email</th>
+            <th style={styles.th}>Téléphone</th>
+            <th style={styles.th}>Entreprise</th>
+            <th style={styles.th}>Profil client</th>
+            <th style={styles.th}>Statut</th>
+          </tr>
+        </thead>
         <tbody>
-          {contacts.map(c => (
-            <tr key={c.id} style={styles.tr}>
-              <td style={styles.td}>{c.name}</td>
-              <td style={styles.td}>{c.email}</td>
-              <td style={styles.td}>{c.phone}</td>
-              <td style={styles.td}>{c.company}</td>
-              <td style={styles.td}><span style={styles.badge}>{c.status}</span></td>
-            </tr>
-          ))}
+          {contactsFiltres.length === 0 ? (
+            <tr><td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#718096', padding: '2rem' }}>Aucun contact</td></tr>
+          ) : (
+            contactsFiltres.map(c => (
+              <tr key={c.id} style={{ ...styles.tr, cursor: 'pointer' }} onClick={() => ouvrirContact(c)}>
+                <td style={styles.td}>{c.name}</td>
+                <td style={styles.td}>{c.email || '—'}</td>
+                <td style={styles.td}>{c.phone || '—'}</td>
+                <td style={styles.td}>{c.company || '—'}</td>
+                <td style={styles.td}>{c.profilClient || '—'}</td>
+                <td style={styles.td}>
+                  <span style={{ ...styles.badge, ...statusColor(c.status) }}>{c.status || '—'}</span>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
+
+      {contactOuvert && (
+        <>
+          <div onClick={() => { setContactOuvert(null); setContactDetail(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9998 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '580px', maxHeight: '85vh', overflowY: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.28)', zIndex: 9999, padding: '1.5rem' }}>
+            {(() => {
+              const contactData = contactDetail || contactOuvert
+              const timelineClient = [
+                ...(contactData?.activities || []).map(a => ({
+                  type: 'activité', titre: a.type || 'Activité', date: a.date || a.createdAt,
+                  detail: a.note || '', color: '#6b46c1', icon: '🕘',
+                })),
+                ...(contactData?.deals || []).map(d => ({
+                  type: 'adhésion', titre: d.typeAdhesion ? `Dossier ${d.typeAdhesion}` : "Dossier d'adhésion",
+                  date: d.dateDemande || d.createdAt, detail: d.etapeAdhesion || '', color: '#2b6cb0', icon: '📋',
+                })),
+                ...(contactData?.tickets || []).map(t => ({
+                  type: 'ticket', titre: t.subject || 'Ticket', date: t.createdAt,
+                  detail: `${t.status || '—'} • ${t.priority || '—'}`, color: '#c53030', icon: '🎫',
+                })),
+                ...(contactData?.contracts || []).map(ct => ({
+                  type: 'contrat', titre: ct.title || 'Contrat', date: ct.startDate || ct.createdAt,
+                  detail: ct.status || '', color: '#276749', icon: '📄',
+                })),
+                ...(contactData?.events || []).map(ev => ({
+                  type: 'événement', titre: ev.title || 'Événement', date: ev.date || ev.createdAt,
+                  detail: ev.note || '', color: '#b7791f', icon: '📅',
+                })),
+              ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+              const resumeRelation = {
+                deals: contactData?.deals?.length || 0,
+                tickets: contactData?.tickets?.length || 0,
+                activities: contactData?.activities?.length || 0,
+                lastInteraction: contactData?.activities?.length
+                  ? new Date(
+                      [...contactData.activities]
+                        .sort((a, b) => new Date(b.date) - new Date(a.date))[0].date
+                    ).toLocaleDateString('fr-FR')
+                  : null
+              }
+              return (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                    <div>
+                      <h3 style={{ margin: 0, color: '#1e4a7a' }}>{contactData.name}</h3>
+                      {contactData.company && <div style={{ color: '#718096', fontSize: '0.9rem' }}>{contactData.company}</div>}
+                    </div>
+                    <button onClick={() => { setContactOuvert(null); setContactDetail(null) }} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#718096' }}>✕</button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.6rem', marginBottom: '1rem' }}>
+                    {[
+                      { label: 'Dossiers',       value: resumeRelation.deals,                       color: '#2b6cb0' },
+                      { label: 'Tickets',         value: resumeRelation.tickets,                     color: '#c53030' },
+                      { label: 'Activités',       value: resumeRelation.activities,                  color: '#6b46c1' },
+                      { label: 'Dernier contact', value: resumeRelation.lastInteraction || '—',      color: '#276749' },
+                    ].map(card => (
+                      <div key={card.label} style={{ background: 'white', borderRadius: '10px', padding: '0.7rem', borderTop: `4px solid ${card.color}`, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#718096' }}>{card.label}</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: '700', color: card.color }}>{card.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {loadingContactDetail ? (
+                    <div style={{ color: '#718096', padding: '1rem 0' }}>Chargement du contact…</div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                        {[
+                          ['Email', contactData?.email],
+                          ['Téléphone', contactData?.phone],
+                          ['Entreprise', contactData?.company],
+                          ['Profil client', contactData?.profilClient],
+                          ['Statut', contactData?.status],
+                        ].map(([label, val]) => (
+                          <div key={label} style={{ background: '#f7fafc', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
+                            <div style={{ fontSize: '0.72rem', color: '#718096', marginBottom: '0.2rem' }}>{label}</div>
+                            <div style={{ fontSize: '0.9rem', color: '#2d3748', fontWeight: '500' }}>{val || '—'}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ display: 'grid', gap: '1rem' }}>
+                        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.9rem' }}>
+                          <div style={{ fontWeight: '700', color: '#1e4a7a', marginBottom: '0.5rem' }}>📋 Dossiers d'adhésion</div>
+                          {contactData?.deals?.length ? (
+                            <div style={{ display: 'grid', gap: '0.5rem' }}>
+                              {contactData.deals.map(d => (
+                                <div key={d.id} style={{ border: '1px solid #edf2f7', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
+                                  <div style={{ fontWeight: '600', color: '#2d3748' }}>{d.typeAdhesion || '—'}</div>
+                                  <div style={{ fontSize: '0.82rem', color: '#718096' }}>{d.etapeAdhesion || '—'}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : <div style={{ color: '#718096', fontSize: '0.88rem' }}>Aucun dossier d'adhésion</div>}
+                        </div>
+
+                        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.9rem' }}>
+                          <div style={{ fontWeight: '700', color: '#1e4a7a', marginBottom: '0.5rem' }}>🎫 Tickets / demandes</div>
+                          {contactData?.tickets?.length ? (
+                            <div style={{ display: 'grid', gap: '0.5rem' }}>
+                              {contactData.tickets.map(t => (
+                                <div key={t.id} style={{ border: '1px solid #edf2f7', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
+                                  <div style={{ fontWeight: '600', color: '#2d3748' }}>{t.subject || '—'}</div>
+                                  <div style={{ fontSize: '0.82rem', color: '#718096' }}>{t.status || '—'} • {t.priority || '—'}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : <div style={{ color: '#718096', fontSize: '0.88rem' }}>Aucun ticket</div>}
+                        </div>
+
+                        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.9rem' }}>
+                          <div style={{ fontWeight: '700', color: '#1e4a7a', marginBottom: '0.5rem' }}>🕘 Activités</div>
+                          {contactData?.activities?.length ? (
+                            <div style={{ display: 'grid', gap: '0.5rem' }}>
+                              {contactData.activities.map(a => (
+                                <div key={a.id} style={{ border: '1px solid #edf2f7', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
+                                  <div style={{ fontWeight: '600', color: '#2d3748' }}>{a.type || '—'}</div>
+                                  <div style={{ fontSize: '0.82rem', color: '#718096' }}>{a.date ? new Date(a.date).toLocaleDateString('fr-FR') : '—'}</div>
+                                  {a.note && <div style={{ fontSize: '0.84rem', color: '#4a5568', marginTop: '0.2rem' }}>{a.note}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          ) : <div style={{ color: '#718096', fontSize: '0.88rem' }}>Aucune activité</div>}
+                        </div>
+
+                        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.9rem' }}>
+                          <div style={{ fontWeight: '700', color: '#1e4a7a', marginBottom: '0.5rem' }}>📄 Contrats / Événements</div>
+                          <div style={{ display: 'grid', gap: '0.75rem' }}>
+                            <div>
+                              <div style={{ fontSize: '0.78rem', color: '#718096', marginBottom: '0.35rem' }}>Contrats</div>
+                              {contactData?.contracts?.length ? contactData.contracts.map(ct => (
+                                <div key={ct.id} style={{ border: '1px solid #edf2f7', borderRadius: '8px', padding: '0.6rem 0.75rem', marginBottom: '0.4rem' }}>
+                                  <div style={{ fontWeight: '600', color: '#2d3748' }}>{ct.title || '—'}</div>
+                                  <div style={{ fontSize: '0.82rem', color: '#718096' }}>{ct.status || '—'}</div>
+                                </div>
+                              )) : <div style={{ color: '#718096', fontSize: '0.88rem' }}>Aucun contrat</div>}
+                            </div>
+                            <div>
+                              <div style={{ fontSize: '0.78rem', color: '#718096', marginBottom: '0.35rem' }}>Événements</div>
+                              {contactData?.events?.length ? contactData.events.map(ev => (
+                                <div key={ev.id} style={{ border: '1px solid #edf2f7', borderRadius: '8px', padding: '0.6rem 0.75rem', marginBottom: '0.4rem' }}>
+                                  <div style={{ fontWeight: '600', color: '#2d3748' }}>{ev.title || '—'}</div>
+                                  <div style={{ fontSize: '0.82rem', color: '#718096' }}>{ev.date ? new Date(ev.date).toLocaleDateString('fr-FR') : '—'}</div>
+                                </div>
+                              )) : <div style={{ color: '#718096', fontSize: '0.88rem' }}>Aucun événement</div>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.9rem', marginTop: '1rem' }}>
+                        <div style={{ fontWeight: '700', color: '#1e4a7a', marginBottom: '0.6rem' }}>➕ Nouvelle activité</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
+                          <select style={styles.input} value={formActivite.type} onChange={e => setFormActivite({ ...formActivite, type: e.target.value })}>
+                            <option value="Appel">Appel</option>
+                            <option value="Email">Email</option>
+                            <option value="WhatsApp">WhatsApp</option>
+                            <option value="Relance">Relance</option>
+                            <option value="Rendez-vous">Rendez-vous</option>
+                            <option value="Note">Note</option>
+                          </select>
+                          <input type="date" style={styles.input} value={formActivite.date} onChange={e => setFormActivite({ ...formActivite, date: e.target.value })} />
+                        </div>
+                        <textarea style={{ ...styles.input, width: '100%', height: '80px', resize: 'vertical', boxSizing: 'border-box' }}
+                          placeholder="Note / détail de l'activité" value={formActivite.note}
+                          onChange={e => setFormActivite({ ...formActivite, note: e.target.value })} />
+                        <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+                          <button type="button" onClick={ajouterActiviteContact} disabled={savingActivite}
+                            style={{ ...styles.button, opacity: savingActivite ? 0.7 : 1, cursor: savingActivite ? 'not-allowed' : 'pointer' }}>
+                            {savingActivite ? 'Enregistrement...' : 'Ajouter activité'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.9rem', marginTop: '1rem' }}>
+                        <div style={{ fontWeight: '700', color: '#1e4a7a', marginBottom: '0.6rem' }}>🎫 Nouvelle demande client</div>
+                        <input style={styles.input} placeholder="Sujet de la demande" value={formTicket.subject}
+                          onChange={e => setFormTicket({ ...formTicket, subject: e.target.value })} />
+                        <textarea style={{ ...styles.input, width: '100%', height: '80px', resize: 'vertical', boxSizing: 'border-box', marginTop: '0.6rem' }}
+                          placeholder="Description de la demande" value={formTicket.description}
+                          onChange={e => setFormTicket({ ...formTicket, description: e.target.value })} />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.6rem' }}>
+                          <select style={styles.input} value={formTicket.type} onChange={e => setFormTicket({ ...formTicket, type: e.target.value })}>
+                            <option value="Information">Information</option>
+                            <option value="Réclamation">Réclamation</option>
+                            <option value="Demande prestation">Demande prestation</option>
+                            <option value="Demande adhésion">Demande adhésion</option>
+                            <option value="Autre">Autre</option>
+                          </select>
+                          <select style={styles.input} value={formTicket.priority} onChange={e => setFormTicket({ ...formTicket, priority: e.target.value })}>
+                            <option value="low">Faible</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">Urgent</option>
+                          </select>
+                        </div>
+                        <div style={{ marginTop: '0.7rem', display: 'flex', justifyContent: 'flex-end' }}>
+                          <button onClick={ajouterTicketContact} disabled={savingTicket}
+                            style={{ ...styles.button, opacity: savingTicket ? 0.7 : 1 }}>
+                            {savingTicket ? 'Création...' : 'Créer ticket'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.9rem', marginTop: '1rem' }}>
+                        <div style={{ fontWeight: '700', color: '#1e4a7a', marginBottom: '0.6rem' }}>🧭 Timeline client</div>
+                        {timelineClient.length ? (
+                          <div style={{ display: 'grid', gap: '0.65rem' }}>
+                            {timelineClient.map((item, index) => (
+                              <div key={index} style={{ borderLeft: `4px solid ${item.color}`, background: '#f8fafc', borderRadius: '8px', padding: '0.7rem 0.85rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
+                                  <div style={{ fontWeight: '600', color: '#2d3748' }}>{item.icon} {item.titre}</div>
+                                  <div style={{ fontSize: '0.78rem', color: '#718096' }}>
+                                    {item.date ? new Date(item.date).toLocaleDateString('fr-FR') : '—'}
+                                  </div>
+                                </div>
+                                {item.detail && (
+                                  <div style={{ fontSize: '0.84rem', color: '#4a5568', marginTop: '0.25rem' }}>{item.detail}</div>
+                                )}
+                                <div style={{ fontSize: '0.72rem', color: item.color, marginTop: '0.25rem', fontWeight: '600' }}>
+                                  {item.type.toUpperCase()}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ color: '#718096', fontSize: '0.88rem' }}>Aucun historique disponible</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
+              )
+            })()}
+          </div>
+        </>
+      )}
     </div>
   )
 }
 
 // Deals
+const PROFILS_CLIENTS = [
+  'Participant Cadre',
+  'Participant Non-cadre',
+  'Participant Volontaire',
+  'Participant Individuel',
+  'Participant RVC',
+  'Retraité',
+  'Réversataire',
+  'Adhérent (institution)',
+  'Locataire',
+  'Prospect',
+  'Autres',
+]
+
+const ETAPES_ADHESION = [
+  'Prospect identifié',
+  'Qualification',
+  'Documents attendus',
+  'Dossier en constitution',
+  'Documents incomplets',
+  'Dossier complet',
+  'Validation CRRAE',
+  'Adhésion enregistrée',
+  'Adhésion activée',
+]
+
+const etapeColor = (etape) => {
+  const map = {
+    'Prospect identifié':    { background: '#f7fafc', color: '#718096' },
+    'Qualification':         { background: '#ebf8ff', color: '#2b6cb0' },
+    'Documents attendus':    { background: '#fffbeb', color: '#b7791f' },
+    'Dossier en constitution': { background: '#fef3c7', color: '#92400e' },
+    'Documents incomplets':  { background: '#fff5f5', color: '#c53030' },
+    'Dossier complet':       { background: '#faf5ff', color: '#6b46c1' },
+    'Validation CRRAE':      { background: '#e6fffa', color: '#234e52' },
+    'Adhésion enregistrée':  { background: '#ebf8ff', color: '#1e4a7a' },
+    'Adhésion activée':      { background: '#f0fff4', color: '#276749' },
+  }
+  return map[etape] || { background: '#f7fafc', color: '#718096' }
+}
+
 function Deals() {
   const [deals, setDeals] = useState([])
-  const [form, setForm] = useState({ title: '', amount: '', status: 'open', contactId: '' })
   const [showForm, setShowForm] = useState(false)
+  const [dealOuvert, setDealOuvert] = useState(null)
+  const [vueDeals, setVueDeals] = useState('tableau')
+  const formVide = {
+    nomPrenom: '', institution: '', pays: '', telephone: '', email: '',
+    typeClient: 'Individuel', typeAdhesion: '', modeAdhesion: '',
+    etapeAdhesion: 'Prospect identifié',
+    documentsAttendus: '', documentsManquants: '',
+    agentResponsable: '', service: '', canalAcquisition: '',
+    dateDemande: '', commentaire: '',
+  }
+  const [form, setForm] = useState(formVide)
 
   useEffect(() => { API.get('/deals').then(r => setDeals(r.data)).catch(() => {}) }, [])
 
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
-      const res = await API.post('/deals', { ...form, amount: parseFloat(form.amount) })
-      setDeals([...deals, res.data])
-      setForm({ title: '', amount: '', status: 'open', contactId: '' })
+      const res = await API.post('/deals', form)
+      setDeals([res.data, ...deals])
+      setForm(formVide)
       setShowForm(false)
+    } catch (err) {
+      console.error('Erreur création deal', err)
+      alert('Erreur lors de la création')
+    }
+  }
+
+  const handleUpdate = async (id, data) => {
+    const updatedData = { ...data }
+
+    if (data.documentsManquants !== undefined) {
+      if (data.documentsManquants && data.documentsManquants.trim() !== '') {
+        updatedData.etapeAdhesion = 'Documents incomplets'
+      }
+      if (!data.documentsManquants || data.documentsManquants.trim() === '') {
+        updatedData.etapeAdhesion = 'Dossier en constitution'
+      }
+    }
+
+    try {
+      const res = await API.put(`/deals/${id}`, updatedData)
+      setDeals(deals.map(d => d.id === id ? res.data : d))
+      setDealOuvert(res.data)
+    } catch (err) {
+      console.error('Erreur mise à jour deal', err)
+    }
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Supprimer ce dossier ?')) return
+    try {
+      await API.delete(`/deals/${id}`)
+      setDeals(deals.filter(d => d.id !== id))
+      setDealOuvert(null)
     } catch {}
   }
 
-  const statusColor = (status) => {
-    const map = {
-      open: { background: '#ebf8ff', color: '#2b6cb0' },
-      won: { background: '#f0fff4', color: '#276749' },
-      lost: { background: '#fff5f5', color: '#c53030' },
-      pending: { background: '#fffbeb', color: '#b7791f' },
+  const inp = { ...styles.input, marginBottom: '0.5rem' }
+
+  const colonnesDeals = [
+    'Prospect identifié',
+    'Qualification',
+    'Documents attendus',
+    'Dossier en constitution',
+    'Documents incomplets',
+    'Dossier complet',
+    'Validation CRRAE',
+    'Adhésion enregistrée',
+    'Adhésion activée',
+  ]
+
+  const dealsParEtape = colonnesDeals.map((etape) => ({
+    etape,
+    items: deals.filter(d => (d.etapeAdhesion || 'Prospect identifié') === etape)
+  }))
+
+  const documentsParTypeEtAdhesion = {
+    'Participant Individuel': {
+      RVC: `• Bulletin d'adhésion à titre individuel RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      RRPC: `• Bulletin d'adhésion à titre individuel RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      RCPNC: `• Bulletin d'adhésion à titre individuel RCPNC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      'FAAM RRPC': `• Bulletin d'adhésion à titre individuel FAAM RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      'FAAM RCPNC': `• Bulletin d'adhésion à titre individuel FAAM RCPNC (à élaborer)\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+    },
+    'Participant Volontaire': {
+      RVC: `• Bulletin d'adhésion à titre individuel RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      RRPC: `• Bulletin d'adhésion à titre individuel RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      RCPNC: `• Bulletin d'adhésion à titre individuel RCPNC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      'FAAM RRPC': `• Bulletin d'adhésion à titre individuel FAAM RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+      'FAAM RCPNC': `• Bulletin d'adhésion à titre individuel FAAM RCPNC (à élaborer)\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+    },
+    'Adhérent (institution)': {
+      RVC: `• État du personnel des salariés RCPNC\n• État du personnel des salariés RRPC\n• Bulletin d'adhésion RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
+      RRPC: `• État du personnel des salariés RRPC\n• Bulletin d'adhésion RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
+      RCPNC: `• État du personnel des salariés RCPNC\n• Bulletin d'adhésion RCPNC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
+      'FAAM RRPC': `• Bulletin d'adhésion FAAM RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
+      'FAAM RCPNC': `• Bulletin d'adhésion FAAM RCPNC (à élaborer)\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
+    },
+    'Participant RVC': {
+      RVC: `• Bulletin d'adhésion à titre individuel RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
+    },
+  }
+
+  const statsPipeline = colonnesDeals.map(etape => ({
+    etape,
+    total: deals.filter(d => (d.etapeAdhesion || 'Prospect identifié') === etape).length
+  }))
+
+  const getDocumentsAttendus = (typeClient, typeAdhesion) => {
+    if (documentsParTypeEtAdhesion?.[typeClient]?.[typeAdhesion]) {
+      return documentsParTypeEtAdhesion[typeClient][typeAdhesion]
     }
-    return map[status] || map.open
+
+    if (
+      (typeClient === 'Participant Cadre' || typeClient === 'Participant Non-cadre') &&
+      documentsParTypeEtAdhesion['Adhérent (institution)']?.[typeAdhesion]
+    ) {
+      return documentsParTypeEtAdhesion['Adhérent (institution)'][typeAdhesion]
+    }
+
+    return ''
+  }
+
+  const statutDossier = (deal) => {
+    const hasMissingDocs = deal.documentsManquants && deal.documentsManquants.trim() !== ''
+    if (hasMissingDocs) {
+      return { label: 'Dossier incomplet', style: { background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' } }
+    }
+    return { label: 'Dossier complet', style: { background: '#f0fff4', color: '#276749', border: '1px solid #9ae6b4' } }
+  }
+
+  const avancerEtapeDeal = (deal) => {
+    const index = colonnesDeals.indexOf(deal.etapeAdhesion || 'Prospect identifié')
+    if (index === -1 || index === colonnesDeals.length - 1) return
+    const prochaineEtape = colonnesDeals[index + 1]
+    handleUpdate(deal.id, { etapeAdhesion: prochaineEtape })
+  }
+
+  const reculerEtapeDeal = (deal) => {
+    const index = colonnesDeals.indexOf(deal.etapeAdhesion || 'Prospect identifié')
+    if (index <= 0) return
+    const etapePrecedente = colonnesDeals[index - 1]
+    handleUpdate(deal.id, { etapeAdhesion: etapePrecedente })
   }
 
   return (
     <div>
       <div style={styles.pageHeader}>
-        <h2 style={styles.pageTitle}>💼 Deals</h2>
-        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
+        <h2 style={styles.pageTitle}>📋 Dossiers d'adhésion</h2>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button style={{ ...styles.button, background: vueDeals === 'tableau' ? '#1e4a7a' : '#718096' }}
+            type="button" onClick={() => setVueDeals('tableau')}>
+            📋 Tableau
+          </button>
+          <button style={{ ...styles.button, background: vueDeals === 'pipeline' ? '#1e4a7a' : '#718096' }}
+            type="button" onClick={() => setVueDeals('pipeline')}>
+            🧩 Pipeline
+          </button>
+          <button style={styles.button} onClick={() => setShowForm(!showForm)}>
+            + Nouveau dossier
+          </button>
+        </div>
       </div>
+
       {showForm && (
-        <form onSubmit={handleAdd} style={styles.form}>
-          <input style={styles.input} placeholder="Titre du deal" value={form.title} onChange={e => setForm({...form, title: e.target.value})} required />
-          <input style={styles.input} placeholder="Montant (FCFA)" type="number" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
-          <select style={styles.input} value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
-            <option value="open">Ouvert</option>
-            <option value="pending">En cours</option>
-            <option value="won">Gagné</option>
-            <option value="lost">Perdu</option>
+        <form onSubmit={handleAdd} style={{ ...styles.form, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <input style={inp} placeholder="Nom & Prénom *" value={form.nomPrenom} onChange={e => setForm({...form, nomPrenom: e.target.value})} required />
+          <input style={inp} placeholder="Institution / Employeur" value={form.institution} onChange={e => setForm({...form, institution: e.target.value})} />
+          <input style={inp} placeholder="Pays" value={form.pays} onChange={e => setForm({...form, pays: e.target.value})} />
+          <input style={inp} placeholder="Téléphone" value={form.telephone} onChange={e => setForm({...form, telephone: e.target.value})} />
+          <input style={inp} placeholder="Email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+          <select style={inp} value={form.typeClient} onChange={e => {
+            const typeClient = e.target.value
+            setForm({ ...form, typeClient, documentsAttendus: getDocumentsAttendus(typeClient, form.typeAdhesion) })
+          }}>
+            <option value="">Profil client</option>
+            {PROFILS_CLIENTS.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
           </select>
-          <input style={styles.input} placeholder="ID Contact (optionnel)" value={form.contactId} onChange={e => setForm({...form, contactId: e.target.value})} />
-          <button style={styles.button} type="submit">Enregistrer</button>
+          <select style={inp} value={form.typeAdhesion} onChange={e => {
+            const typeAdhesion = e.target.value
+            setForm({ ...form, typeAdhesion, documentsAttendus: getDocumentsAttendus(form.typeClient, typeAdhesion) })
+          }}>
+            <option value="">Type d'adhésion</option>
+            <option value="RRPC">RRPC</option>
+            <option value="RCPNC">RCPNC</option>
+            <option value="RVC">RVC</option>
+            <option value="FAAM RRPC">FAAM RRPC</option>
+            <option value="FAAM RCPNC">FAAM RCPNC</option>
+          </select>
+          <select style={inp} value={form.modeAdhesion} onChange={e => setForm({...form, modeAdhesion: e.target.value})}>
+            <option value="">Mode d'adhésion</option>
+            <option value="Via employeur">Via employeur</option>
+            <option value="Individuelle">Individuelle</option>
+            <option value="Migration interne">Migration interne</option>
+          </select>
+          <select style={inp} value={form.etapeAdhesion} onChange={e => setForm({...form, etapeAdhesion: e.target.value})}>
+            {ETAPES_ADHESION.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+          <input style={inp} placeholder="Agent responsable" value={form.agentResponsable} onChange={e => setForm({...form, agentResponsable: e.target.value})} />
+          <select style={inp} value={form.service} onChange={e => setForm({...form, service: e.target.value})}>
+            <option value="">Service</option>
+            <option value="DCR">DCR</option>
+            <option value="DPR">DPR</option>
+          </select>
+          <select style={inp} value={form.canalAcquisition} onChange={e => setForm({...form, canalAcquisition: e.target.value})}>
+            <option value="">Canal d'acquisition</option>
+            <option value="Email">Email</option>
+            <option value="Téléphone">Téléphone</option>
+            <option value="WhatsApp">WhatsApp</option>
+            <option value="Présentiel">Présentiel</option>
+          </select>
+          <input style={inp} type="date" placeholder="Date demande" value={form.dateDemande} onChange={e => setForm({...form, dateDemande: e.target.value})} />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <textarea style={{ ...inp, width: '100%', height: '60px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Documents attendus" value={form.documentsAttendus}
+              onChange={e => setForm({...form, documentsAttendus: e.target.value})} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <textarea style={{ ...inp, width: '100%', height: '60px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Documents manquants" value={form.documentsManquants}
+              onChange={e => setForm({...form, documentsManquants: e.target.value})} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <textarea style={{ ...inp, width: '100%', height: '60px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Commentaire" value={form.commentaire}
+              onChange={e => setForm({...form, commentaire: e.target.value})} />
+          </div>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem' }}>
+            <button style={styles.button} type="submit">💾 Enregistrer</button>
+            <button style={{ ...styles.button, background: '#718096' }} type="button" onClick={() => { setShowForm(false); setForm(formVide) }}>Annuler</button>
+          </div>
         </form>
       )}
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            <th style={styles.th}>Titre</th>
-            <th style={styles.th}>Montant</th>
-            <th style={styles.th}>Statut</th>
-            <th style={styles.th}>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {deals.map(d => (
-            <tr key={d.id} style={styles.tr}>
-              <td style={styles.td}>{d.title}</td>
-              <td style={styles.td}>{d.amount ? `${Number(d.amount).toLocaleString('fr-FR')} FCFA` : '—'}</td>
-              <td style={styles.td}><span style={{...styles.badge, ...statusColor(d.status)}}>{d.status}</span></td>
-              <td style={styles.td}>{d.createdAt ? new Date(d.createdAt).toLocaleDateString('fr-FR') : '—'}</td>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+        {statsPipeline.map(s => (
+          <div key={s.etape} style={{ background: 'white', borderRadius: '10px', padding: '0.75rem', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.75rem', color: '#718096', marginBottom: '0.2rem' }}>{s.etape}</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: '700', color: '#1e4a7a' }}>{s.total}</div>
+          </div>
+        ))}
+      </div>
+
+      {vueDeals === 'tableau' ? (
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Nom / Institution</th>
+              <th style={styles.th}>Pays</th>
+              <th style={styles.th}>Type</th>
+              <th style={styles.th}>Adhésion</th>
+              <th style={styles.th}>Dossier</th>
+              <th style={styles.th}>Étape</th>
+              <th style={styles.th}>Agent</th>
+              <th style={styles.th}>Date demande</th>
             </tr>
+          </thead>
+          <tbody>
+            {deals.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{ ...styles.td, textAlign: 'center', color: '#718096', padding: '2rem' }}>
+                  Aucun dossier
+                </td>
+              </tr>
+            )}
+            {deals.map(d => (
+              <tr key={d.id} style={{ ...styles.tr, cursor: 'pointer' }} onClick={() => setDealOuvert(d)}>
+                <td style={styles.td}>
+                  <div style={{ fontWeight: '600', color: '#2d3748' }}>{d.nomPrenom}</div>
+                  {d.institution && <div style={{ fontSize: '0.8rem', color: '#718096' }}>{d.institution}</div>}
+                </td>
+                <td style={styles.td}>{d.pays || '—'}</td>
+                <td style={styles.td}>{d.typeClient || '—'}</td>
+                <td style={styles.td}>{d.typeAdhesion || '—'}</td>
+                <td style={styles.td}>
+                  <span style={{ ...styles.badge, ...statutDossier(d).style }}>{statutDossier(d).label}</span>
+                </td>
+                <td style={styles.td}>
+                  <span style={{ ...styles.badge, ...etapeColor(d.etapeAdhesion) }}>{d.etapeAdhesion || '—'}</span>
+                  {d.documentsManquants && (
+                    <span style={{ marginLeft: '0.4rem', color: '#c53030', fontSize: '0.78rem', fontWeight: '600' }}>⚠ Docs manquants</span>
+                  )}
+                </td>
+                <td style={styles.td}>{d.agentResponsable || '—'}</td>
+                <td style={styles.td}>{d.dateDemande ? new Date(d.dateDemande).toLocaleDateString('fr-FR') : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(9, minmax(240px, 1fr))',
+          gap: '1rem',
+          overflowX: 'auto',
+          paddingBottom: '0.5rem'
+        }}>
+          {dealsParEtape.map(col => (
+            <div key={col.etape} style={{
+              background: '#f7fafc',
+              borderRadius: '12px',
+              padding: '0.75rem',
+              minHeight: '420px',
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ marginBottom: '0.75rem' }}>
+                <div style={{ fontWeight: '700', color: '#1e4a7a', fontSize: '0.92rem' }}>{col.etape}</div>
+                <div style={{ fontSize: '0.78rem', color: '#718096' }}>{col.items.length} dossier(s)</div>
+              </div>
+              <div style={{ display: 'grid', gap: '0.65rem' }}>
+                {col.items.map(d => (
+                  <div key={d.id} onClick={() => setDealOuvert(d)} style={{
+                    background: 'white',
+                    borderRadius: '10px',
+                    padding: '0.75rem',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                    cursor: 'pointer',
+                    border: d.documentsManquants ? '1px solid #feb2b2' : '1px solid #e2e8f0'
+                  }}>
+                    <div style={{ fontWeight: '600', color: '#2d3748', marginBottom: '0.25rem' }}>{d.nomPrenom}</div>
+                    {d.institution && (
+                      <div style={{ fontSize: '0.8rem', color: '#718096', marginBottom: '0.35rem' }}>{d.institution}</div>
+                    )}
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.45rem' }}>
+                      {d.typeClient && (
+                        <span style={{ ...styles.badge, background: '#ebf8ff', color: '#2b6cb0' }}>{d.typeClient}</span>
+                      )}
+                      {d.typeAdhesion && (
+                        <span style={{ ...styles.badge, background: '#f0fff4', color: '#276749' }}>{d.typeAdhesion}</span>
+                      )}
+                    </div>
+                    <div style={{ marginBottom: '0.45rem' }}>
+                      <span style={{ ...styles.badge, ...statutDossier(d).style }}>{statutDossier(d).label}</span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#4a5568', marginBottom: '0.25rem' }}>{d.agentResponsable || 'Non assigné'}</div>
+                    <div style={{ fontSize: '0.76rem', color: '#718096' }}>
+                      {d.dateDemande ? new Date(d.dateDemande).toLocaleDateString('fr-FR') : '—'}
+                    </div>
+                    {d.documentsManquants && (
+                      <div style={{ marginTop: '0.55rem', fontSize: '0.75rem', color: '#c53030', fontWeight: '600' }}>
+                        ⚠ Documents manquants
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.65rem' }}>
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); reculerEtapeDeal(d) }}
+                        style={{ flex: 1, border: '1px solid #e2e8f0', background: 'white', color: '#4a5568', borderRadius: '8px', padding: '0.35rem 0.5rem', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        ← Reculer
+                      </button>
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); avancerEtapeDeal(d) }}
+                        style={{ flex: 1, border: 'none', background: '#1e4a7a', color: 'white', borderRadius: '8px', padding: '0.35rem 0.5rem', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        Avancer →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
+
+      {dealOuvert && (
+        <>
+          <div onClick={() => setDealOuvert(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9998 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '600px', maxHeight: '85vh', overflowY: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 9999, padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#1e4a7a' }}>{dealOuvert.nomPrenom}</h3>
+                {dealOuvert.institution && <div style={{ color: '#718096', fontSize: '0.9rem' }}>{dealOuvert.institution}</div>}
+              </div>
+              <button onClick={() => setDealOuvert(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#718096' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+              {[
+                ['Pays', dealOuvert.pays],
+                ['Téléphone', dealOuvert.telephone],
+                ['Email', dealOuvert.email],
+                ['Type client', dealOuvert.typeClient],
+                ['Type adhésion', dealOuvert.typeAdhesion],
+                ['Mode adhésion', dealOuvert.modeAdhesion],
+                ['Agent', dealOuvert.agentResponsable],
+                ['Service', dealOuvert.service],
+                ['Canal', dealOuvert.canalAcquisition],
+                ['Date demande', dealOuvert.dateDemande ? new Date(dealOuvert.dateDemande).toLocaleDateString('fr-FR') : '—'],
+                ['Date validation', dealOuvert.dateValidation ? new Date(dealOuvert.dateValidation).toLocaleDateString('fr-FR') : '—'],
+                ['Date activation', dealOuvert.dateActivation ? new Date(dealOuvert.dateActivation).toLocaleDateString('fr-FR') : '—'],
+              ].map(([label, val]) => (
+                <div key={label} style={{ background: '#f7fafc', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#718096', marginBottom: '0.2rem' }}>{label}</div>
+                  <div style={{ fontSize: '0.9rem', color: '#2d3748', fontWeight: '500' }}>{val || '—'}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.8rem', color: '#718096', marginBottom: '0.4rem', fontWeight: '600' }}>ÉTAPE</div>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {ETAPES_ADHESION.map(e => (
+                  <button key={e} onClick={() => handleUpdate(dealOuvert.id, { etapeAdhesion: e })}
+                    style={{ padding: '0.3rem 0.75rem', borderRadius: '20px', border: '1px solid #e2e8f0', cursor: 'pointer', fontSize: '0.8rem',
+                      ...(dealOuvert.etapeAdhesion === e ? etapeColor(e) : { background: 'white', color: '#4a5568' }) }}>
+                    {e}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {dealOuvert.documentsAttendus && (
+              <div style={{ background: '#fffbeb', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#b7791f', fontWeight: '600', marginBottom: '0.25rem' }}>DOCUMENTS ATTENDUS</div>
+                <pre style={{ margin: 0, fontSize: '0.85rem', color: '#744210', whiteSpace: 'pre-wrap' }}>{dealOuvert.documentsAttendus}</pre>
+              </div>
+            )}
+            {dealOuvert.documentsManquants && (
+              <div style={{ background: '#fff5f5', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#c53030', fontWeight: '600', marginBottom: '0.25rem' }}>DOCUMENTS MANQUANTS</div>
+                <pre style={{ margin: 0, fontSize: '0.85rem', color: '#742a2a', whiteSpace: 'pre-wrap' }}>{dealOuvert.documentsManquants}</pre>
+              </div>
+            )}
+            {dealOuvert.commentaire && (
+              <div style={{ background: '#f0fff4', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#276749', fontWeight: '600', marginBottom: '0.25rem' }}>COMMENTAIRE</div>
+                <div style={{ fontSize: '0.85rem', color: '#2d3748' }}>{dealOuvert.commentaire}</div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+              <button onClick={() => handleDelete(dealOuvert.id)}
+                style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2', borderRadius: '6px', padding: '0.4rem 1rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                🗑️ Supprimer
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1007,39 +2052,95 @@ function Deals() {
 // Campagnes
 function Campagnes() {
   const [campagnes, setCampagnes] = useState([])
-  const [form, setForm] = useState({ name: '', type: 'email', status: 'draft', startDate: '', endDate: '' })
   const [showForm, setShowForm] = useState(false)
+  const [campagneOuverte, setCampagneOuverte] = useState(null)
+  const [searchCampagne, setSearchCampagne] = useState('')
+  const [filtreStatutCampagne, setFiltreStatutCampagne] = useState('')
+  const [targets, setTargets] = useState([])
 
-  useEffect(() => { API.get('/campaigns').then(r => setCampagnes(r.data)).catch(() => {}) }, [])
+  const formVide = {
+    name: '',
+    type: 'email',
+    objectif: 'information',
+    statut: 'draft',
+    cible: '',
+    profilClient: '',
+    responsable: '',
+    startDate: '',
+    endDate: '',
+    commentaire: '',
+  }
+
+  const [form, setForm] = useState(formVide)
+
+  useEffect(() => {
+    API.get('/campaigns').then(r => setCampagnes(r.data)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (campagneOuverte?.id) {
+      API.get(`/campaigns/${campagneOuverte.id}/targets`)
+        .then(r => setTargets(r.data))
+        .catch(() => setTargets([]))
+    } else {
+      setTargets([])
+    }
+  }, [campagneOuverte])
 
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
-      const res = await API.post('/campaigns', form)
-      setCampagnes([...campagnes, res.data])
-      setForm({ name: '', type: 'email', status: 'draft', startDate: '', endDate: '' })
+      const payload = { ...form, status: form.statut, segment: form.cible }
+      const res = await API.post('/campaigns', payload)
+      setCampagnes([res.data, ...campagnes])
+      setForm(formVide)
       setShowForm(false)
-    } catch {}
+    } catch (err) {
+      console.error('Erreur création campagne', err)
+      alert('Erreur lors de la création de la campagne')
+    }
   }
 
   const statusColor = (status) => {
     const map = {
-      draft: { background: '#f7fafc', color: '#718096' },
-      active: { background: '#f0fff4', color: '#276749' },
-      paused: { background: '#fffbeb', color: '#b7791f' },
-      completed: { background: '#ebf8ff', color: '#2b6cb0' },
+      draft:     { background: '#f7fafc', color: '#718096' },
+      planned:   { background: '#ebf8ff', color: '#2b6cb0' },
+      active:    { background: '#f0fff4', color: '#276749' },
+      paused:    { background: '#fffbeb', color: '#b7791f' },
+      completed: { background: '#faf5ff', color: '#6b46c1' },
     }
     return map[status] || map.draft
   }
 
   const typeColor = (type) => {
     const map = {
-      email: { background: '#ebf8ff', color: '#2b6cb0' },
-      sms: { background: '#faf5ff', color: '#6b46c1' },
-      social: { background: '#f0fff4', color: '#276749' },
+      email:     { background: '#ebf8ff', color: '#2b6cb0' },
+      sms:       { background: '#faf5ff', color: '#6b46c1' },
+      whatsapp:  { background: '#f0fff4', color: '#276749' },
+      social:    { background: '#fff5f5', color: '#c53030' },
+      multicanal:{ background: '#fffbeb', color: '#b7791f' },
     }
     return map[type] || map.email
   }
+
+  const statsCampagnes = {
+    total:     campagnes.length,
+    actives:   campagnes.filter(c => c.status === 'active').length,
+    brouillons:campagnes.filter(c => c.status === 'draft').length,
+    terminees: campagnes.filter(c => c.status === 'completed').length,
+  }
+
+  const campagnesFiltrees = [...campagnes]
+    .filter(c => {
+      const q = searchCampagne.toLowerCase()
+      const matchSearch = !q ||
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.segment || '').toLowerCase().includes(q) ||
+        (c.subject || '').toLowerCase().includes(q)
+      const matchStatut = !filtreStatutCampagne || c.status === filtreStatutCampagne
+      return matchSearch && matchStatut
+    })
+    .sort((a, b) => new Date(b.sentAt || b.createdAt || 0) - new Date(a.sentAt || a.createdAt || 0))
 
   return (
     <div>
@@ -1047,47 +2148,144 @@ function Campagnes() {
         <h2 style={styles.pageTitle}>📣 Campagnes</h2>
         <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
       </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+        {[
+          { label: 'Total',      value: statsCampagnes.total,      color: '#2b6cb0' },
+          { label: 'Actives',    value: statsCampagnes.actives,    color: '#276749' },
+          { label: 'Brouillons', value: statsCampagnes.brouillons, color: '#b7791f' },
+          { label: 'Terminées',  value: statsCampagnes.terminees,  color: '#6b46c1' },
+        ].map(card => (
+          <div key={card.label} style={{ background: 'white', borderRadius: '12px', padding: '0.9rem 1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.06)', borderTop: `4px solid ${card.color}` }}>
+            <div style={{ fontSize: '0.78rem', color: '#718096' }}>{card.label}</div>
+            <div style={{ fontSize: '1.6rem', fontWeight: '700', color: card.color }}>{card.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <input style={{ ...styles.input, maxWidth: '320px', marginBottom: 0 }} placeholder="Rechercher une campagne"
+          value={searchCampagne} onChange={e => setSearchCampagne(e.target.value)} />
+        <select style={{ ...styles.input, maxWidth: '220px', marginBottom: 0 }}
+          value={filtreStatutCampagne} onChange={e => setFiltreStatutCampagne(e.target.value)}>
+          <option value="">Tous les statuts</option>
+          <option value="draft">Brouillon</option>
+          <option value="planned">Planifiée</option>
+          <option value="active">Active</option>
+          <option value="paused">En pause</option>
+          <option value="completed">Terminée</option>
+        </select>
+        <button type="button" onClick={() => { setSearchCampagne(''); setFiltreStatutCampagne('') }}
+          style={{ border: 'none', background: '#edf2f7', color: '#4a5568', borderRadius: '8px', padding: '0.7rem 1rem', cursor: 'pointer' }}>
+          Réinitialiser
+        </button>
+      </div>
+
       {showForm && (
-        <form onSubmit={handleAdd} style={styles.form}>
-          <input style={styles.input} placeholder="Nom de la campagne" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-          <select style={styles.input} value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+        <form onSubmit={handleAdd} style={{ ...styles.form, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+          <input style={styles.input} placeholder="Nom de la campagne" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+          <select style={styles.input} value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
             <option value="email">Email</option>
             <option value="sms">SMS</option>
+            <option value="whatsapp">WhatsApp</option>
             <option value="social">Réseaux sociaux</option>
+            <option value="multicanal">Multicanal</option>
           </select>
-          <select style={styles.input} value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
+          <select style={styles.input} value={form.objectif} onChange={e => setForm({ ...form, objectif: e.target.value })}>
+            <option value="information">Information</option>
+            <option value="sensibilisation">Sensibilisation</option>
+            <option value="relance">Relance</option>
+            <option value="satisfaction">Satisfaction</option>
+            <option value="adhesion">Adhésion</option>
+            <option value="service_client">Service client</option>
+          </select>
+          <select style={styles.input} value={form.statut} onChange={e => setForm({ ...form, statut: e.target.value })}>
             <option value="draft">Brouillon</option>
+            <option value="planned">Planifiée</option>
             <option value="active">Active</option>
             <option value="paused">En pause</option>
             <option value="completed">Terminée</option>
           </select>
-          <input style={styles.input} type="date" placeholder="Date de début" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} />
-          <input style={styles.input} type="date" placeholder="Date de fin" value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} />
-          <button style={styles.button} type="submit">Enregistrer</button>
+          <select style={styles.input} value={form.profilClient} onChange={e => setForm({ ...form, profilClient: e.target.value })}>
+            <option value="">Tous les profils</option>
+            {PROFILS_CLIENTS.map(p => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <input style={styles.input} placeholder="Cible / segment" value={form.cible} onChange={e => setForm({ ...form, cible: e.target.value })} />
+          <input style={styles.input} placeholder="Responsable" value={form.responsable} onChange={e => setForm({ ...form, responsable: e.target.value })} />
+          <input style={styles.input} type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} />
+          <input style={styles.input} type="date" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} />
+          <div style={{ gridColumn: '1 / -1' }}>
+            <textarea style={{ ...styles.input, width: '100%', height: '70px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Commentaire" value={form.commentaire} onChange={e => setForm({ ...form, commentaire: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', gridColumn: '1 / -1' }}>
+            <button style={styles.button} type="submit">Enregistrer</button>
+            <button type="button" onClick={() => { setShowForm(false); setForm(formVide) }} style={{ ...styles.button, background: '#718096' }}>Annuler</button>
+          </div>
         </form>
       )}
+
       <table style={styles.table}>
         <thead>
           <tr>
             <th style={styles.th}>Nom</th>
-            <th style={styles.th}>Type</th>
+            <th style={styles.th}>Canal</th>
             <th style={styles.th}>Statut</th>
+            <th style={styles.th}>Cible</th>
             <th style={styles.th}>Début</th>
             <th style={styles.th}>Fin</th>
           </tr>
         </thead>
         <tbody>
-          {campagnes.map(c => (
-            <tr key={c.id} style={styles.tr}>
-              <td style={styles.td}>{c.name}</td>
-              <td style={styles.td}><span style={{...styles.badge, ...typeColor(c.type)}}>{c.type}</span></td>
-              <td style={styles.td}><span style={{...styles.badge, ...statusColor(c.status)}}>{c.status}</span></td>
-              <td style={styles.td}>{c.startDate ? new Date(c.startDate).toLocaleDateString('fr-FR') : '—'}</td>
-              <td style={styles.td}>{c.endDate ? new Date(c.endDate).toLocaleDateString('fr-FR') : '—'}</td>
-            </tr>
-          ))}
+          {campagnesFiltrees.length === 0 ? (
+            <tr><td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#718096', padding: '2rem' }}>Aucune campagne</td></tr>
+          ) : (
+            campagnesFiltrees.map(c => (
+              <tr key={c.id} style={{ ...styles.tr, cursor: 'pointer' }} onClick={() => setCampagneOuverte(c)}>
+                <td style={styles.td}>{c.name}</td>
+                <td style={styles.td}><span style={{ ...styles.badge, ...typeColor(c.type) }}>{c.type}</span></td>
+                <td style={styles.td}><span style={{ ...styles.badge, ...statusColor(c.status) }}>{c.status}</span></td>
+                <td style={styles.td}>{c.segment || '—'}</td>
+                <td style={styles.td}>{c.startDate ? new Date(c.startDate).toLocaleDateString('fr-FR') : '—'}</td>
+                <td style={styles.td}>{c.endDate ? new Date(c.endDate).toLocaleDateString('fr-FR') : '—'}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
+
+      {campagneOuverte && (
+        <>
+          <div onClick={() => setCampagneOuverte(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9998 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '540px', maxHeight: '85vh', overflowY: 'auto', background: 'white', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.28)', zIndex: 9999, padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#1e4a7a' }}>{campagneOuverte.name}</h3>
+                <div style={{ marginTop: '0.35rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <span style={{ ...styles.badge, ...typeColor(campagneOuverte.type) }}>{campagneOuverte.type}</span>
+                  <span style={{ ...styles.badge, ...statusColor(campagneOuverte.status) }}>{campagneOuverte.status}</span>
+                </div>
+              </div>
+              <button onClick={() => setCampagneOuverte(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#718096' }}>✕</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              {[
+                ['Profil ciblé', campagneOuverte.profilClient || 'Tous'],
+                ['Contacts ciblés', targets.length],
+                ['Canal', campagneOuverte.canal || '—'],
+                ['Statut', campagneOuverte.statut || campagneOuverte.status || '—'],
+              ].map(([label, val]) => (
+                <div key={label} style={{ background: '#f7fafc', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#718096', marginBottom: '0.2rem' }}>{label}</div>
+                  <div style={{ fontSize: '0.9rem', color: '#2d3748', fontWeight: '500' }}>{val ?? '—'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -1234,16 +2432,28 @@ function PanneauCommentaires({ demande, onClose }) {
 
   const handleAdd = async (e) => {
     e.preventDefault()
-    if (!texte.trim()) return
+    if (!texte || !texte.trim()) {
+      alert('Veuillez saisir une note')
+      return
+    }
     try {
+      console.log('AJOUT NOTE PAYLOAD', {
+        demandeId: demande?.id,
+        auteur,
+        contenu: texte
+      })
       const res = await API.post('/commentaires', {
         demandeId: demande.id,
         auteur,
-        contenu: texte,
+        contenu: texte.trim(),
       })
-      setCommentaires([...commentaires, res.data])
+      console.log('AJOUT NOTE OK', res.data)
+      setCommentaires((prev) => [res.data, ...prev])
       setTexte('')
-    } catch {}
+    } catch (err) {
+      console.error('ERREUR AJOUT NOTE', err)
+      alert("Erreur lors de l'enregistrement de la note")
+    }
   }
 
   const handleDelete = async (id) => {
@@ -1355,7 +2565,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [filtresColonnes, setFiltresColonnes] = useState({})
   const [colonneActive, setColonneActive] = useState(null)
   const emptyForm = {
-    nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', pays: '',
+    nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', profilClient: '', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WhatsApp', telephone: '', email: '',
     objetDemande: 'Information', commentaire: '',
     agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '',
@@ -1468,7 +2678,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     setEditId(d.id)
     setForm({
       nomPrenom: d.nomPrenom || '', matricule: d.matricule || '',
-      adherent: d.adherent || '', typeClient: d.typeClient || 'Actif',
+      adherent: d.adherent || '', typeClient: d.typeClient || 'Actif', profilClient: d.profilClient || '',
       pays: d.pays || '', heureAppel: d.heureAppel || '',
       canal: d.canal || 'WhatsApp', telephone: d.telephone || '',
       email: d.email || '', objetDemande: d.objetDemande || 'Information',
@@ -1634,7 +2844,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     return jours > 3
   })
 
-  const filtered = demandes.filter(d => {
+  const demandesTriees = [...demandes].sort((a, b) => {
+    const dateA = new Date(a.dateReception || a.createdAt)
+    const dateB = new Date(b.dateReception || b.createdAt)
+    return dateB - dateA
+  })
+
+  const filtered = demandesTriees.filter(d => {
     if (!isFullAccess && d.agentN1 !== userName && d.agentN2 !== userName) return false
     const q = search.toLowerCase()
     if (q && !(
@@ -1661,6 +2877,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (filtresColonnes.priorite && d.priorite !== filtresColonnes.priorite) return false
     return true
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+
+
   const demandesClient = (telephone) =>
     demandes.filter(d => d.telephone === telephone)
 
@@ -1771,6 +2989,23 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       ) : null}
     </th>
   )
+
+  const profilClientColor = (profil) => {
+    const map = {
+      'Participant Cadre': { background: '#ebf8ff', color: '#2b6cb0' },
+      'Participant Non-cadre': { background: '#e6fffa', color: '#234e52' },
+      'Participant Volontaire': { background: '#fff5f5', color: '#c53030' },
+      'Participant Individuel': { background: '#faf5ff', color: '#6b46c1' },
+      'Participant RVC': { background: '#f0fff4', color: '#276749' },
+      'Retraité': { background: '#f0fff4', color: '#276749' },
+      'Réversataire': { background: '#faf5ff', color: '#6b46c1' },
+      'Adhérent (institution)': { background: '#fffbeb', color: '#b7791f' },
+      'Locataire': { background: '#f7fafc', color: '#718096' },
+      'Prospect': { background: '#fffbea', color: '#975a16' },
+      'Autres': { background: '#edf2f7', color: '#4a5568' },
+    }
+    return map[profil] || { background: '#f7fafc', color: '#718096' }
+  }
 
   return (
     <div>
@@ -2105,8 +3340,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               onChange={e=>setForm({...form,matricule:e.target.value})}
               onBlur={e=>{ if(e.target.value.length >= 4) { setFicheSearch({telephone:'', matricule:e.target.value}); setShowFiche(true) }}} />
             <input style={inp} placeholder="Adhérent (BOAD, BCEAO...)" value={form.adherent} onChange={e=>setForm({...form,adherent:e.target.value})} />
-            <select style={inp} value={form.typeClient} onChange={e=>setForm({...form,typeClient:e.target.value})}>
-              <option>Actif</option><option>Retraité</option><option>Ayant droit</option>
+            <select style={inp} value={form.typeClient} onChange={e => setForm({ ...form, typeClient: e.target.value })}>
+              <option value="">Profil client</option>
+              {PROFILS_CLIENTS.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
             </select>
             <select style={inp} value={form.pays} onChange={e=>{ const p=e.target.value; setForm({...form,pays:p,telephone:INDICATIFS[p]||form.telephone})}}>
               <option value="">-- Pays --</option>
@@ -2218,7 +3456,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                   <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
                   <td style={styles.td}>{d.dateReception?new Date(d.dateReception).toLocaleDateString('fr-FR'):'—'}</td>
                   <td style={styles.td}>{f(d.nomPrenom)}</td>
-                  <td style={styles.td}><span style={{...styles.badge,...(d.typeClient==='Actif'?{background:'#f0fff4',color:'#276749'}:{background:'#faf5ff',color:'#6b46c1'})}}>{f(d.typeClient)}</span></td>
+                  <td style={styles.td}><span style={{ ...styles.badge, ...profilClientColor(d.typeClient) }}>{d.typeClient || '—'}</span></td>
                   <td style={styles.td}>{f(d.pays)}</td>
                   <td style={styles.td}><span style={{...styles.badge,...(d.objetDemande==='Réclamation'?{background:'#fff5f5',color:'#c53030'}:{background:'#ebf8ff',color:'#2b6cb0'})}}>{f(d.objetDemande)}</span></td>
                   <td style={styles.td}>{f(d.canal)}</td>
