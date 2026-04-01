@@ -44,7 +44,7 @@ function Login({ onLogin }) {
       <div style={styles.loginBox}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{ marginBottom: '1rem' }}>
-            <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+            <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{ width: '130px', height: '130px', objectFit: 'contain' }} />
           </div>
           <div style={{ fontSize: '2rem', fontWeight: '800', color: '#1e3a6d', letterSpacing: '-0.01em', lineHeight: 1 }}>
             CRRAE-UMOA
