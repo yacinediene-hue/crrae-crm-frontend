@@ -53,6 +53,102 @@ function Login({ onLogin }) {
           <input style={styles.input} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mot de passe" />
           <button style={styles.button} type="submit">Se connecter</button>
         </form>
+        <p style={{textAlign:'center', marginTop:'1rem'}}>
+          <a href="/forgot-password" style={{color:'#6366f1', fontSize:'0.875rem'}}>Mot de passe oublié ?</a>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function ForgotPassword() {
+  const [email, setEmail] = useState('')
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      const res = await API.post('/auth/forgot-password', { email })
+      setMessage(res.data.message)
+    } catch {
+      setMessage('Une erreur est survenue. Réessayez.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={styles.loginContainer}>
+      <div style={styles.loginBox}>
+        <div style={{textAlign:'center', marginBottom:'1rem'}}>
+          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'120px'}} />
+        </div>
+        <h1 style={styles.loginTitle}>Mot de passe oublié</h1>
+        <p style={styles.loginSubtitle}>Entrez votre email pour recevoir un lien de réinitialisation</p>
+        {message ? (
+          <p style={{textAlign:'center', color:'#16a34a', marginBottom:'1rem'}}>{message}</p>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <input style={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required />
+            <button style={styles.button} type="submit" disabled={loading}>{loading ? 'Envoi...' : 'Envoyer le lien'}</button>
+          </form>
+        )}
+        <p style={{textAlign:'center', marginTop:'1rem'}}>
+          <a href="/" style={{color:'#6366f1', fontSize:'0.875rem'}}>Retour à la connexion</a>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function ResetPassword() {
+  const token = new URLSearchParams(window.location.search).get('token') || ''
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (password !== confirm) { setError('Les mots de passe ne correspondent pas.'); return }
+    if (password.length < 8) { setError('Le mot de passe doit contenir au moins 8 caractères.'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await API.post('/auth/reset-password', { token, password })
+      setMessage(res.data.message)
+    } catch (e) {
+      setError(e.response?.data?.message || 'Lien invalide ou expiré.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={styles.loginContainer}>
+      <div style={styles.loginBox}>
+        <div style={{textAlign:'center', marginBottom:'1rem'}}>
+          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'120px'}} />
+        </div>
+        <h1 style={styles.loginTitle}>Nouveau mot de passe</h1>
+        {message ? (
+          <>
+            <p style={{textAlign:'center', color:'#16a34a', marginBottom:'1rem'}}>{message}</p>
+            <p style={{textAlign:'center'}}>
+              <a href="/" style={{color:'#6366f1', fontSize:'0.875rem'}}>Se connecter</a>
+            </p>
+          </>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            {error && <p style={styles.error}>{error}</p>}
+            <input style={styles.input} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Nouveau mot de passe (8 car. min.)" required />
+            <input style={styles.input} type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Confirmer le mot de passe" required />
+            <button style={styles.button} type="submit" disabled={loading}>{loading ? 'Enregistrement...' : 'Réinitialiser'}</button>
+          </form>
+        )}
       </div>
     </div>
   )
@@ -4650,6 +4746,8 @@ export default function App() {
   }
 
   if (window.location.pathname.startsWith('/enquete/')) return <PageEnquete />
+  if (window.location.pathname === '/forgot-password') return <ForgotPassword />
+  if (window.location.pathname === '/reset-password') return <ResetPassword />
   if (!auth) return <Login onLogin={() => setAuth(true)} />
 
   return (
