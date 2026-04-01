@@ -2061,11 +2061,11 @@ function Campagnes() {
   const formVide = {
     name: '',
     canal: 'email',
-    objectif: 'information',
     statut: 'draft',
     profilClient: '',
-    content: '',
     subject: '',
+    content: '',
+    dateEnvoi: '',
   }
 
   const [form, setForm] = useState(formVide)
@@ -2198,6 +2198,10 @@ function Campagnes() {
             <option value="active">Active</option>
             <option value="completed">Terminée</option>
           </select>
+          <div>
+            <label style={{ fontSize: '0.75rem', color: '#718096', display: 'block', marginBottom: '0.2rem' }}>Date d'envoi</label>
+            <input type="date" style={{ ...styles.input, marginBottom: 0 }} value={form.dateEnvoi} onChange={e => setForm({ ...form, dateEnvoi: e.target.value })} />
+          </div>
           <div style={{ gridColumn: '1 / -1' }}>
             <input style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
               placeholder="Sujet / objet du message"
