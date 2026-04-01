@@ -93,8 +93,12 @@ function ForgotPassword() {
         <div style={{textAlign:'center', marginBottom:'1rem'}}>
           <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'120px'}} />
         </div>
-        <h1 style={styles.loginTitle}>Mot de passe oublié</h1>
-        <p style={styles.loginSubtitle}>Entrez votre email pour recevoir un lien de réinitialisation</p>
+        <h1 style={{ fontSize: '56px', fontWeight: '800', color: '#243a5e', marginBottom: '20px', lineHeight: '1.1', textAlign: 'center' }}>
+          Mot de passe oublié
+        </h1>
+        <p style={{ fontSize: '18px', color: '#6b7280', textAlign: 'center', marginBottom: '30px' }}>
+          Entrez votre email pour recevoir un lien de réinitialisation
+        </p>
         {message ? (
           <p style={{textAlign:'center', color:'#16a34a', marginBottom:'1rem'}}>{message}</p>
         ) : (
