@@ -2060,15 +2060,12 @@ function Campagnes() {
 
   const formVide = {
     name: '',
-    type: 'email',
+    canal: 'email',
     objectif: 'information',
     statut: 'draft',
-    cible: '',
     profilClient: '',
-    responsable: '',
-    startDate: '',
-    endDate: '',
-    commentaire: '',
+    content: '',
+    subject: '',
   }
 
   const [form, setForm] = useState(formVide)
@@ -2090,7 +2087,7 @@ function Campagnes() {
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
-      const payload = { ...form, status: form.statut, segment: form.cible }
+      const payload = { ...form, status: form.statut }
       const res = await API.post('/campaigns', payload)
       setCampagnes([res.data, ...campagnes])
       setForm(formVide)
@@ -2183,28 +2180,11 @@ function Campagnes() {
 
       {showForm && (
         <form onSubmit={handleAdd} style={{ ...styles.form, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
-          <input style={styles.input} placeholder="Nom de la campagne" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-          <select style={styles.input} value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
+          <input style={styles.input} placeholder="Nom de la campagne *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+          <select style={styles.input} value={form.canal} onChange={e => setForm({ ...form, canal: e.target.value })}>
             <option value="email">Email</option>
-            <option value="sms">SMS</option>
             <option value="whatsapp">WhatsApp</option>
-            <option value="social">Réseaux sociaux</option>
-            <option value="multicanal">Multicanal</option>
-          </select>
-          <select style={styles.input} value={form.objectif} onChange={e => setForm({ ...form, objectif: e.target.value })}>
-            <option value="information">Information</option>
-            <option value="sensibilisation">Sensibilisation</option>
-            <option value="relance">Relance</option>
-            <option value="satisfaction">Satisfaction</option>
-            <option value="adhesion">Adhésion</option>
-            <option value="service_client">Service client</option>
-          </select>
-          <select style={styles.input} value={form.statut} onChange={e => setForm({ ...form, statut: e.target.value })}>
-            <option value="draft">Brouillon</option>
-            <option value="planned">Planifiée</option>
-            <option value="active">Active</option>
-            <option value="paused">En pause</option>
-            <option value="completed">Terminée</option>
+            <option value="sms">SMS</option>
           </select>
           <select style={styles.input} value={form.profilClient} onChange={e => setForm({ ...form, profilClient: e.target.value })}>
             <option value="">Tous les profils</option>
@@ -2212,13 +2192,20 @@ function Campagnes() {
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
-          <input style={styles.input} placeholder="Cible / segment" value={form.cible} onChange={e => setForm({ ...form, cible: e.target.value })} />
-          <input style={styles.input} placeholder="Responsable" value={form.responsable} onChange={e => setForm({ ...form, responsable: e.target.value })} />
-          <input style={styles.input} type="date" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} />
-          <input style={styles.input} type="date" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} />
+          <select style={styles.input} value={form.statut} onChange={e => setForm({ ...form, statut: e.target.value })}>
+            <option value="draft">Brouillon</option>
+            <option value="planned">Planifiée</option>
+            <option value="active">Active</option>
+            <option value="completed">Terminée</option>
+          </select>
           <div style={{ gridColumn: '1 / -1' }}>
-            <textarea style={{ ...styles.input, width: '100%', height: '70px', resize: 'vertical', boxSizing: 'border-box' }}
-              placeholder="Commentaire" value={form.commentaire} onChange={e => setForm({ ...form, commentaire: e.target.value })} />
+            <input style={{ ...styles.input, width: '100%', boxSizing: 'border-box' }}
+              placeholder="Sujet / objet du message"
+              value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <textarea style={{ ...styles.input, width: '100%', height: '120px', resize: 'vertical', boxSizing: 'border-box' }}
+              placeholder="Message à envoyer" value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} />
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', gridColumn: '1 / -1' }}>
             <button style={styles.button} type="submit">Enregistrer</button>
@@ -3707,6 +3694,10 @@ function Users() {
   const [editUser, setEditUser] = useState(null)
   const emptyForm = { name: '', email: '', password: '', role: 'agent' }
   const [form, setForm] = useState(emptyForm)
+  const isAdmin = localStorage.getItem('userRole') === 'admin'
+  const [changePwdUser, setChangePwdUser] = useState(null)
+  const [pwdForm, setPwdForm] = useState({ password: '', confirm: '' })
+  const [savingPwd, setSavingPwd] = useState(false)
 
   useEffect(() => { API.get('/users').then(r => setUsers(r.data)).catch(() => {}) }, [])
 
@@ -3736,6 +3727,28 @@ function Users() {
     setEditUser(u)
     setForm({ name: u.name, email: u.email, password: '', role: u.role })
     setShowForm(true)
+  }
+
+  const handleChangePwd = async (e) => {
+    e.preventDefault()
+    if (pwdForm.password !== pwdForm.confirm) {
+      alert('Les mots de passe ne correspondent pas')
+      return
+    }
+    if (pwdForm.password.length < 6) {
+      alert('Le mot de passe doit contenir au moins 6 caractères')
+      return
+    }
+    try {
+      setSavingPwd(true)
+      await API.put(`/users/${changePwdUser.id}`, { password: pwdForm.password })
+      setChangePwdUser(null)
+      setPwdForm({ password: '', confirm: '' })
+    } catch {
+      alert('Erreur lors du changement de mot de passe')
+    } finally {
+      setSavingPwd(false)
+    }
   }
 
   const handleDelete = async (id) => {
@@ -3805,6 +3818,12 @@ function Users() {
                   ✏️ Modifier
                 </button>
                 <button
+                  onClick={() => { setChangePwdUser(u); setPwdForm({ password: '', confirm: '' }) }}
+                  style={{background:'#faf5ff',color:'#6b46c1',border:'none',borderRadius:'6px',padding:'0.3rem 0.75rem',cursor:'pointer',marginRight:'0.5rem'}}
+                >
+                  🔑 Mot de passe
+                </button>
+                <button
                   onClick={() => handleDelete(u.id)}
                   style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.3rem 0.75rem',cursor:'pointer'}}
                 >
@@ -3815,6 +3834,43 @@ function Users() {
           ))}
         </tbody>
       </table>
+
+      {changePwdUser && (
+        <>
+          <div onClick={() => setChangePwdUser(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9998 }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '400px', background: 'white', borderRadius: '12px', boxShadow: '0 20px 60px rgba(0,0,0,0.28)', zIndex: 9999, padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: '#1e4a7a' }}>🔑 Changer le mot de passe</h3>
+              <button onClick={() => setChangePwdUser(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#718096' }}>✕</button>
+            </div>
+            <div style={{ color: '#4a5568', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              Utilisateur : <strong>{changePwdUser.name}</strong>
+            </div>
+            <form onSubmit={handleChangePwd}>
+              <input type="password" style={{ ...styles.input, marginBottom: '0.75rem' }}
+                placeholder="Nouveau mot de passe (min. 6 caractères)"
+                value={pwdForm.password}
+                onChange={e => setPwdForm({ ...pwdForm, password: e.target.value })}
+                required
+              />
+              <input type="password" style={{ ...styles.input, marginBottom: '1rem' }}
+                placeholder="Confirmer le mot de passe"
+                value={pwdForm.confirm}
+                onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })}
+                required
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setChangePwdUser(null)}
+                  style={{ ...styles.button, background: '#718096' }}>Annuler</button>
+                <button type="submit" disabled={savingPwd}
+                  style={{ ...styles.button, opacity: savingPwd ? 0.7 : 1 }}>
+                  {savingPwd ? 'Enregistrement...' : '💾 Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -4417,6 +4473,9 @@ function PageEnquete() {
 // Layout
 function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, demandes = [] }) {
   const navigate = useNavigate()
+  const userRole = localStorage.getItem('userRole') || 'agent'
+  const isAdmin = userRole === 'admin'
+  const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager'
 
   const critiques = demandes.filter(d =>
     ['En cours', 'En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
@@ -4482,7 +4541,9 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         </NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/contacts"><span style={styles.sidebarIcon}>👥</span>Contacts</NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/deals"><span style={styles.sidebarIcon}>💼</span>Deals</NavLink>
-        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/campagnes"><span style={styles.sidebarIcon}>📣</span>Campagnes</NavLink>
+        {isManagerOrAdmin && (
+          <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/campagnes"><span style={styles.sidebarIcon}>📣</span>Campagnes</NavLink>
+        )}
 
         <div style={{height:'1px', background:'rgba(255,255,255,0.12)', margin:'0.9rem 0'}} />
 
@@ -4496,7 +4557,9 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         <div style={{fontSize:'0.72rem', color:'rgba(255,255,255,0.55)', textTransform:'uppercase', margin:'0.5rem 0 0.35rem 0.35rem', letterSpacing:'0.05em'}}>
           Administration
         </div>
-        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/users"><span style={styles.sidebarIcon}>👤</span>Utilisateurs</NavLink>
+        {isAdmin && (
+          <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/users"><span style={styles.sidebarIcon}>👤</span>Utilisateurs</NavLink>
+        )}
 
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
       </nav>
@@ -4615,9 +4678,9 @@ export default function App() {
           />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/deals" element={<Deals />} />
-          <Route path="/campagnes" element={<Campagnes />} />
+          <Route path="/campagnes" element={(['admin','manager'].includes(localStorage.getItem('userRole'))) ? <Campagnes /> : <Navigate to="/dashboard" />} />
           <Route path="/rapports" element={<Rapports />} />
-          <Route path="/users" element={<Users />} />
+          <Route path="/users" element={localStorage.getItem('userRole') === 'admin' ? <Users /> : <Navigate to="/dashboard" />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       </Layout>
