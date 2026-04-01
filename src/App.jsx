@@ -102,7 +102,11 @@ function ForgotPassword() {
           Entrez votre email pour recevoir un lien de réinitialisation
         </p>
         {message ? (
-          <p style={{textAlign:'center', color:'#16a34a', marginBottom:'1rem'}}>{message}</p>
+          <div style={{ textAlign: 'center', padding: '1.2rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.4rem' }}>✔</div>
+            <p style={{ color: '#16a34a', fontWeight: '600', margin: 0 }}>Un email de réinitialisation vous a été envoyé.</p>
+            <p style={{ color: '#4b7a5e', fontSize: '0.875rem', marginTop: '0.3rem' }}>Vérifiez votre boîte de réception (et les spams).</p>
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             {error && <p style={{ color: '#dc2626', textAlign: 'center', marginBottom: '1rem' }}>{error}</p>}
