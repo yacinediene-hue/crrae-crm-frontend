@@ -42,10 +42,14 @@ function Login({ onLogin }) {
   return (
     <div style={styles.loginContainer}>
       <div style={styles.loginBox}>
-        <div style={{textAlign:'center', marginBottom:'1rem'}}>
-          <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{width:'120px'}} />
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{ fontSize: '3.8rem', fontWeight: '800', color: '#1e3a6d', lineHeight: 1.05, letterSpacing: '-0.02em' }}>
+            CRRAE-UMOA
+          </div>
+          <div style={{ fontSize: '1.8rem', fontWeight: '600', color: '#4a5568', marginTop: '0.5rem', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+            CRM
+          </div>
         </div>
-        <h1 style={styles.loginTitle}>CRRAE-UMOA CRM</h1>
         <p style={styles.loginSubtitle}>Connectez-vous à votre espace</p>
         {error && <p style={styles.error}>{error}</p>}
         <form onSubmit={handleSubmit}>
