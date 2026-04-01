@@ -43,14 +43,18 @@ function Login({ onLogin }) {
     <div style={styles.loginContainer}>
       <div style={styles.loginBox}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ fontSize: '3.8rem', fontWeight: '800', color: '#1e3a6d', lineHeight: 1.05, letterSpacing: '-0.02em' }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <img src="/Logo-crrae.png" alt="CRRAE-UMOA" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: '800', color: '#1e3a6d', letterSpacing: '-0.01em', lineHeight: 1 }}>
             CRRAE-UMOA
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '600', color: '#4a5568', marginTop: '0.5rem', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: '0.95rem', fontWeight: '600', color: '#6b7280', marginTop: '0.3rem', letterSpacing: '0.25em', textTransform: 'uppercase' }}>
             CRM
           </div>
+          <div style={{ width: '40px', height: '3px', background: '#1e3a6d', borderRadius: '2px', margin: '0.9rem auto 0' }} />
         </div>
-        <p style={styles.loginSubtitle}>Connectez-vous à votre espace</p>
+        <p style={{ textAlign: 'center', color: '#4a5568', fontSize: '0.95rem', marginBottom: '1.5rem' }}>Connectez-vous à votre espace</p>
         {error && <p style={styles.error}>{error}</p>}
         <form onSubmit={handleSubmit}>
           <input style={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" />
@@ -4796,7 +4800,7 @@ export default function App() {
 
 const styles = {
   loginContainer: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f4f8' },
-  loginBox: { background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', width: '360px' },
+  loginBox: { background: 'white', padding: '2.5rem 2rem', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.1)', width: '380px' },
   loginTitle: { textAlign: 'center', color: '#1a365d', marginBottom: '0.5rem' },
   loginSubtitle: { textAlign: 'center', color: '#666', marginBottom: '1.5rem' },
   input: { width: '100%', padding: '0.75rem', marginBottom: '1rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' },
