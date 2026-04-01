@@ -72,16 +72,18 @@ function Login({ onLogin }) {
 function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError('')
     try {
       const res = await API.post('/auth/forgot-password', { email })
       setMessage(res.data.message)
     } catch {
-      setMessage('Une erreur est survenue. Réessayez.')
+      setError('Une erreur est survenue. Réessayez.')
     } finally {
       setLoading(false)
     }
@@ -103,6 +105,7 @@ function ForgotPassword() {
           <p style={{textAlign:'center', color:'#16a34a', marginBottom:'1rem'}}>{message}</p>
         ) : (
           <form onSubmit={handleSubmit}>
+            {error && <p style={{ color: '#dc2626', textAlign: 'center', marginBottom: '1rem' }}>{error}</p>}
             <input style={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" required />
             <button style={styles.button} type="submit" disabled={loading}>{loading ? 'Envoi...' : 'Envoyer le lien'}</button>
           </form>
