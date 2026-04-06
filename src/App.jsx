@@ -2758,6 +2758,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           noteSatisfaction: form.noteSatisfaction !== '' && form.noteSatisfaction !== null && form.noteSatisfaction !== undefined
             ? parseInt(form.noteSatisfaction, 10) : null,
         }
+        delete payload.numDemande
         const res = await API.put(`/demandes/${editId}`, payload)
         setDemandes(demandes.map(d => d.id === editId ? res.data : d))
 
@@ -2787,6 +2788,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           noteSatisfaction: form.noteSatisfaction !== '' && form.noteSatisfaction !== null && form.noteSatisfaction !== undefined
             ? parseInt(form.noteSatisfaction, 10) : null,
         }
+        delete createPayload.numDemande
         const res = await API.post('/demandes', createPayload)
         setDemandes([res.data, ...demandes])
       }
