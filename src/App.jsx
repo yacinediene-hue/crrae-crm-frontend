@@ -1689,6 +1689,21 @@ const PROFILS_CLIENTS = [
   'Autres',
 ]
 
+const CANAUX_DEMANDE = [
+  { value: 'EMAIL',     label: 'Email' },
+  { value: 'TELEPHONE', label: 'Téléphone' },
+  { value: 'WHATSAPP',  label: 'WhatsApp' },
+  { value: 'SITE_WEB',  label: 'Site web' },
+  { value: 'GUICHET',   label: 'Guichet' },
+  { value: 'LINKEDIN',  label: 'LinkedIn' },
+  { value: 'FACEBOOK',  label: 'Facebook' },
+  { value: 'AUTRE',     label: 'Autre' },
+]
+const labelCanalDemande = (value) => {
+  const item = CANAUX_DEMANDE.find(c => c.value === value)
+  return item ? item.label : value || '—'
+}
+
 const ETAPES_ADHESION = [
   'Prospect identifié',
   'Qualification',
@@ -2671,7 +2686,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [filtresColonnes, setFiltresColonnes] = useState({})
   const [colonneActive, setColonneActive] = useState(null)
   const emptyForm = {
-    nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', profilClient: '', pays: '',
+    nomPrenom: '', matricule: '', adherent: '', typeClient: '', profilClient: '', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WHATSAPP', telephone: '', email: '',
     objetDemande: 'Information', commentaire: '',
     agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '',
@@ -2784,7 +2799,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     setEditId(d.id)
     setForm({
       nomPrenom: d.nomPrenom || '', matricule: d.matricule || '',
-      adherent: d.adherent || '', typeClient: d.typeClient || 'Actif', profilClient: d.profilClient || '',
+      adherent: d.adherent || '', typeClient: d.typeClient || '', profilClient: d.profilClient || '',
       pays: d.pays || '', heureAppel: d.heureAppel || '',
       canal: d.canal || 'WHATSAPP', telephone: d.telephone || '',
       email: d.email || '', objetDemande: d.objetDemande || 'Information',
@@ -3351,14 +3366,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           <div style={{marginTop:'0.75rem',paddingTop:'0.75rem',borderTop:'1px solid #e2e8f0',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'0.6rem'}}>
             <select style={{...styles.input,marginBottom:0}} value={filterCanal} onChange={e=>setFilterCanal(e.target.value)}>
               <option value="">Tous canaux</option>
-              <option value="EMAIL">Email</option>
-              <option value="TELEPHONE">Téléphone</option>
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="SITE_WEB">Site web</option>
-              <option value="GUICHET">Guichet</option>
-              <option value="LINKEDIN">LinkedIn</option>
-              <option value="FACEBOOK">Facebook</option>
-              <option value="AUTRE">Autre</option>
+              {CANAUX_DEMANDE.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterService} onChange={e=>setFilterService(e.target.value)}>
               <option value="">Tous services</option>
@@ -3495,14 +3503,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
             <select style={inp} value={form.canal} onChange={e=>setForm({...form,canal:e.target.value})}>
               <option value="">Canal</option>
-              <option value="EMAIL">Email</option>
-              <option value="TELEPHONE">Téléphone</option>
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="SITE_WEB">Site web</option>
-              <option value="GUICHET">Guichet</option>
-              <option value="LINKEDIN">LinkedIn</option>
-              <option value="FACEBOOK">Facebook</option>
-              <option value="AUTRE">Autre</option>
+              {CANAUX_DEMANDE.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
           <textarea style={{...inp,height:'70px',resize:'vertical',width:'100%'}} placeholder="Commentaire" value={form.commentaire} onChange={e=>setForm({...form,commentaire:e.target.value})} />
@@ -3580,7 +3581,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                   <td style={styles.td}><span style={{ ...styles.badge, ...profilClientColor(d.typeClient) }}>{d.typeClient || '—'}</span></td>
                   <td style={styles.td}>{f(d.pays)}</td>
                   <td style={styles.td}><span style={{...styles.badge,...(d.objetDemande==='Réclamation'?{background:'#fff5f5',color:'#c53030'}:{background:'#ebf8ff',color:'#2b6cb0'})}}>{f(d.objetDemande)}</span></td>
-                  <td style={styles.td}>{f(d.canal)}</td>
+                  <td style={styles.td}>{labelCanalDemande(d.canal)}</td>
                   <td style={styles.td}>{f(d.agentN1)}</td>
                   <td style={styles.td}>{f(d.service)}</td>
                   <td style={styles.td}>
