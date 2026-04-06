@@ -3351,7 +3351,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           <div style={{marginTop:'0.75rem',paddingTop:'0.75rem',borderTop:'1px solid #e2e8f0',display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:'0.6rem'}}>
             <select style={{...styles.input,marginBottom:0}} value={filterCanal} onChange={e=>setFilterCanal(e.target.value)}>
               <option value="">Tous canaux</option>
-              <option>WhatsApp</option><option>Appel</option><option>Email</option><option>Courrier</option>
+              <option value="EMAIL">Email</option>
+              <option value="TELEPHONE">Téléphone</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="SITE_WEB">Site web</option>
+              <option value="GUICHET">Guichet</option>
+              <option value="LINKEDIN">LinkedIn</option>
+              <option value="FACEBOOK">Facebook</option>
+              <option value="AUTRE">Autre</option>
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterService} onChange={e=>setFilterService(e.target.value)}>
               <option value="">Tous services</option>
@@ -3487,7 +3494,15 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               <option>Autre</option>
             </select>
             <select style={inp} value={form.canal} onChange={e=>setForm({...form,canal:e.target.value})}>
-              <option>WhatsApp</option><option>Appel</option><option>Email</option><option>Courrier</option>
+              <option value="">Canal</option>
+              <option value="EMAIL">Email</option>
+              <option value="TELEPHONE">Téléphone</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="SITE_WEB">Site web</option>
+              <option value="GUICHET">Guichet</option>
+              <option value="LINKEDIN">LinkedIn</option>
+              <option value="FACEBOOK">Facebook</option>
+              <option value="AUTRE">Autre</option>
             </select>
           </div>
           <textarea style={{...inp,height:'70px',resize:'vertical',width:'100%'}} placeholder="Commentaire" value={form.commentaire} onChange={e=>setForm({...form,commentaire:e.target.value})} />
