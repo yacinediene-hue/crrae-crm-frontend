@@ -3461,8 +3461,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               onChange={e=>setForm({...form,matricule:e.target.value})}
               onBlur={e=>{ if(e.target.value.length >= 4) { setFicheSearch({telephone:'', matricule:e.target.value}); setShowFiche(true) }}} />
             <input style={inp} placeholder="Adhérent (BOAD, BCEAO...)" value={form.adherent} onChange={e=>setForm({...form,adherent:e.target.value})} />
-            <select style={inp} value={form.typeClient} onChange={e => setForm({ ...form, typeClient: e.target.value })}>
-              <option value="">Profil client</option>
+            <select required style={inp} value={form.typeClient} onChange={e => setForm({ ...form, typeClient: e.target.value })}>
+              <option value="">Profil client *</option>
               {PROFILS_CLIENTS.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
