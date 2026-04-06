@@ -2819,25 +2819,17 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
   const ENQUETE_URL = 'https://thriving-cassata-92f38e.netlify.app'
 
+  const peutEnvoyerEnquete = (d) =>
+    ['Traité', 'Clôturé'].includes(d.statut) && !!d.email && !d.enqueteEnvoyee
+
   const envoyerEnquete = async (d, auto = false) => {
-    if (!auto && !window.confirm("Envoyer l'enquête de satisfaction au client ?")) return
-    const lien = `${ENQUETE_URL}?ref=${d.numDemande}`
+    if (!auto && !window.confirm("Envoyer l'enquête de satisfaction par email ?")) return
     try {
-      await API.post('/timeline', {
-        demandeId: d.id,
-        auteur: localStorage.getItem('userName') || 'Agent',
-        action: 'Enquête envoyée',
-        canal: d.canal || 'CRM',
-        detail: `Enquête de satisfaction envoyée (${d.canal || '?'})`
-      })
-    } catch (e) {}
-    await API.put(`/demandes/${d.id}`, { enqueteEnvoyee: true }).catch(() => {})
-    // WhatsApp / Appel → géré par le polling whatsapp-instance.js
-    // Email → ouvre le client mail
-    if (d.canal === 'Email' && d.email) {
-      const sujet = `Évaluation de votre demande ${d.numDemande} — CRRAE-UMOA`
-      const corps = `Bonjour,%0D%0A%0D%0AVotre demande n°${d.numDemande} a été traitée par nos services.%0D%0A%0D%0ANous vous invitons à évaluer la qualité de notre traitement :%0D%0A%0D%0A👉 ${lien}%0D%0A%0D%0AVotre retour est précieux.%0D%0A%0D%0ACordialement,%0D%0AService Client CRRAE-UMOA`
-      window.open(`mailto:${d.email}?subject=${sujet}&body=${corps}`)
+      const res = await API.post(`/demandes/${d.id}/send-survey`)
+      setDemandes(demandes.map(item => item.id === d.id ? res.data : item))
+    } catch (err) {
+      console.error("Erreur envoi enquête", err)
+      alert("L'envoi de l'enquête a échoué.")
     }
   }
 
@@ -3661,9 +3653,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       🪪
                     </button>
 
-                    {d.statut === 'Traité' && (
+                    {peutEnvoyerEnquete(d) && (
                       <button
-                        title="Envoyer enquête satisfaction"
+                        title="Envoyer enquête satisfaction par email"
                         onClick={()=> envoyerEnquete(d)}
                         style={{background:'#faf5ff',color:'#6b46c1',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',fontSize:'0.8rem'}}
                       >
