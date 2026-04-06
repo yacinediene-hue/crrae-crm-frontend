@@ -2672,7 +2672,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [colonneActive, setColonneActive] = useState(null)
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: 'Actif', profilClient: '', pays: '',
-    heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WhatsApp', telephone: '', email: '',
+    heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WHATSAPP', telephone: '', email: '',
     objetDemande: 'Information', commentaire: '',
     agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '',
     dateReception: new Date().toISOString().split('T')[0],
@@ -2786,7 +2786,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       nomPrenom: d.nomPrenom || '', matricule: d.matricule || '',
       adherent: d.adherent || '', typeClient: d.typeClient || 'Actif', profilClient: d.profilClient || '',
       pays: d.pays || '', heureAppel: d.heureAppel || '',
-      canal: d.canal || 'WhatsApp', telephone: d.telephone || '',
+      canal: d.canal || 'WHATSAPP', telephone: d.telephone || '',
       email: d.email || '', objetDemande: d.objetDemande || 'Information',
       commentaire: d.commentaire || '', agentN1: d.agentN1 || '',
       service: d.service || '', agentN2: d.agentN2 || '',
