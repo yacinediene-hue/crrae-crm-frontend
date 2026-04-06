@@ -2772,9 +2772,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
         // Enquête automatique quand statut passe à Traité
         if (ancienneDemande && ancienneDemande.statut !== 'Traité' && res.data.statut === 'Traité' && !res.data.enqueteEnvoyee) {
-          // Email → envoi immédiat via mailto
+          // Email → envoi via API send-survey
           // WhatsApp/Appel → géré par polling whatsapp-instance.js (pas d'action ici)
-          if (res.data.canal === 'Email' && res.data.email) {
+          if (res.data.canal === 'EMAIL' && res.data.email) {
             envoyerEnquete(res.data, true)
           }
         }
@@ -2820,7 +2820,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const ENQUETE_URL = 'https://thriving-cassata-92f38e.netlify.app'
 
   const peutEnvoyerEnquete = (d) =>
-    ['Traité', 'Clôturé'].includes(d.statut) && !!d.email && !d.enqueteEnvoyee
+    ['Traité', 'Clôturé'].includes(d.statut) && !d.enqueteEnvoyee
 
   const envoyerEnquete = async (d, auto = false) => {
     if (!auto && !window.confirm("Envoyer l'enquête de satisfaction par email ?")) return
