@@ -177,7 +177,7 @@ function ResetPassword() {
 function Dashboard({ alertes = [] }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0 })
   const [demandes, setDemandes] = useState([])
-  const [periode, setPeriode] = useState('30j')
+  const [periode, setPeriode] = useState('annee')
 
   const demandesFiltrees = demandes.filter((d) => {
     if (!d.createdAt) return true
@@ -186,6 +186,7 @@ function Dashboard({ alertes = [] }) {
     if (periode === 'today') return date.toDateString() === now.toDateString()
     if (periode === '7j') { const t = new Date(); t.setDate(now.getDate() - 7); return date >= t }
     if (periode === '30j') { const t = new Date(); t.setDate(now.getDate() - 30); return date >= t }
+    if (periode === 'annee') return date.getFullYear() === now.getFullYear()
     return true
   })
 
@@ -362,6 +363,7 @@ function Dashboard({ alertes = [] }) {
           <option value="today">Aujourd'hui</option>
           <option value="7j">7 derniers jours</option>
           <option value="30j">30 derniers jours</option>
+          <option value="annee">Cette année</option>
         </select>
       </div>
 
