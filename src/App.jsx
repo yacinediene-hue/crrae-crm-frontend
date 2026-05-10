@@ -2954,6 +2954,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
 
+      const clean = (v) => (v === undefined || v === null || v === '') ? null : String(v).trim()
+
       const parseDate = (v) => {
         if (!v) return ''
         if (v instanceof Date) return v.toISOString().split('T')[0]
@@ -2983,12 +2985,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         .filter(r => Object.values(r).some(v => String(v).trim().length > 0))
         .map(r => ({
           numDemande: r['N° Demande'] || r['Numéro demande'] || r['numDemande'] || '',
-          nomPrenom: r['Nom et prénom'] || r['Nom et Prénom'] || r['Nom & Prénom'] || r['Nom Prénom'] || r['Nom'] || r['nomPrenom'] || '',
-          matricule: (r['Matricule'] || r['matricule']) ? String(r['Matricule'] || r['matricule']).trim() : null,
-          adherent: r['Adhérent'] || r['adherent'] || '',
+          nomPrenom: clean(r['Nom et prénom'] || r['Nom et Prénom'] || r['Nom & Prénom'] || r['Nom Prénom'] || r['Nom'] || r['nomPrenom']),
+          matricule: clean(r['Matricule'] || r['matricule']),
+          adherent: clean(r['Adhérent'] || r['adherent']),
           typeClient: r['Type de client'] || r['Type client'] || r['typeClient'] || 'Actif',
           pays: r['Pays du client'] || r['Pays'] || r['pays'] || '',
-          telephone: String(r['Téléphone'] || r['Telephone'] || r['telephone'] || ''),
+          telephone: clean(r['Téléphone'] || r['Telephone'] || r['telephone']),
           email: r['Email'] || r['email'] || '',
           heureAppel: r["Heure d'appel                 (heure pleine)"] || r["Heure d'appel"] || r['Heure appel'] || r['heureAppel'] || '',
           canal: normaliserCanal(r['Canal réception'] || r['Canal'] || r['canal']),
