@@ -178,15 +178,25 @@ function Dashboard({ alertes = [] }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0 })
   const [demandes, setDemandes] = useState([])
   const [periode, setPeriode] = useState('annee')
+  const [periodeDebut, setPeriodeDebut] = useState('')
+  const [periodeFin, setPeriodeFin] = useState('')
 
   const demandesFiltrees = demandes.filter((d) => {
     if (!d.createdAt) return true
     const date = new Date(d.createdAt)
     const now = new Date()
     if (periode === 'today') return date.toDateString() === now.toDateString()
-    if (periode === '7j') { const t = new Date(); t.setDate(now.getDate() - 7); return date >= t }
-    if (periode === '30j') { const t = new Date(); t.setDate(now.getDate() - 30); return date >= t }
+    if (periode === '7j')   { const t = new Date(); t.setDate(now.getDate() - 7);   return date >= t }
+    if (periode === '30j')  { const t = new Date(); t.setDate(now.getDate() - 30);  return date >= t }
+    if (periode === '3m')   { const t = new Date(); t.setMonth(now.getMonth() - 3); return date >= t }
+    if (periode === '6m')   { const t = new Date(); t.setMonth(now.getMonth() - 6); return date >= t }
+    if (periode === '12m')  { const t = new Date(); t.setMonth(now.getMonth() - 12); return date >= t }
     if (periode === 'annee') return date.getFullYear() === now.getFullYear()
+    if (periode === 'custom') {
+      if (periodeDebut && date < new Date(periodeDebut)) return false
+      if (periodeFin  && date > new Date(periodeFin + 'T23:59:59')) return false
+      return true
+    }
     return true
   })
 
@@ -350,21 +360,33 @@ function Dashboard({ alertes = [] }) {
   return (
     <div>
       <h2 style={styles.pageTitle}>📊 Dashboard</h2>
-      <div style={{marginBottom:'1rem'}}>
+      <div style={{marginBottom:'1rem', display:'flex', alignItems:'center', gap:'0.75rem', flexWrap:'wrap'}}>
         <select
           value={periode}
-          onChange={(e) => setPeriode(e.target.value)}
-          style={{
-            padding:'0.5rem',
-            borderRadius:'6px',
-            border:'1px solid #ddd'
-          }}
+          onChange={e => setPeriode(e.target.value)}
+          style={{padding:'0.5rem 0.75rem', borderRadius:'6px', border:'1px solid #ddd', fontSize:'0.875rem'}}
         >
           <option value="today">Aujourd'hui</option>
           <option value="7j">7 derniers jours</option>
           <option value="30j">30 derniers jours</option>
+          <option value="3m">3 derniers mois</option>
+          <option value="6m">6 derniers mois</option>
+          <option value="12m">12 derniers mois</option>
           <option value="annee">Cette année</option>
+          <option value="custom">Période personnalisée</option>
         </select>
+        {periode === 'custom' && (
+          <>
+            <input type="date" value={periodeDebut} onChange={e => setPeriodeDebut(e.target.value)}
+              style={{padding:'0.5rem', borderRadius:'6px', border:'1px solid #ddd', fontSize:'0.875rem'}} />
+            <span style={{color:'#718096', fontSize:'0.875rem'}}>→</span>
+            <input type="date" value={periodeFin} onChange={e => setPeriodeFin(e.target.value)}
+              style={{padding:'0.5rem', borderRadius:'6px', border:'1px solid #ddd', fontSize:'0.875rem'}} />
+          </>
+        )}
+        <span style={{fontSize:'0.8rem', color:'#718096'}}>
+          {demandesFiltrees.length} demande{demandesFiltrees.length > 1 ? 's' : ''}
+        </span>
       </div>
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
