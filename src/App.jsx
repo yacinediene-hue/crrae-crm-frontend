@@ -1030,6 +1030,12 @@ function FileCritique() {
           </div>
 
           <div style={{marginBottom:'1rem'}}><strong>Client :</strong> {ticketOuvert.nomPrenom}</div>
+          {ticketOuvert.email && (
+            <div style={{marginBottom:'1rem'}}><strong>Email :</strong> <a href={`mailto:${ticketOuvert.email}`} style={{color:'#2b6cb0'}}>{ticketOuvert.email}</a></div>
+          )}
+          {ticketOuvert.telephone && (
+            <div style={{marginBottom:'1rem'}}><strong>Téléphone :</strong> {ticketOuvert.telephone}</div>
+          )}
           <div style={{marginBottom:'1rem'}}><strong>Objet :</strong> {ticketOuvert.objetDemande}</div>
           <div style={{marginBottom:'1rem'}}><strong>Service :</strong> {ticketOuvert.service || '—'}</div>
           <div style={{marginBottom:'1rem'}}><strong>Statut :</strong> {ticketOuvert.statut}</div>
@@ -4395,7 +4401,7 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
     API.get('/users').then(r => setUsers(r.data.filter(u => u.active !== false))).catch(() => {})
   }, [])
 
-  const agentsN1 = users.filter(u => u.role === 'agent').map(u => u.name)
+  const agentsN1 = users.map(u => u.name)
   const agentsN2 = users.filter(u => u.role === 'manager' || u.role === 'admin').map(u => u.name)
 
   const priorites = [
