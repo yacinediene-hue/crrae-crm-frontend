@@ -2929,30 +2929,44 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
 
-      const lignes = rows.map(r => ({
-        nomPrenom: r['Nom & Prénom'] || r['nomPrenom'] || '',
-        matricule: r['Matricule'] || r['matricule'] || '',
-        adherent: r['Adhérent'] || r['adherent'] || '',
-        typeClient: r['Type client'] || r['typeClient'] || 'Actif',
-        pays: r['Pays'] || r['pays'] || '',
-        telephone: String(r['Téléphone'] || r['telephone'] || ''),
-        email: r['Email'] || r['email'] || '',
-        heureAppel: r['Heure appel'] || r['heureAppel'] || '',
-        canal: r['Canal'] || r['canal'] || 'WhatsApp',
-        objetDemande: r['Objet'] || r['objetDemande'] || 'Information',
-        commentaire: r['Commentaire'] || r['commentaire'] || '',
-        agentN1: r['Agent N1'] || r['agentN1'] || '',
-        service: r['Service'] || r['service'] || '',
-        agentN2: r['Agent N2'] || r['agentN2'] || '',
-        dateReception: r['Date réception'] ? (r['Date réception'] instanceof Date ? r['Date réception'].toISOString().split('T')[0] : r['Date réception']) : new Date().toISOString().split('T')[0],
-        dateTraitement: r['Date traitement'] ? (r['Date traitement'] instanceof Date ? r['Date traitement'].toISOString().split('T')[0] : r['Date traitement']) : '',
-        statut: r['Statut'] || r['statut'] || 'En cours',
-        actionMenee: r['Action menée'] || r['actionMenee'] || '',
-        canalCommunication: r['Canal communication'] || r['canalCommunication'] || 'WhatsApp',
-        noteSatisfaction: r['Note satisfaction'] || r['noteSatisfaction'] || '',
-      }))
+      const parseDate = (v) => {
+        if (!v) return ''
+        if (v instanceof Date) return v.toISOString().split('T')[0]
+        if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000)).toISOString().split('T')[0]
+        return String(v).trim()
+      }
 
-      // Clé de déduplication : téléphone (ou nomPrenom si absent) + objet + date
+      // Toutes les lignes non vides (au moins nomPrenom ou téléphone renseigné)
+      const lignes = rows
+        .filter(r => (r['Nom & Prénom'] || r['nomPrenom'] || r['Téléphone'] || r['telephone']))
+        .map(r => ({
+          numDemande: r['N° Demande'] || r['Numéro demande'] || r['numDemande'] || '',
+          nomPrenom: r['Nom & Prénom'] || r['nomPrenom'] || '',
+          matricule: r['Matricule'] || r['matricule'] || '',
+          adherent: r['Adhérent'] || r['adherent'] || '',
+          typeClient: r['Type client'] || r['typeClient'] || 'Actif',
+          pays: r['Pays'] || r['pays'] || '',
+          telephone: String(r['Téléphone'] || r['telephone'] || ''),
+          email: r['Email'] || r['email'] || '',
+          heureAppel: r['Heure appel'] || r['heureAppel'] || '',
+          canal: r['Canal'] || r['canal'] || 'WHATSAPP',
+          objetDemande: r['Objet'] || r['objetDemande'] || '',
+          commentaire: r['Commentaire'] || r['commentaire'] || '',
+          agentN1: r['Agent N1'] || r['agentN1'] || '',
+          service: r['Service'] || r['service'] || '',
+          agentN2: r['Agent N2'] || r['agentN2'] || '',
+          dateReception: parseDate(r['Date réception'] || r['dateReception']) || new Date().toISOString().split('T')[0],
+          dateTraitement: parseDate(r['Date traitement'] || r['dateTraitement']),
+          statut: r['Statut'] || r['statut'] || 'En cours',
+          actionMenee: r['Action menée'] || r['actionMenee'] || '',
+          canalCommunication: r['Canal communication'] || r['canalCommunication'] || '',
+          noteSatisfaction: r['Note satisfaction'] || r['noteSatisfaction'] || '',
+        }))
+
+      // Index des numDemande existants
+      const numsExistants = new Set(demandes.map(d => d.numDemande).filter(Boolean))
+
+      // Clé de déduplication secondaire : (téléphone ou nomPrenom) + objet + date
       const cleDoublon = (l) => [
         (l.telephone || l.nomPrenom || '').trim().toLowerCase(),
         (l.objetDemande || '').trim().toLowerCase(),
@@ -2969,7 +2983,17 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
       // Doublons intra-fichier
       const vus = new Set()
+      const numsVus = new Set()
       const lignesAvecStatut = lignes.map(l => {
+        // 1. Priorité : N° demande déjà en base
+        if (l.numDemande && numsExistants.has(l.numDemande)) {
+          return { ...l, _doublon: true, _raison: `N° ${l.numDemande} déjà en base` }
+        }
+        // 2. N° demande en double dans le fichier
+        if (l.numDemande && numsVus.has(l.numDemande)) {
+          return { ...l, _doublon: true, _raison: `N° ${l.numDemande} en double dans le fichier` }
+        }
+        if (l.numDemande) numsVus.add(l.numDemande)
         const cle = cleDoublon(l)
         const doublonBase = cle !== '§§' && clesDemandes.has(cle)
         const doublonFichier = cle !== '§§' && vus.has(cle)
@@ -2988,7 +3012,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     let importes = 0
     for (const ligne of aImporter) {
       try {
-        const { _doublon, _raison, ...data } = ligne
+        // eslint-disable-next-line no-unused-vars
+        const { _doublon, _raison, numDemande: _num, ...data } = ligne
         const res = await API.post('/demandes', data)
         setDemandes(prev => [res.data, ...prev])
         importes++
