@@ -2751,6 +2751,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [timelineTicket, setTimelineTicket] = useState([])
   const [showClient, setShowClient] = useState(false)
   const [importData, setImportData] = useState(null) // { lignes, doublons, aImporter }
+  const [ignorerDoublons, setIgnorerDoublons] = useState(false)
   const [ficheSearch, setFicheSearch] = useState({
     telephone: '',
     matricule: '',
@@ -3014,7 +3015,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   }
 
   const handleConfirmerImport = async () => {
-    const aImporter = importData.lignes.filter(l => !l._doublon)
+    const aImporter = ignorerDoublons ? importData.lignes : importData.lignes.filter(l => !l._doublon)
     let importes = 0
     for (const ligne of aImporter) {
       try {
@@ -3259,15 +3260,22 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           <div style={{background:'white',borderRadius:'16px',padding:'2rem',width:'100%',maxWidth:'800px',maxHeight:'85vh',overflowY:'auto',boxShadow:'0 8px 40px rgba(0,0,0,0.2)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
               <h3 style={{margin:0,color:'#1a365d'}}>📤 Prévisualisation de l'import</h3>
-              <button onClick={() => setImportData(null)} style={{background:'none',border:'none',fontSize:'1.5rem',cursor:'pointer',color:'#718096'}}>✕</button>
+              <button onClick={() => { setImportData(null); setIgnorerDoublons(false) }} style={{background:'none',border:'none',fontSize:'1.5rem',cursor:'pointer',color:'#718096'}}>✕</button>
             </div>
-            <div style={{display:'flex',gap:'1rem',marginBottom:'1rem',flexWrap:'wrap'}}>
+            <div style={{display:'flex',gap:'1rem',marginBottom:'1rem',flexWrap:'wrap',alignItems:'center'}}>
               <div style={{background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:'8px',padding:'0.5rem 1rem',fontSize:'0.9rem',color:'#276749'}}>
-                ✅ {importData.lignes.filter(l=>!l._doublon).length} à importer
+                ✅ {ignorerDoublons ? importData.lignes.length : importData.lignes.filter(l=>!l._doublon).length} à importer
               </div>
-              <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:'8px',padding:'0.5rem 1rem',fontSize:'0.9rem',color:'#c53030'}}>
-                ⚠ {importData.doublons} doublon(s) ignoré(s)
-              </div>
+              {importData.doublons > 0 && (
+                <div style={{background:'#fff5f5',border:'1px solid #feb2b2',borderRadius:'8px',padding:'0.5rem 1rem',fontSize:'0.9rem',color:'#c53030'}}>
+                  ⚠ {importData.doublons} doublon(s) détecté(s)
+                </div>
+              )}
+              <label style={{display:'flex',alignItems:'center',gap:'0.5rem',cursor:'pointer',fontSize:'0.875rem',color:'#4a5568',userSelect:'none'}}>
+                <input type="checkbox" checked={ignorerDoublons} onChange={e => setIgnorerDoublons(e.target.checked)}
+                  style={{width:'16px',height:'16px',cursor:'pointer'}} />
+                Ignorer les doublons et tout importer
+              </label>
             </div>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.82rem',marginBottom:'1.25rem'}}>
               <thead>
@@ -3279,11 +3287,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               </thead>
               <tbody>
                 {importData.lignes.map((l, i) => (
-                  <tr key={i} style={{background: l._doublon ? '#fff5f5' : 'white', opacity: l._doublon ? 0.7 : 1}}>
+                  <tr key={i} style={{background: (!ignorerDoublons && l._doublon) ? '#fff5f5' : 'white', opacity: (!ignorerDoublons && l._doublon) ? 0.7 : 1}}>
                     <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>
-                      {l._doublon
+                      {l._doublon && !ignorerDoublons
                         ? <span style={{color:'#c53030',fontWeight:'600'}} title={l._raison}>⚠ {l._raison}</span>
-                        : <span style={{color:'#276749',fontWeight:'600'}}>✅ Nouveau</span>}
+                        : <span style={{color:'#276749',fontWeight:'600'}}>✅ {l._doublon ? 'Importé quand même' : 'Nouveau'}</span>}
                     </td>
                     <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.nomPrenom}</td>
                     <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.telephone}</td>
@@ -3295,12 +3303,15 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               </tbody>
             </table>
             <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
-              <button onClick={() => setImportData(null)} style={{...styles.button,width:'auto',padding:'0.75rem 1.5rem',background:'#718096'}}>
+              <button onClick={() => { setImportData(null); setIgnorerDoublons(false) }} style={{...styles.button,width:'auto',padding:'0.75rem 1.5rem',background:'#718096'}}>
                 Annuler
               </button>
-              <button onClick={handleConfirmerImport} disabled={importData.lignes.filter(l=>!l._doublon).length === 0}
-                style={{...styles.button,width:'auto',padding:'0.75rem 1.5rem',background: importData.lignes.filter(l=>!l._doublon).length === 0 ? '#cbd5e0' : '#2b6cb0',cursor: importData.lignes.filter(l=>!l._doublon).length === 0 ? 'not-allowed' : 'pointer'}}>
-                Importer {importData.lignes.filter(l=>!l._doublon).length} demande(s)
+              <button onClick={handleConfirmerImport}
+                disabled={!ignorerDoublons && importData.lignes.filter(l=>!l._doublon).length === 0}
+                style={{...styles.button,width:'auto',padding:'0.75rem 1.5rem',
+                  background: (!ignorerDoublons && importData.lignes.filter(l=>!l._doublon).length === 0) ? '#cbd5e0' : '#2b6cb0',
+                  cursor: (!ignorerDoublons && importData.lignes.filter(l=>!l._doublon).length === 0) ? 'not-allowed' : 'pointer'}}>
+                Importer {ignorerDoublons ? importData.lignes.length : importData.lignes.filter(l=>!l._doublon).length} demande(s)
               </button>
             </div>
           </div>
