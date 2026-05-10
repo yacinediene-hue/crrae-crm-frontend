@@ -3017,17 +3017,29 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const handleConfirmerImport = async () => {
     const aImporter = ignorerDoublons ? importData.lignes : importData.lignes.filter(l => !l._doublon)
     let importes = 0
+    let erreurs = 0
+    const premiereErreur = { msg: null }
     for (const ligne of aImporter) {
       try {
         // eslint-disable-next-line no-unused-vars
         const { _doublon, _raison, numDemande: _num, ...data } = ligne
+        if (!data.nomPrenom || !data.nomPrenom.trim()) { erreurs++; continue }
         const res = await API.post('/demandes', data)
         setDemandes(prev => [res.data, ...prev])
         importes++
-      } catch {}
+      } catch (err) {
+        erreurs++
+        if (!premiereErreur.msg) {
+          premiereErreur.msg = err?.response?.data?.message || err?.message || 'Erreur inconnue'
+        }
+      }
     }
-    alert(`Import terminé : ${importes} demande(s) importée(s), ${importData.doublons} doublon(s) ignoré(s).`)
+    const msg = [`Import terminé : ${importes} demande(s) importée(s).`]
+    if (erreurs > 0) msg.push(`${erreurs} ligne(s) en erreur.`)
+    if (premiereErreur.msg) msg.push(`Première erreur : ${premiereErreur.msg}`)
+    alert(msg.join('\n'))
     setImportData(null)
+    setIgnorerDoublons(false)
   }
 
   const userRole = localStorage.getItem('userRole')
