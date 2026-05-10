@@ -2961,29 +2961,43 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         return String(v).trim()
       }
 
+      // Normalise la valeur canal vers l'enum CanalDemande
+      const normaliserCanal = (v) => {
+        const s = String(v || '').trim().toLowerCase().replace(/[^a-z]/g, '')
+        if (s === 'email' || s === 'mail' || s === 'courriel') return 'EMAIL'
+        if (s === 'telephone' || s === 'tel' || s === 'appel' || s === 'phone') return 'TELEPHONE'
+        if (s === 'whatsapp' || s === 'wha' || s === 'wa') return 'WHATSAPP'
+        if (s === 'siteweb' || s === 'web' || s === 'site' || s === 'internet') return 'SITE_WEB'
+        if (s === 'guichet' || s === 'agence' || s === 'presentiel') return 'GUICHET'
+        if (s === 'linkedin') return 'LINKEDIN'
+        if (s === 'facebook' || s === 'fb') return 'FACEBOOK'
+        if (s === 'autre' || s === 'other') return 'AUTRE'
+        return null  // sera mis à null par sanitize si non reconnu
+      }
+
       // Une ligne est valide si au moins une cellule contient une valeur non vide
       const lignes = rows
         .filter(r => Object.values(r).some(v => String(v).trim().length > 0))
         .map(r => ({
           numDemande: r['N° Demande'] || r['Numéro demande'] || r['numDemande'] || '',
-          nomPrenom: r['Nom & Prénom'] || r['nomPrenom'] || '',
+          nomPrenom: r['Nom & Prénom'] || r['Nom Prénom'] || r['Nom et Prénom'] || r['Nom'] || r['nomPrenom'] || '',
           matricule: r['Matricule'] || r['matricule'] || '',
           adherent: r['Adhérent'] || r['adherent'] || '',
           typeClient: r['Type client'] || r['typeClient'] || 'Actif',
           pays: r['Pays'] || r['pays'] || '',
-          telephone: String(r['Téléphone'] || r['telephone'] || ''),
+          telephone: String(r['Téléphone'] || r['Telephone'] || r['telephone'] || ''),
           email: r['Email'] || r['email'] || '',
           heureAppel: r['Heure appel'] || r['heureAppel'] || '',
-          canal: r['Canal'] || r['canal'] || 'WHATSAPP',
-          objetDemande: r['Objet'] || r['objetDemande'] || '',
+          canal: normaliserCanal(r['Canal'] || r['canal']),
+          objetDemande: r['Objet'] || r['Type de demande'] || r['objetDemande'] || '',
           commentaire: r['Commentaire'] || r['commentaire'] || '',
-          agentN1: r['Agent N1'] || r['agentN1'] || '',
+          agentN1: r['Agent N1'] || r['Agent'] || r['agentN1'] || '',
           service: r['Service'] || r['service'] || '',
           agentN2: r['Agent N2'] || r['agentN2'] || '',
-          dateReception: parseDate(r['Date réception'] || r['dateReception']) || new Date().toISOString().split('T')[0],
-          dateTraitement: parseDate(r['Date traitement'] || r['dateTraitement']),
+          dateReception: parseDate(r['Date réception'] || r['Date Réception'] || r['dateReception']) || new Date().toISOString().split('T')[0],
+          dateTraitement: parseDate(r['Date traitement'] || r['Date Traitement'] || r['dateTraitement']),
           statut: r['Statut'] || r['statut'] || 'En cours',
-          actionMenee: r['Action menée'] || r['actionMenee'] || '',
+          actionMenee: r['Action menée'] || r['Action'] || r['actionMenee'] || '',
           canalCommunication: r['Canal communication'] || r['canalCommunication'] || '',
           noteSatisfaction: r['Note satisfaction'] || r['noteSatisfaction'] || '',
         }))
