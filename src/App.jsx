@@ -2936,9 +2936,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         return String(v).trim()
       }
 
-      // Une ligne est valide uniquement si Nom & Prénom est renseigné (non vide après trim)
+      // Une ligne est valide si au moins une cellule contient une valeur non vide
       const lignes = rows
-        .filter(r => String(r['Nom & Prénom'] || r['nomPrenom'] || '').trim().length > 0)
+        .filter(r => Object.values(r).some(v => String(v).trim().length > 0))
         .map(r => ({
           numDemande: r['N° Demande'] || r['Numéro demande'] || r['numDemande'] || '',
           nomPrenom: r['Nom & Prénom'] || r['nomPrenom'] || '',
