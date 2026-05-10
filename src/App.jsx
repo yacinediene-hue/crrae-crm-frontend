@@ -2984,7 +2984,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         .map(r => ({
           numDemande: r['N° Demande'] || r['Numéro demande'] || r['numDemande'] || '',
           nomPrenom: r['Nom et prénom'] || r['Nom et Prénom'] || r['Nom & Prénom'] || r['Nom Prénom'] || r['Nom'] || r['nomPrenom'] || '',
-          matricule: r['Matricule'] || r['matricule'] || '',
+          matricule: (r['Matricule'] || r['matricule']) ? String(r['Matricule'] || r['matricule']).trim() : null,
           adherent: r['Adhérent'] || r['adherent'] || '',
           typeClient: r['Type de client'] || r['Type client'] || r['typeClient'] || 'Actif',
           pays: r['Pays du client'] || r['Pays'] || r['pays'] || '',
