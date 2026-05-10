@@ -2963,41 +2963,23 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           noteSatisfaction: r['Note satisfaction'] || r['noteSatisfaction'] || '',
         }))
 
-      // Index des numDemande existants
-      const numsExistants = new Set(demandes.map(d => d.numDemande).filter(Boolean))
+      // Clé doublon : nom+prénom (normalisé) + date de réception uniquement
+      const cleDoublon = (nomPrenom, dateReception) =>
+        `${String(nomPrenom).trim().toLowerCase()}§${String(dateReception || '').trim()}`
 
-      // Clé de déduplication secondaire : (téléphone ou nomPrenom) + objet + date
-      const cleDoublon = (l) => [
-        (l.telephone || l.nomPrenom || '').trim().toLowerCase(),
-        (l.objetDemande || '').trim().toLowerCase(),
-        (l.dateReception || '').trim(),
-      ].join('§')
-
-      // Doublons vs base existante
-      const clesDemandes = new Set(demandes.map(d => cleDoublon({
-        telephone: d.telephone,
-        nomPrenom: d.nomPrenom,
-        objetDemande: d.objetDemande,
-        dateReception: d.dateReception ? new Date(d.dateReception).toISOString().split('T')[0] : '',
-      })))
+      // Index des clés existantes en base
+      const clesDemandes = new Set(demandes.map(d =>
+        cleDoublon(d.nomPrenom, d.dateReception ? new Date(d.dateReception).toISOString().split('T')[0] : '')
+      ))
 
       // Doublons intra-fichier
       const vus = new Set()
-      const numsVus = new Set()
       const lignesAvecStatut = lignes.map(l => {
-        // 1. Priorité : N° demande déjà en base
-        if (l.numDemande && numsExistants.has(l.numDemande)) {
-          return { ...l, _doublon: true, _raison: `N° ${l.numDemande} déjà en base` }
-        }
-        // 2. N° demande en double dans le fichier
-        if (l.numDemande && numsVus.has(l.numDemande)) {
-          return { ...l, _doublon: true, _raison: `N° ${l.numDemande} en double dans le fichier` }
-        }
-        if (l.numDemande) numsVus.add(l.numDemande)
-        const cle = cleDoublon(l)
-        const doublonBase = cle !== '§§' && clesDemandes.has(cle)
-        const doublonFichier = cle !== '§§' && vus.has(cle)
-        vus.add(cle)
+        const cle = cleDoublon(l.nomPrenom, l.dateReception)
+        const vide = cle === '§'
+        const doublonBase = !vide && clesDemandes.has(cle)
+        const doublonFichier = !vide && vus.has(cle)
+        if (!vide) vus.add(cle)
         const raison = doublonBase ? 'Déjà en base' : doublonFichier ? 'Doublon dans le fichier' : null
         return { ...l, _doublon: doublonBase || doublonFichier, _raison: raison }
       })
