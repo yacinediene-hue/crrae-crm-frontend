@@ -2952,15 +2952,31 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         noteSatisfaction: r['Note satisfaction'] || r['noteSatisfaction'] || '',
       }))
 
-      // Détection doublons : même téléphone + même date réception + même objet
-      const estDoublon = (ligne) => demandes.some(d =>
-        d.telephone && ligne.telephone && d.telephone === ligne.telephone &&
-        d.objetDemande === ligne.objetDemande &&
-        d.dateReception && ligne.dateReception &&
-        new Date(d.dateReception).toISOString().split('T')[0] === ligne.dateReception
-      )
+      // Clé de déduplication : téléphone (ou nomPrenom si absent) + objet + date
+      const cleDoublon = (l) => [
+        (l.telephone || l.nomPrenom || '').trim().toLowerCase(),
+        (l.objetDemande || '').trim().toLowerCase(),
+        (l.dateReception || '').trim(),
+      ].join('§')
 
-      const lignesAvecStatut = lignes.map(l => ({ ...l, _doublon: estDoublon(l) }))
+      // Doublons vs base existante
+      const clesDemandes = new Set(demandes.map(d => cleDoublon({
+        telephone: d.telephone,
+        nomPrenom: d.nomPrenom,
+        objetDemande: d.objetDemande,
+        dateReception: d.dateReception ? new Date(d.dateReception).toISOString().split('T')[0] : '',
+      })))
+
+      // Doublons intra-fichier
+      const vus = new Set()
+      const lignesAvecStatut = lignes.map(l => {
+        const cle = cleDoublon(l)
+        const doublonBase = cle !== '§§' && clesDemandes.has(cle)
+        const doublonFichier = cle !== '§§' && vus.has(cle)
+        vus.add(cle)
+        const raison = doublonBase ? 'Déjà en base' : doublonFichier ? 'Doublon dans le fichier' : null
+        return { ...l, _doublon: doublonBase || doublonFichier, _raison: raison }
+      })
       const doublons = lignesAvecStatut.filter(l => l._doublon).length
       setImportData({ lignes: lignesAvecStatut, doublons })
     }
@@ -2972,7 +2988,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     let importes = 0
     for (const ligne of aImporter) {
       try {
-        const { _doublon, ...data } = ligne
+        const { _doublon, _raison, ...data } = ligne
         const res = await API.post('/demandes', data)
         setDemandes(prev => [res.data, ...prev])
         importes++
@@ -3236,7 +3252,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                   <tr key={i} style={{background: l._doublon ? '#fff5f5' : 'white', opacity: l._doublon ? 0.7 : 1}}>
                     <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>
                       {l._doublon
-                        ? <span style={{color:'#c53030',fontWeight:'600'}}>⚠ Doublon</span>
+                        ? <span style={{color:'#c53030',fontWeight:'600'}} title={l._raison}>⚠ {l._raison}</span>
                         : <span style={{color:'#276749',fontWeight:'600'}}>✅ Nouveau</span>}
                     </td>
                     <td style={{padding:'0.4rem 0.75rem',borderBottom:'1px solid #e2e8f0'}}>{l.nomPrenom}</td>
