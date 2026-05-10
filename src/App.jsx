@@ -959,13 +959,18 @@ function FileCritique() {
     }
   }, [ticketOuvert])
 
-  const critiques = demandes.filter(d =>
-    ['En cours', 'En attente'].includes(d.statut) && (
+  // Critiques : urgents OU hors SLA OU réclamation — tous statuts non clôturés
+  const critiques = demandes.filter(d => {
+    if (d.statut === 'Clôturé') return false
+    return (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
-      d.objetDemande === 'Réclamation'
+      (d.objetDemande || '').toLowerCase().includes('réclamation')
     )
-  )
+  }).sort((a, b) => {
+    const score = d => (d.priorite === 'Urgent' ? 2 : 0) + (d.respectDelai === 'NON' ? 1 : 0)
+    return score(b) - score(a)
+  })
 
   const f = (v) => v || '—'
 
@@ -973,6 +978,9 @@ function FileCritique() {
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>🔥 File critique</h2>
+        <div style={{fontSize:'0.85rem',color:'#718096'}}>
+          {critiques.length} demande{critiques.length > 1 ? 's' : ''} critique{critiques.length > 1 ? 's' : ''} sur {demandes.length} au total
+        </div>
       </div>
 
       <div style={{
@@ -990,6 +998,8 @@ function FileCritique() {
               <th style={styles.th}>Service</th>
               <th style={styles.th}>Priorité</th>
               <th style={styles.th}>Statut</th>
+              <th style={styles.th}>Délai</th>
+              <th style={styles.th}>SLA</th>
             </tr>
           </thead>
           <tbody>
@@ -1019,6 +1029,14 @@ function FileCritique() {
                   </span>
                 </td>
                 <td style={styles.td}>{f(d.statut)}</td>
+                <td style={styles.td}>{d.delaiTraitement != null ? `${d.delaiTraitement}j` : '—'}</td>
+                <td style={styles.td}>
+                  {d.respectDelai === 'NON'
+                    ? <span style={{background:'#fff5f5',color:'#c53030',padding:'2px 8px',borderRadius:'8px',fontSize:'0.75rem'}}>Hors SLA</span>
+                    : d.respectDelai === 'OUI'
+                      ? <span style={{background:'#f0fff4',color:'#276749',padding:'2px 8px',borderRadius:'8px',fontSize:'0.75rem'}}>OK</span>
+                      : '—'}
+                </td>
               </tr>
             ))}
           </tbody>
