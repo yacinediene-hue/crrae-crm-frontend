@@ -1311,12 +1311,27 @@ function Contacts() {
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>👥 Contacts</h2>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
           <label style={{ ...styles.button, cursor: 'pointer' }}>
             Importer Excel
             <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
           </label>
+          <button
+            style={{ ...styles.button, background: '#6b46c1' }}
+            onClick={async () => {
+              if (!window.confirm('Synchroniser les contacts depuis les demandes (téléphone + email) ?')) return
+              try {
+                const res = await API.post('/contacts/sync-from-demandes')
+                alert(`Synchronisation terminée :\n✅ ${res.data.crees} contact(s) créé(s)\n🔄 ${res.data.mises_a_jour} mis à jour\n— ${res.data.ignores} ignoré(s)`)
+                API.get('/contacts').then(r => setContacts(r.data))
+              } catch (e) {
+                alert('Erreur lors de la synchronisation')
+              }
+            }}
+          >
+            🔄 Sync depuis demandes
+          </button>
         </div>
       </div>
 
