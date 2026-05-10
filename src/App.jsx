@@ -226,14 +226,9 @@ function Dashboard({ alertes = [] }) {
   }, {})
 
   useEffect(() => {
-    Promise.all([
-      API.get('/contacts'),
-      API.get('/deals'),
-      API.get('/demandes'),
-    ]).then(([c, d, dem]) => {
-      setStats({ contacts: c.data.length, deals: d.data.length })
-      setDemandes(dem.data)
-    }).catch(() => {})
+    API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {})
+    API.get('/contacts').then(r => setStats(s => ({ ...s, contacts: r.data.length }))).catch(() => {})
+    API.get('/deals').then(r => setStats(s => ({ ...s, deals: r.data.length }))).catch(() => {})
   }, [])
 
   const byStatut = [
