@@ -4130,256 +4130,243 @@ function Rapports() {
   const filtered = demandes.filter(d => {
     if (!d.dateReception) return false
     const date = new Date(d.dateReception)
-    if (periode === 'semaine') {
-      const diff = (now - date) / (1000 * 60 * 60 * 24)
-      return diff <= 7
-    } else if (periode === 'mois') {
-      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-    } else if (periode === 'annee') {
-      return date.getFullYear() === now.getFullYear()
-    }
+    if (periode === 'semaine') return (now - date) / (1000*60*60*24) <= 7
+    if (periode === 'mois') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
+    if (periode === 'annee') return date.getFullYear() === now.getFullYear()
     return true
   })
 
-  const demandesCritiques = filtered.filter(d =>
-    ['En cours', 'En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON' || d.objetDemande === 'Réclamation')
-  )
+  // KPIs de base
+  const total = filtered.length
+  const traitees = filtered.filter(d => d.statut === 'Traité').length
+  const enCours = filtered.filter(d => d.statut === 'En cours').length
+  const enAttente = filtered.filter(d => d.statut === 'En attente').length
+  const horsSla = filtered.filter(d => d.respectDelai === 'NON').length
+  const escaladeN2 = filtered.filter(d => d.niveauTraitement === 2).length
+  const tauxTraite = total > 0 ? Math.round(traitees / total * 100) : 0
+  const tauxSla = total > 0 ? Math.round(filtered.filter(d => d.respectDelai === 'OUI').length / total * 100) : 0
 
-  const activiteRecente = [...filtered].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).slice(0, 5)
+  // Délai moyen de traitement
+  const delaisValides = filtered.filter(d => d.delaiTraitement !== null && d.delaiTraitement !== undefined)
+  const delaiMoyen = delaisValides.length > 0
+    ? (delaisValides.reduce((s, d) => s + d.delaiTraitement, 0) / delaisValides.length).toFixed(1)
+    : '—'
 
-  const agents = [...new Set(demandes.map(d => d.agentN1).filter(Boolean))]
+  // Satisfaction
+  const notes = filtered.filter(d => d.noteSatisfaction).map(d => d.noteSatisfaction)
+  const moyNote = notes.length > 0 ? (notes.reduce((a,b) => a+b,0) / notes.length).toFixed(1) : '—'
+  const enqueteEnvoyees = filtered.filter(d => d.enqueteEnvoyee).length
+  const enqueteRepondues = notes.length
+  const tauxReponse = enqueteEnvoyees > 0 ? Math.round(enqueteRepondues / enqueteEnvoyees * 100) : 0
+  const nps = notes.length > 0 ? {
+    promoteurs: notes.filter(n => n >= 4).length,
+    passifs: notes.filter(n => n === 3).length,
+    detracteurs: notes.filter(n => n <= 2).length,
+  } : null
+
+  // Répartition par type de demande
+  const parObjet = Object.entries(
+    filtered.reduce((acc, d) => { const k = d.objetDemande||'Non précisé'; acc[k]=(acc[k]||0)+1; return acc }, {})
+  ).sort((a,b) => b[1]-a[1]).slice(0,10)
+
+  // Répartition par canal
+  const parCanal = Object.entries(
+    filtered.reduce((acc, d) => { const k = labelCanalDemande(d.canal)||'—'; acc[k]=(acc[k]||0)+1; return acc }, {})
+  ).sort((a,b) => b[1]-a[1])
+
+  // Performance agents
+  const agents = [...new Set(filtered.map(d => d.agentN1).filter(Boolean))]
   const perfAgents = agents.map(a => ({
-    name: a.split(' ')[0],
+    name: a,
     total: filtered.filter(d => d.agentN1 === a).length,
     traite: filtered.filter(d => d.agentN1 === a && d.statut === 'Traité').length,
+    horsSla: filtered.filter(d => d.agentN1 === a && d.respectDelai === 'NON').length,
   })).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
 
-  const services = ['DPM','DPR','DSI','DCR','PATRIMOINE']
-  const perfServices = services.map(s => {
-    const total = filtered.filter(d => d.service === s).length
-    const oui = filtered.filter(d => d.service === s && d.respectDelai === 'OUI').length
-    return { name: s, total, taux: total > 0 ? Math.round(oui/total*100) : 0 }
+  // Performance services
+  const SLA_SERVICES = {DPM:'3j',DPR:'5j',DSI:'6j',PATRIMOINE:'7j',DCR:'5j',REGISSEUR:'5j'}
+  const perfServices = Object.keys(SLA_SERVICES).map(s => {
+    const t = filtered.filter(d => d.service === s)
+    const oui = t.filter(d => d.respectDelai === 'OUI').length
+    return { name: s, total: t.length, taux: t.length > 0 ? Math.round(oui/t.length*100) : 0 }
   }).filter(s => s.total > 0)
 
-  const notes = filtered.filter(d => d.noteSatisfaction).map(d => d.noteSatisfaction)
+  // Critiques
+  const demandesCritiques = filtered.filter(d =>
+    ['En cours','En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
+  )
 
-  const enqueteEnvoyees = filtered.filter(d => d.enqueteEnvoyee).length
-  const enqueteRepondues = filtered.filter(d => d.noteSatisfaction).length
+  const activiteRecente = [...filtered].sort((a,b) => new Date(b.updatedAt)-new Date(a.updatedAt)).slice(0,5)
 
-  const tauxReponse = enqueteEnvoyees > 0
-    ? Math.round((enqueteRepondues / enqueteEnvoyees) * 100)
-    : 0
-  const moyNote = notes.length > 0 ? (notes.reduce((a,b) => a+b, 0) / notes.length).toFixed(1) : '—'
+  const card = (icon, label, val, col, sub) => (
+    <div style={{background:'white',borderRadius:'14px',padding:'1rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',borderTop:`4px solid ${col}`}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div style={{fontSize:'0.8rem',color:'#718096'}}>{label}</div>
+        <div style={{fontSize:'1rem'}}>{icon}</div>
+      </div>
+      <div style={{fontSize:'1.8rem',fontWeight:'700',color:col,marginTop:'0.35rem'}}>{val}</div>
+      {sub && <div style={{fontSize:'0.75rem',color:'#718096',marginTop:'0.2rem'}}>{sub}</div>}
+    </div>
+  )
 
-  const tauxTraite = filtered.length > 0 ? Math.round(filtered.filter(d => d.statut === 'Traité').length / filtered.length * 100) : 0
-  const tauxDelai = filtered.length > 0 ? Math.round(filtered.filter(d => d.respectDelai === 'OUI').length / filtered.length * 100) : 0
+  const panel = (title, sub, children) => (
+    <div style={{background:'white',borderRadius:'14px',padding:'1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.9rem'}}>
+        <h3 style={{color:'#1a365d',margin:0,fontSize:'1rem'}}>{title}</h3>
+        {sub && <span style={{fontSize:'0.8rem',color:'#718096'}}>{sub}</span>}
+      </div>
+      {children}
+    </div>
+  )
 
   return (
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>📈 Rapports</h2>
-        <div style={{display:'flex', gap:'0.5rem'}}>
+        <div style={{display:'flex',gap:'0.5rem'}}>
           {[{val:'semaine',label:'Cette semaine'},{val:'mois',label:'Ce mois'},{val:'annee',label:'Cette année'},{val:'tout',label:'Tout'}].map(p => (
             <button key={p.val} onClick={() => setPeriode(p.val)}
-              style={{padding:'0.5rem 1rem', borderRadius:'6px', border:'none', cursor:'pointer',
-                background: periode === p.val ? '#2b6cb0' : '#edf2f7',
-                color: periode === p.val ? 'white' : '#4a5568', fontSize:'0.85rem'}}>
+              style={{padding:'0.5rem 1rem',borderRadius:'6px',border:'none',cursor:'pointer',
+                background: periode===p.val ? '#2b6cb0' : '#edf2f7',
+                color: periode===p.val ? 'white' : '#4a5568', fontSize:'0.85rem'}}>
               {p.label}
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
-        {[
-          {label:'Demandes', val:filtered.length, bg:'#ebf8ff', col:'#2b6cb0', icon:'📥'},
-          {label:'En cours', val:filtered.filter(d => d.statut === 'En cours').length, bg:'#fffbeb', col:'#b7791f', icon:'⏳'},
-          {label:'Traitées', val:filtered.filter(d => d.statut === 'Traité').length, bg:'#f0fff4', col:'#276749', icon:'✅'},
-          {label:'Hors SLA', val:filtered.filter(d => d.statut !== 'Traité' && d.respectDelai === 'NON').length, bg:'#fff5f5', col:'#c53030', icon:'⚠️'},
-        ].map(card => (
-          <div key={card.label} style={{
-            background:'white',
-            borderRadius:'14px',
-            padding:'1rem',
-            boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-            borderTop:`4px solid ${card.col}`
-          }}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <div style={{fontSize:'0.82rem', color:'#718096'}}>{card.label}</div>
-              <div style={{fontSize:'1.05rem'}}>{card.icon}</div>
+      {/* Ligne 1 — Volume et traitement */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:'0.9rem',marginBottom:'0.9rem'}}>
+        {card('📥','Total demandes', total, '#2b6cb0')}
+        {card('✅','Taux de traitement', `${tauxTraite}%`, '#276749', `${traitees} traitées sur ${total}`)}
+        {card('📋','Respect des délais (SLA)', `${tauxSla}%`, tauxSla >= 80 ? '#276749' : '#c53030', `${horsSla} hors SLA`)}
+        {card('⏱️','Délai moyen', delaiMoyen === '—' ? '—' : `${delaiMoyen}j`, '#2b6cb0', 'Jours ouvrables moyen')}
+      </div>
+
+      {/* Ligne 2 — Statuts et escalades */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:'0.9rem',marginBottom:'0.9rem'}}>
+        {card('⏳','En cours', enCours, '#b7791f')}
+        {card('🕐','En attente', enAttente, '#718096')}
+        {card('🔺','Escalades N2', escaladeN2, '#6b46c1', `${total > 0 ? Math.round(escaladeN2/total*100) : 0}% des demandes`)}
+        {card('⚠️','Demandes urgentes', filtered.filter(d=>d.priorite==='Urgent').length, '#c53030', 'Priorité critique')}
+      </div>
+
+      {/* Ligne 3 — Satisfaction */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:'0.9rem',marginBottom:'1rem'}}>
+        {card('⭐','Note moyenne', moyNote === '—' ? '—' : `${moyNote}/5`, '#b7791f', `${notes.length} avis reçus`)}
+        {card('📧','Enquêtes envoyées', enqueteEnvoyees, '#2b6cb0')}
+        {card('💬','Taux de réponse', `${tauxReponse}%`, tauxReponse >= 50 ? '#276749' : '#b7791f', `${enqueteRepondues} répondu(s)`)}
+        {card('👍','Clients satisfaits (≥4/5)', nps ? `${Math.round(nps.promoteurs/notes.length*100)}%` : '—', '#276749', nps ? `${nps.detracteurs} insatisfait(s)` : '')}
+      </div>
+
+      {/* Points de vigilance */}
+      {demandesCritiques.length > 0 && (
+        <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem',borderLeft:'5px solid #c53030'}}>
+          <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'0.6rem'}}>🚨 Points de vigilance</div>
+          {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.priorite==='Urgent').length > 0 && (
+            <div style={{color:'#c53030',marginBottom:'0.35rem'}}>
+              {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.priorite==='Urgent').length} demande(s) urgente(s) non traitée(s)
             </div>
-            <div style={{fontSize:'1.9rem', fontWeight:'700', color:card.col, marginTop:'0.4rem'}}>
-              {card.val}
+          )}
+          {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.respectDelai==='NON').length > 0 && (
+            <div style={{color:'#b7791f'}}>
+              {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.respectDelai==='NON').length} demande(s) hors SLA en cours
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Répartitions sur 2 colonnes */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1rem'}}>
+        {panel('📋 Répartition par type de demande', `${parObjet.length} types`, (
+          <table style={{...styles.table,boxShadow:'none',borderRadius:0,width:'100%'}}>
+            <thead><tr><th style={styles.th}>Type de demande</th><th style={styles.th}>Nb</th><th style={styles.th}>%</th></tr></thead>
+            <tbody>
+              {parObjet.map(([objet, nb]) => (
+                <tr key={objet} style={styles.tr}>
+                  <td style={{...styles.td,fontSize:'0.82rem'}}>{objet}</td>
+                  <td style={styles.td}>{nb}</td>
+                  <td style={styles.td}>
+                    <span style={{...styles.badge,background:'#ebf8ff',color:'#2b6cb0'}}>
+                      {total > 0 ? Math.round(nb/total*100) : 0}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ))}
+
+        {panel('📡 Répartition par canal', `${parCanal.length} canaux`, (
+          <div style={{display:'grid',gap:'0.5rem'}}>
+            {parCanal.map(([canal, nb]) => (
+              <div key={canal} style={{display:'flex',alignItems:'center',gap:'0.75rem'}}>
+                <div style={{width:'90px',fontSize:'0.82rem',color:'#4a5568',flexShrink:0}}>{canal}</div>
+                <div style={{flex:1,background:'#edf2f7',borderRadius:'99px',height:'8px',overflow:'hidden'}}>
+                  <div style={{width:`${total>0?Math.round(nb/total*100):0}%`,height:'100%',background:'#2b6cb0',borderRadius:'99px'}} />
+                </div>
+                <div style={{width:'30px',textAlign:'right',fontSize:'0.82rem',fontWeight:'600',color:'#2d3748'}}>{nb}</div>
+              </div>
+            ))}
           </div>
         ))}
       </div>
 
-      {demandesCritiques.length > 0 && (
-        <div style={{
-          background:'white',
-          borderRadius:'14px',
-          padding:'1rem 1.25rem',
-          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-          marginBottom:'1rem',
-          borderLeft:'5px solid #c53030'
-        }}>
-          <div style={{fontWeight:'700', color:'#1a365d', marginBottom:'0.6rem'}}>
-            🚨 Points de vigilance
-          </div>
-
-          {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.priorite === 'Urgent').length > 0 && (
-            <div style={{color:'#c53030', marginBottom:'0.35rem'}}>
-              {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.priorite === 'Urgent').length} demande(s) critique(s)
-            </div>
-          )}
-
-          {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.respectDelai === 'NON').length > 0 && (
-            <div style={{color:'#b7791f'}}>
-              {filtered.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.respectDelai === 'NON').length} demande(s) hors SLA
-            </div>
-          )}
-        </div>
-      )}
-
-      {demandesCritiques.length > 0 && (
-        <div style={{
-          background:'white',
-          borderRadius:'14px',
-          padding:'1rem 1.25rem',
-          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-          marginBottom:'1rem'
-        }}>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.75rem'}}>
-            <div style={{fontWeight:'700', color:'#1a365d'}}>🔥 Demandes critiques</div>
-            <div style={{fontSize:'0.8rem', color:'#718096'}}>
-              {demandesCritiques.length} au total
-            </div>
-          </div>
-
-          <div style={{display:'grid', gap:'0.55rem'}}>
-            {demandesCritiques.slice(0,5).map(d => (
-              <div key={d.id} style={{
-                border:'1px solid #edf2f7',
-                borderRadius:'10px',
-                padding:'0.75rem 0.85rem',
-                display:'flex',
-                justifyContent:'space-between',
-                gap:'0.75rem',
-                flexWrap:'wrap',
-                background: d.priorite === 'Urgent' ? '#fffaf0' : '#fafafa'
-              }}>
-                <div style={{fontWeight:'600', color:'#2b6cb0'}}>{d.numDemande}</div>
-                <div style={{color:'#2d3748'}}>{d.nomPrenom}</div>
-                <div style={{color:'#718096'}}>{d.objetDemande || '—'}</div>
-                <div style={{color:'#4a5568'}}>{d.service || '—'}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem'}}>
-        <div style={{
-          background:'white',
-          borderRadius:'14px',
-          padding:'1.25rem',
-          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-          marginBottom:'1rem'
-        }}>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
-            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>👤 Performance par agent</h3>
-            <span style={{fontSize:'0.8rem', color:'#718096'}}>Suivi du traitement</span>
-          </div>
-          <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
-            <thead><tr><th style={styles.th}>Agent</th><th style={styles.th}>Total</th><th style={styles.th}>Traités</th><th style={styles.th}>Taux</th></tr></thead>
+      {/* Performance agents + services */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1rem'}}>
+        {panel('👤 Performance par agent', 'Traitement & SLA', (
+          <table style={{...styles.table,boxShadow:'none',borderRadius:0}}>
+            <thead><tr><th style={styles.th}>Agent</th><th style={styles.th}>Total</th><th style={styles.th}>Traités</th><th style={styles.th}>Hors SLA</th><th style={styles.th}>Taux</th></tr></thead>
             <tbody>
+              {perfAgents.length === 0 && <tr><td colSpan={5} style={{...styles.td,color:'#718096',textAlign:'center'}}>Aucune donnée</td></tr>}
               {perfAgents.map(a => (
                 <tr key={a.name} style={styles.tr}>
                   <td style={styles.td}>{a.name}</td>
                   <td style={styles.td}>{a.total}</td>
                   <td style={styles.td}>{a.traite}</td>
-                  <td style={styles.td}>
-                    <span style={{...styles.badge, background:'#f0fff4', color:'#276749'}}>
-                      {a.total > 0 ? Math.round(a.traite/a.total*100) : 0}%
-                    </span>
-                  </td>
+                  <td style={styles.td}><span style={{...styles.badge,background:a.horsSla>0?'#fff5f5':'#f0fff4',color:a.horsSla>0?'#c53030':'#276749'}}>{a.horsSla}</span></td>
+                  <td style={styles.td}><span style={{...styles.badge,background:'#f0fff4',color:'#276749'}}>{a.total>0?Math.round(a.traite/a.total*100):0}%</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        ))}
 
-        <div style={{
-          background:'white',
-          borderRadius:'14px',
-          padding:'1.25rem',
-          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-          marginBottom:'1rem'
-        }}>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
-            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>🏢 Respect des délais par service</h3>
-            <span style={{fontSize:'0.8rem', color:'#718096'}}>Qualité de traitement</span>
-          </div>
-          <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
-            <thead><tr><th style={styles.th}>Service</th><th style={styles.th}>Total</th><th style={styles.th}>Délai max</th><th style={styles.th}>Taux</th></tr></thead>
+        {panel('🏢 Respect des délais par service', 'Qualité SLA', (
+          <table style={{...styles.table,boxShadow:'none',borderRadius:0}}>
+            <thead><tr><th style={styles.th}>Service</th><th style={styles.th}>Total</th><th style={styles.th}>SLA max</th><th style={styles.th}>Taux</th></tr></thead>
             <tbody>
+              {perfServices.length === 0 && <tr><td colSpan={4} style={{...styles.td,color:'#718096',textAlign:'center'}}>Aucune donnée</td></tr>}
               {perfServices.map(s => (
                 <tr key={s.name} style={styles.tr}>
                   <td style={styles.td}>{s.name}</td>
                   <td style={styles.td}>{s.total}</td>
-                  <td style={styles.td}>{{'DPM':'3j','DPR':'5j','DSI':'6j','PATRIMOINE':'7j','DCR':'5j'}[s.name]}</td>
-                  <td style={styles.td}>
-                    <span style={{...styles.badge, background: s.taux >= 80 ? '#f0fff4' : '#fff5f5', color: s.taux >= 80 ? '#276749' : '#c53030'}}>
-                      {s.taux}%
-                    </span>
-                  </td>
+                  <td style={styles.td}>{SLA_SERVICES[s.name]}</td>
+                  <td style={styles.td}><span style={{...styles.badge,background:s.taux>=80?'#f0fff4':'#fff5f5',color:s.taux>=80?'#276749':'#c53030'}}>{s.taux}%</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        ))}
       </div>
 
-      <div style={{
-        background:'white',
-        borderRadius:'14px',
-        padding:'1.25rem',
-        boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-        marginBottom:'1rem'
-      }}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.9rem'}}>
-          <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>🕒 Activité récente</h3>
-          <span style={{fontSize:'0.8rem', color:'#718096'}}>Dernières mises à jour</span>
-        </div>
-
-        <div style={{display:'grid', gap:'0.55rem'}}>
+      {/* Activité récente */}
+      {panel('🕒 Activité récente', '5 dernières mises à jour', (
+        <div style={{display:'grid',gap:'0.55rem'}}>
+          {activiteRecente.length === 0 && <div style={{color:'#718096',fontSize:'0.9rem'}}>Aucune activité</div>}
           {activiteRecente.map(d => (
-            <div key={d.id} style={{
-              border:'1px solid #edf2f7',
-              borderRadius:'10px',
-              padding:'0.75rem 0.85rem',
-              display:'flex',
-              justifyContent:'space-between',
-              gap:'0.75rem',
-              flexWrap:'wrap'
-            }}>
-              <span style={{fontWeight:'600', color:'#2b6cb0'}}>{d.numDemande}</span>
+            <div key={d.id} style={{border:'1px solid #edf2f7',borderRadius:'10px',padding:'0.75rem 0.85rem',display:'flex',justifyContent:'space-between',gap:'0.75rem',flexWrap:'wrap'}}>
+              <span style={{fontWeight:'600',color:'#2b6cb0'}}>{d.numDemande}</span>
               <span style={{color:'#2d3748'}}>{d.nomPrenom}</span>
-              <span style={{color:'#718096'}}>{d.statut}</span>
-              <span style={{color:'#4a5568'}}>
-                {d.updatedAt ? new Date(d.updatedAt).toLocaleString('fr-FR', {
-                  day:'2-digit',
-                  month:'2-digit',
-                  hour:'2-digit',
-                  minute:'2-digit'
-                }) : '—'}
+              <span style={{color:'#718096'}}>{d.objetDemande||'—'}</span>
+              <span style={{color:'#4a5568'}}>{d.statut}</span>
+              <span style={{color:'#a0aec0',fontSize:'0.8rem'}}>
+                {d.updatedAt ? new Date(d.updatedAt).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'}
               </span>
             </div>
           ))}
         </div>
-      </div>
-
+      ))}
     </div>
   )
 }
