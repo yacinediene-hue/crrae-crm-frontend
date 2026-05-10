@@ -3058,7 +3058,6 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   })
 
   const filtered = demandesTriees.filter(d => {
-    if (!isFullAccess && d.agentN1 !== userName && d.agentN2 !== userName) return false
     const q = search.toLowerCase()
     if (q && !(
       (d.nomPrenom||'').toLowerCase().includes(q) ||
