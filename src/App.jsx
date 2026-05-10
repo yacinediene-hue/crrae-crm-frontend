@@ -2975,6 +2975,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         return null  // sera mis à null par sanitize si non reconnu
       }
 
+      // Log des colonnes réelles du fichier Excel
+      if (rows.length > 0) console.log('[IMPORT] colonnes Excel:', Object.keys(rows[0]))
+
       // Une ligne est valide si au moins une cellule contient une valeur non vide
       const lignes = rows
         .filter(r => Object.values(r).some(v => String(v).trim().length > 0))
