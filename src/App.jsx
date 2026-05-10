@@ -2963,19 +2963,19 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           noteSatisfaction: r['Note satisfaction'] || r['noteSatisfaction'] || '',
         }))
 
-      // Clé doublon : nom+prénom (normalisé) + date de réception uniquement
-      const cleDoublon = (nomPrenom, dateReception) =>
-        `${String(nomPrenom).trim().toLowerCase()}§${String(dateReception || '').trim()}`
+      // Clé doublon : identification uniquement (nom+prénom + téléphone) — la date n'entre pas en compte
+      const cleDoublon = (nomPrenom, telephone) =>
+        `${String(nomPrenom).trim().toLowerCase()}§${String(telephone || '').trim()}`
 
       // Index des clés existantes en base
       const clesDemandes = new Set(demandes.map(d =>
-        cleDoublon(d.nomPrenom, d.dateReception ? new Date(d.dateReception).toISOString().split('T')[0] : '')
+        cleDoublon(d.nomPrenom, d.telephone)
       ))
 
       // Doublons intra-fichier
       const vus = new Set()
       const lignesAvecStatut = lignes.map(l => {
-        const cle = cleDoublon(l.nomPrenom, l.dateReception)
+        const cle = cleDoublon(l.nomPrenom, l.telephone)
         const vide = cle === '§'
         const doublonBase = !vide && clesDemandes.has(cle)
         const doublonFichier = !vide && vus.has(cle)
