@@ -3019,11 +3019,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     let importes = 0
     let erreurs = 0
     const premiereErreur = { msg: null }
+    if (aImporter.length > 0) console.log('[IMPORT] première ligne mappée:', aImporter[0])
     for (const ligne of aImporter) {
       try {
         // eslint-disable-next-line no-unused-vars
         const { _doublon, _raison, numDemande: _num, ...data } = ligne
-        if (!data.nomPrenom || !data.nomPrenom.trim()) { erreurs++; continue }
         const res = await API.post('/demandes', data)
         setDemandes(prev => [res.data, ...prev])
         importes++
