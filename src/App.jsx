@@ -1699,6 +1699,25 @@ const CANAUX_DEMANDE = [
   { value: 'FACEBOOK',  label: 'Facebook' },
   { value: 'AUTRE',     label: 'Autre' },
 ]
+const OBJETS_DEMANDE = [
+  'Pensions (gestion et paiement)',
+  'Demande de domiciliation',
+  'Adhésion à l\'Assurance Maladie - FAAM',
+  'Demande de bulletins de pension',
+  'Remboursement des frais médicaux',
+  'Demande d\'attestation de pension',
+  'Certificat de vie',
+  'Demande d\'information sur les pensions de réversion',
+  'Gestion du RVC',
+  'Demande de liquidation de pension de retraite',
+  'Adhésion au RVC',
+  'Demande d\'attestation d\'assurance maladie',
+  'Informations sur les cotisations',
+  'Assistance technique - Plateforme en ligne',
+  'Services et informations générales',
+  'Autre demande ou réclamation',
+]
+
 const labelCanalDemande = (value) => {
   const item = CANAUX_DEMANDE.find(c => c.value === value)
   return item ? item.label : value || '—'
@@ -2688,7 +2707,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: '', profilClient: '', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WHATSAPP', telephone: '', email: '',
-    objetDemande: 'Information', commentaire: '',
+    objetDemande: '', commentaire: '',
     agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '',
     dateReception: new Date().toISOString().split('T')[0],
     dateTraitement: '', statut: 'En cours', actionMenee: '',
@@ -3372,7 +3391,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterObjet} onChange={e=>setFilterObjet(e.target.value)}>
               <option value="">Tous objets</option>
-              {['Information','Réclamation','Demande de document','Information générale','Liquidation pension','Pension réversion','Prestations santé / FAAM','Cotisations','Affiliation','Autre'].map(o=><option key={o}>{o}</option>)}
+              {OBJETS_DEMANDE.map(o=><option key={o}>{o}</option>)}
             </select>
             <div>
               <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>Date début</label>
@@ -3485,15 +3504,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>📨 Demande</h3>
           <div style={col2}>
             <select style={inp} value={form.objetDemande} onChange={e=>setForm({...form,objetDemande:e.target.value})}>
-              <option>Information générale</option>
-              <option>Liquidation pension</option>
-              <option>Pension réversion</option>
-              <option>Prestations santé / FAAM</option>
-              <option>Cotisations</option>
-              <option>Affiliation</option>
-              <option>Réclamation</option>
-              <option>Support services en ligne</option>
-              <option>Autre</option>
+              <option value="">-- Type de demande --</option>
+              {OBJETS_DEMANDE.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
             <select style={inp} value={form.canal} onChange={e=>setForm({...form,canal:e.target.value})}>
               <option value="">Canal</option>
