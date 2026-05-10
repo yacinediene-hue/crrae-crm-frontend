@@ -182,14 +182,15 @@ function Dashboard({ alertes = [] }) {
   const [periodeFin, setPeriodeFin] = useState('')
 
   const demandesFiltrees = demandes.filter((d) => {
-    if (!d.createdAt) return true
-    const date = new Date(d.createdAt)
+    const ref = d.dateReception || d.createdAt
+    if (!ref) return true
+    const date = new Date(ref)
     const now = new Date()
     if (periode === 'today') return date.toDateString() === now.toDateString()
-    if (periode === '7j')   { const t = new Date(); t.setDate(now.getDate() - 7);   return date >= t }
-    if (periode === '30j')  { const t = new Date(); t.setDate(now.getDate() - 30);  return date >= t }
-    if (periode === '3m')   { const t = new Date(); t.setMonth(now.getMonth() - 3); return date >= t }
-    if (periode === '6m')   { const t = new Date(); t.setMonth(now.getMonth() - 6); return date >= t }
+    if (periode === '7j')   { const t = new Date(); t.setDate(now.getDate() - 7);    return date >= t }
+    if (periode === '30j')  { const t = new Date(); t.setDate(now.getDate() - 30);   return date >= t }
+    if (periode === '3m')   { const t = new Date(); t.setMonth(now.getMonth() - 3);  return date >= t }
+    if (periode === '6m')   { const t = new Date(); t.setMonth(now.getMonth() - 6);  return date >= t }
     if (periode === '12m')  { const t = new Date(); t.setMonth(now.getMonth() - 12); return date >= t }
     if (periode === 'annee') return date.getFullYear() === now.getFullYear()
     if (periode === 'custom') {
@@ -289,11 +290,10 @@ function Dashboard({ alertes = [] }) {
   const npsStats = demandesFiltrees.reduce(
     (acc, d) => {
       if (d.noteSatisfaction === null || d.noteSatisfaction === undefined) return acc
-
-      if (d.noteSatisfaction >= 9) acc.promoteurs++
-      else if (d.noteSatisfaction >= 7) acc.passifs++
+      // Échelle 1-5 : 5 = très satisfait, 4 = satisfait, 3 = neutre, <=2 = insatisfait
+      if (d.noteSatisfaction >= 4) acc.promoteurs++
+      else if (d.noteSatisfaction === 3) acc.passifs++
       else acc.detracteurs++
-
       return acc
     },
     { promoteurs: 0, passifs: 0, detracteurs: 0 }
@@ -327,7 +327,7 @@ function Dashboard({ alertes = [] }) {
   const demandesHorsSla = demandesFiltrees.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.respectDelai === 'NON')
 
   const demandesEntrantes = [...demandesFiltrees]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .sort((a, b) => new Date(b.dateReception || b.createdAt) - new Date(a.dateReception || a.createdAt))
     .slice(0, 5)
 
   const chargeParAgent = Object.entries(
