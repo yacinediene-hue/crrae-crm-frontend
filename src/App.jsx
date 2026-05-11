@@ -2909,6 +2909,24 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [demandeEscalade, setDemandeEscalade] = useState(null)
   const [escaladeForm, setEscaladeForm] = useState({ agentN2: '', service: '', motif: '' })
   const [escaladeLoading, setEscaladeLoading] = useState(false)
+  const [renvoyerModal, setRenvoyerModal] = useState(null)
+  const [renvoyerMotif, setRenvoyerMotif] = useState('')
+
+  const handlePrendreEnCharge = async (d) => {
+    try {
+      const res = await API.post(`/demandes/${d.id}/prendre-en-charge`)
+      setDemandes(demandes.map(x => x.id === d.id ? res.data : x))
+    } catch (err) { alert('Erreur : ' + (err?.response?.data?.message || err.message)) }
+  }
+
+  const handleRenvoyerN1 = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await API.post(`/demandes/${renvoyerModal.id}/renvoyer-n1`, { motif: renvoyerMotif })
+      setDemandes(demandes.map(x => x.id === renvoyerModal.id ? res.data : x))
+      setRenvoyerModal(null); setRenvoyerMotif('')
+    } catch (err) { alert('Erreur : ' + (err?.response?.data?.message || err.message)) }
+  }
 
   const handleEscalade = async (e) => {
     e.preventDefault()
@@ -2947,7 +2965,15 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     } catch { alert("Erreur suppression") }
   }
   const f = (v) => v || '—'
-  const sColor = (s) => ({'Traité': {background:'#f0fff4',color:'#276749'},'En cours': {background:'#fffbeb',color:'#b7791f'},'En attente': {background:'#ebf8ff',color:'#2b6cb0'}}[s] || {background:'#f7fafc',color:'#718096'})
+  const sColor = (s) => ({
+    'Traité':      {background:'#f0fff4',color:'#276749'},
+    'En cours':    {background:'#fffbeb',color:'#b7791f'},
+    'En attente':  {background:'#ebf8ff',color:'#2b6cb0'},
+    'Escaladé':    {background:'#faf5ff',color:'#6b46c1'},
+    'En cours N2': {background:'#f0e6ff',color:'#553c9a'},
+    'Clôturé':     {background:'#f7fafc',color:'#718096'},
+    'Renvoyé N1':  {background:'#fff5f5',color:'#c53030'},
+  }[s] || {background:'#f7fafc',color:'#718096'})
   const exportExcel = () => {
     const data = filtered.map(d => ({
       'N° Demande': d.numDemande || '',
@@ -3503,7 +3529,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           />
           <select style={{...styles.input,marginBottom:0,width:'160px'}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
             <option value="">Tous statuts</option>
-            <option>Traité</option><option>En cours</option><option>En attente</option>
+            <option>En cours</option>
+            <option>En attente</option>
+            <option>Escaladé</option>
+            <option>En cours N2</option>
+            <option>Traité</option>
+            <option>Clôturé</option>
           </select>
           <button
             onClick={() => setShowFiltres(f => !f)}
@@ -3685,7 +3716,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               <input style={inp} placeholder="Agent N2 (Back Office)" value={form.agentN2} onChange={e=>setForm({...form,agentN2:e.target.value})} />
             )}
             <select style={inp} value={form.statut} onChange={e=>setForm({...form,statut:e.target.value})}>
-              <option>En cours</option><option>Traité</option><option>En attente</option>
+              <option>En cours</option>
+              <option>En attente</option>
+              <option>Escaladé</option>
+              <option>En cours N2</option>
+              <option>Traité</option>
+              <option>Clôturé</option>
             </select>
             <div><label style={{fontSize:'0.8rem',color:'#718096',display:'block',marginBottom:'0.25rem'}}>Date réception</label>
             <input style={inp} type="date" value={form.dateReception} onChange={e=>setForm({...form,dateReception:e.target.value})} /></div>
@@ -3842,9 +3878,27 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       <button
                         title="Escalader vers le Back Office (N2)"
                         onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: d.agentN2||'', service: d.service||'', motif: '' }) }}
-                        style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                        style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
                       >
                         🔺
+                      </button>
+                    )}
+                    {d.statut === 'Escaladé' && isFullAccess && (
+                      <button
+                        title="Prendre en charge (N2)"
+                        onClick={e => { e.stopPropagation(); handlePrendreEnCharge(d) }}
+                        style={{background:'#f0e6ff',color:'#553c9a',border:'none',borderRadius:'6px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem',fontWeight:'600'}}
+                      >
+                        ▶ N2
+                      </button>
+                    )}
+                    {d.statut === 'En cours N2' && isFullAccess && (
+                      <button
+                        title="Renvoyer au Front Office (N1)"
+                        onClick={e => { e.stopPropagation(); setRenvoyerModal(d); setRenvoyerMotif('') }}
+                        style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                      >
+                        ↩ N1
                       </button>
                     )}
 
@@ -3902,6 +3956,34 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 <button type="submit" disabled={escaladeLoading}
                   style={{padding:'0.6rem 1.4rem',borderRadius:'8px',border:'none',background:'#b7791f',color:'white',cursor:'pointer',fontWeight:'600'}}>
                   {escaladeLoading ? 'En cours...' : '🔺 Confirmer l\'escalade'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {renvoyerModal && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
+          <div style={{background:'white',borderRadius:'12px',padding:'1.75rem',width:'100%',maxWidth:'420px',boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+            <h3 style={{margin:'0 0 0.25rem',color:'#1a365d',fontSize:'1.05rem'}}>↩ Renvoyer au Front Office (N1)</h3>
+            <p style={{margin:'0 0 1.25rem',color:'#718096',fontSize:'0.85rem'}}>Demande : <strong>{renvoyerModal.numDemande}</strong></p>
+            <form onSubmit={handleRenvoyerN1}>
+              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>Motif du renvoi</label>
+              <textarea
+                style={{...styles.input,height:'80px',resize:'vertical',marginBottom:'1.25rem'}}
+                placeholder="Expliquez pourquoi cette demande est renvoyée au Front Office…"
+                value={renvoyerMotif}
+                onChange={e => setRenvoyerMotif(e.target.value)}
+              />
+              <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
+                <button type="button" onClick={() => setRenvoyerModal(null)}
+                  style={{padding:'0.5rem 1.2rem',borderRadius:'6px',border:'1px solid #e2e8f0',background:'white',cursor:'pointer',color:'#4a5568',fontSize:'0.875rem'}}>
+                  Annuler
+                </button>
+                <button type="submit"
+                  style={{padding:'0.5rem 1.4rem',borderRadius:'6px',border:'none',background:'#c53030',color:'white',cursor:'pointer',fontWeight:'600',fontSize:'0.875rem'}}>
+                  ↩ Confirmer le renvoi
                 </button>
               </div>
             </form>
@@ -4836,9 +4918,8 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
     ['En cours', 'En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
   ).length
 
-  const enCours = demandes.filter(d =>
-    d.statut === 'En cours'
-  ).length
+  const enCours = demandes.filter(d => d.statut === 'En cours').length
+  const escaladees = demandes.filter(d => d.statut === 'Escaladé').length
 
   return (
     <div style={styles.layout}>
@@ -4884,9 +4965,8 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/dashboard"><span style={styles.sidebarIcon}>📊</span>Dashboard</NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/demandes">
           <span style={styles.sidebarIcon}>📋</span>Demandes
-          {enCours > 0 && (
-            <span style={styles.sidebarBadge}>{enCours}</span>
-          )}
+          {enCours > 0 && <span style={styles.sidebarBadge}>{enCours}</span>}
+          {escaladees > 0 && <span style={{...styles.sidebarBadge, background:'#6b46c1', marginLeft:'2px'}}>{escaladees}</span>}
         </NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/critiques">
           <span style={styles.sidebarIcon}>🔥</span>File critique
