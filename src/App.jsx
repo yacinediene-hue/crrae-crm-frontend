@@ -3741,7 +3741,21 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
           </div>
           <textarea style={{...inp,height:'60px',resize:'vertical',width:'100%'}} placeholder="Action menée" value={form.actionMenee} onChange={e=>setForm({...form,actionMenee:e.target.value})} />
-          <button style={styles.button} type="submit">{editId ? '💾 Modifier' : '💾 Enregistrer'}</button>
+          <div style={{display:'flex',gap:'0.75rem',marginTop:'0.25rem'}}>
+            <button style={styles.button} type="submit">{editId ? '💾 Modifier' : '💾 Enregistrer'}</button>
+            {editId && form.niveauTraitement !== 2 && !['Traité','Clôturé','Escaladé','En cours N2'].includes(form.statut) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const d = demandes.find(x => x.id === editId)
+                  if (d) { setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: form.service||'', motif: '' }) }
+                }}
+                style={{...styles.button, background:'#b7791f', width:'auto', padding:'0.625rem 1.25rem', whiteSpace:'nowrap'}}
+              >
+                🔺 Envoyer au N2
+              </button>
+            )}
+          </div>
             </form>
           </div>
         </>
@@ -3876,13 +3890,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       🪪
                     </button>
 
-                    {d.niveauTraitement !== 2 && !['Traité','Clôturé'].includes(d.statut) && (
+                    {d.niveauTraitement !== 2 && !['Traité','Clôturé','Escaladé','En cours N2'].includes(d.statut) && (
                       <button
-                        title="Escalader vers le Back Office (N2)"
-                        onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: d.agentN2||'', service: d.service||'', motif: '' }) }}
-                        style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'6px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                        title="Envoyer au Back Office (N2)"
+                        onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: d.service||'', motif: '' }) }}
+                        style={{background:'#fffbeb',color:'#b7791f',border:'1px solid #f6e05e',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.78rem',fontWeight:'600',whiteSpace:'nowrap'}}
                       >
-                        🔺
+                        🔺 N2
                       </button>
                     )}
                     {d.statut === 'Escaladé' && isFullAccess && (
@@ -3924,16 +3938,27 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       {demandeEscalade && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
           <div style={{background:'white',borderRadius:'16px',padding:'2rem',width:'100%',maxWidth:'460px',boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
-            <h2 style={{margin:'0 0 0.25rem',color:'#1a365d',fontSize:'1.15rem'}}>🔺 Escalade — Back Office (N2)</h2>
-            <p style={{margin:'0 0 1.5rem',color:'#718096',fontSize:'0.85rem'}}>Demande : <strong>{demandeEscalade.numDemande}</strong> — {demandeEscalade.nomPrenom}</p>
+            <div style={{display:'flex',alignItems:'center',gap:'0.6rem',marginBottom:'0.25rem'}}>
+              <span style={{background:'#fffbeb',color:'#b7791f',borderRadius:'6px',padding:'0.3rem 0.5rem',fontSize:'1rem'}}>🔺</span>
+              <h2 style={{margin:0,color:'#1a365d',fontSize:'1.1rem',fontWeight:'700'}}>Envoyer au Back Office (N2)</h2>
+            </div>
+            <p style={{margin:'0 0 1.25rem',color:'#718096',fontSize:'0.85rem',paddingLeft:'0.25rem'}}>
+              <strong>{demandeEscalade.numDemande}</strong> — {demandeEscalade.nomPrenom}
+            </p>
             <form onSubmit={handleEscalade}>
-              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>Agent Back Office (N2)</label>
-              <input
+              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>
+                Assigner à l'agent N2 <span style={{color:'#c53030'}}>*</span>
+              </label>
+              <select
+                required
                 style={{...styles.input,marginBottom:'1rem',width:'100%'}}
-                placeholder="Nom de l'agent N2"
                 value={escaladeForm.agentN2}
                 onChange={e => setEscaladeForm({...escaladeForm, agentN2: e.target.value})}
-              />
+              >
+                <option value="">-- Choisir un agent Back Office --</option>
+                {AGENTS_N2.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+
               <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>Service responsable</label>
               <select
                 style={{...styles.input,marginBottom:'1rem',width:'100%'}}
@@ -3943,21 +3968,28 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 <option value="">-- Sélectionner un service --</option>
                 {['DPM','DPR','DSI','DCR','PATRIMOINE','REGISSEUR'].map(s => <option key={s}>{s}</option>)}
               </select>
-              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>Motif d'escalade</label>
+
+              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>
+                Motif d'escalade <span style={{color:'#718096',fontWeight:'400'}}>(obligatoire)</span>
+              </label>
               <textarea
-                style={{...styles.input,height:'80px',resize:'vertical',width:'100%',marginBottom:'1.5rem'}}
-                placeholder="Décrivez la raison de l'escalade..."
+                required
+                style={{...styles.input,height:'80px',resize:'vertical',width:'100%',marginBottom:'1.25rem'}}
+                placeholder="Décrivez ce qui nécessite l'intervention du Back Office…"
                 value={escaladeForm.motif}
                 onChange={e => setEscaladeForm({...escaladeForm, motif: e.target.value})}
               />
+
               <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
                 <button type="button" onClick={() => setDemandeEscalade(null)}
-                  style={{padding:'0.6rem 1.2rem',borderRadius:'8px',border:'1px solid #e2e8f0',background:'white',cursor:'pointer',color:'#4a5568'}}>
+                  style={{padding:'0.5rem 1.2rem',borderRadius:'6px',border:'1px solid #e2e8f0',background:'white',cursor:'pointer',color:'#4a5568',fontSize:'0.875rem'}}>
                   Annuler
                 </button>
-                <button type="submit" disabled={escaladeLoading}
-                  style={{padding:'0.6rem 1.4rem',borderRadius:'8px',border:'none',background:'#b7791f',color:'white',cursor:'pointer',fontWeight:'600'}}>
-                  {escaladeLoading ? 'En cours...' : '🔺 Confirmer l\'escalade'}
+                <button type="submit" disabled={escaladeLoading || !escaladeForm.agentN2 || !escaladeForm.motif}
+                  style={{padding:'0.5rem 1.4rem',borderRadius:'6px',border:'none',
+                    background: (!escaladeForm.agentN2 || !escaladeForm.motif) ? '#cbd5e0' : '#b7791f',
+                    color:'white',cursor:'pointer',fontWeight:'600',fontSize:'0.875rem'}}>
+                  {escaladeLoading ? 'Envoi…' : '🔺 Envoyer au Back Office'}
                 </button>
               </div>
             </form>
