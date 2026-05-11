@@ -3125,7 +3125,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
   const userRole = localStorage.getItem('userRole')
   const userName = localStorage.getItem('userName')
-  const isFullAccess = userRole === 'admin' || userRole === 'manager' || userName === 'Ismael COULIBALY'
+  const AGENTS_N2 = ['Michèle KACOU', 'Fatty KOUAME', 'Ismael COULIBALY', 'Yacine DIENE']
+  const isN2 = AGENTS_N2.some(n => userName && n.toLowerCase() === userName.toLowerCase())
+  const isFullAccess = userRole === 'admin' || userRole === 'manager' || isN2
 
   const critiques = demandes.filter(d =>
     ['En cours', 'En attente'].includes(d.statut) && (
@@ -4594,8 +4596,11 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
     API.get('/users').then(r => setUsers(r.data.filter(u => u.active !== false))).catch(() => {})
   }, [])
 
+  const AGENTS_N2_LIST = ['Michèle KACOU', 'Fatty KOUAME', 'Ismael COULIBALY', 'Yacine DIENE']
   const agentsN1 = users.map(u => u.name)
-  const agentsN2 = users.filter(u => u.role === 'manager' || u.role === 'admin').map(u => u.name)
+  const agentsN2 = users.length > 0
+    ? users.filter(u => AGENTS_N2_LIST.some(n => n.toLowerCase() === (u.name||'').toLowerCase())).map(u => u.name)
+    : AGENTS_N2_LIST
 
   const priorites = [
     { value: 'Faible', label: 'Faible', color: '#276749', bg: '#f0fff4' },
