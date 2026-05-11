@@ -1344,7 +1344,9 @@ function Contacts() {
               if (!window.confirm('Synchroniser les contacts depuis les demandes (téléphone + email) ?')) return
               try {
                 const res = await API.post('/contacts/sync-from-demandes')
-                alert(`Synchronisation terminée :\n✅ ${res.data.crees} contact(s) créé(s)\n🔄 ${res.data.mises_a_jour} mis à jour\n— ${res.data.ignores} ignoré(s)`)
+                const msg = [`Synchronisation terminée :`,`✅ ${res.data.crees} contact(s) créé(s)`,`🔄 ${res.data.mises_a_jour} mis à jour`,`— ${res.data.ignores} ignoré(s)`]
+                if (res.data.premiereErreur?.length) msg.push(`\nPremière erreur :\n${res.data.premiereErreur.join('\n')}`)
+                alert(msg.join('\n'))
                 API.get('/contacts').then(r => setContacts(r.data))
               } catch (e) {
                 alert('Erreur lors de la synchronisation')
