@@ -177,6 +177,7 @@ function ResetPassword() {
 function Dashboard({ alertes = [] }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0 })
   const [demandes, setDemandes] = useState([])
+  const [loading, setLoading] = useState(true)
   const [periode, setPeriode] = useState('annee')
   const [periodeDebut, setPeriodeDebut] = useState('')
   const [periodeFin, setPeriodeFin] = useState('')
@@ -226,7 +227,7 @@ function Dashboard({ alertes = [] }) {
   }, {})
 
   useEffect(() => {
-    API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {})
+    API.get('/demandes').then(r => { setDemandes(r.data); setLoading(false) }).catch(() => setLoading(false))
     API.get('/contacts').then(r => setStats(s => ({ ...s, contacts: r.data.length }))).catch(() => {})
     API.get('/deals').then(r => setStats(s => ({ ...s, deals: r.data.length }))).catch(() => {})
   }, [])
@@ -351,6 +352,13 @@ function Dashboard({ alertes = [] }) {
     }, {})
   ).map(([canal, total]) => ({ canal, total }))
    .sort((a, b) => b.total - a.total)
+
+  if (loading) return (
+    <div className="loading-center">
+      <div className="spinner" />
+      Chargement du tableau de bord…
+    </div>
+  )
 
   return (
     <div>
@@ -1473,7 +1481,7 @@ function Contacts() {
         </thead>
         <tbody>
           {contactsFiltres.length === 0 ? (
-            <tr><td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#718096', padding: '2rem' }}>Aucun contact</td></tr>
+            <tr><td colSpan={6}><div className="empty-state"><span className="empty-state-icon">👥</span>Aucun contact trouvé</div></td></tr>
           ) : (
             contactsFiltres.map(c => (
               <tr key={c.id} style={{ ...styles.tr, cursor: 'pointer' }} onClick={() => ouvrirContact(c)}>
@@ -2438,7 +2446,7 @@ function Campagnes() {
         </thead>
         <tbody>
           {campagnesFiltrees.length === 0 ? (
-            <tr><td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#718096', padding: '2rem' }}>Aucune campagne</td></tr>
+            <tr><td colSpan={6}><div className="empty-state"><span className="empty-state-icon">📣</span>Aucune campagne</div></td></tr>
           ) : (
             campagnesFiltrees.map(c => (
               <tr key={c.id} style={{ ...styles.tr, cursor: 'pointer' }} onClick={() => setCampagneOuverte(c)}>
@@ -3728,7 +3736,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               </tr>
             </thead>
             <tbody>
-              {filtered.length===0 ? <tr><td colSpan={15} style={{...styles.td,textAlign:'center',color:'#718096',padding:'3rem'}}>Aucune demande — cliquez sur "+ Nouvelle demande"</td></tr>
+              {filtered.length===0 ? <tr><td colSpan={15}><div className="empty-state"><span className="empty-state-icon">📋</span>Aucune demande trouvée</div></td></tr>
               : filtered.map(d=>(
                 <tr
                   key={d.id}
@@ -5037,67 +5045,79 @@ export default function App() {
   )
 }
 
+const C = {
+  primary: '#2b6cb0', primaryDark: '#1a365d', primaryLight: '#ebf8ff',
+  success: '#276749', successLight: '#f0fff4',
+  warning: '#b7791f', warningLight: '#fffbeb',
+  danger:  '#c53030', dangerLight:  '#fff5f5',
+  surface: '#ffffff', bg: '#f7fafc',
+  border:  '#e2e8f0', muted: '#718096', text: '#2d3748', subtle: '#4a5568',
+}
+const SHADOW = {
+  card:     '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)',
+  elevated: '0 4px 12px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.06)',
+}
+
 const styles = {
-  loginContainer: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f4f8' },
-  loginBox: { background: 'white', padding: '2.5rem 2rem', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.1)', width: '380px' },
-  loginTitle: { textAlign: 'center', color: '#1a365d', marginBottom: '0.5rem' },
-  loginSubtitle: { textAlign: 'center', color: '#666', marginBottom: '1.5rem' },
-  input: { width: '100%', padding: '0.75rem', marginBottom: '1rem', border: '1px solid #ddd', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' },
-  button: { width: '100%', padding: '0.75rem', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer' },
-  error: { color: 'red', textAlign: 'center', marginBottom: '1rem' },
-  layout: { display: 'flex', minHeight: '100vh' },
+  /* ── Auth ───────────────────────────────────────────────── */
+  loginContainer: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg },
+  loginBox: { background: C.surface, padding: '2.5rem 2rem', borderRadius: '12px', boxShadow: SHADOW.elevated, width: '380px' },
+  loginTitle: { textAlign: 'center', color: C.primaryDark, marginBottom: '0.5rem', fontSize: '1.25rem', fontWeight: '700' },
+  loginSubtitle: { textAlign: 'center', color: C.muted, marginBottom: '1.5rem', fontSize: '0.9rem' },
+
+  /* ── Forms ──────────────────────────────────────────────── */
+  input: { width: '100%', padding: '0.625rem 0.75rem', marginBottom: '0.75rem', border: `1px solid ${C.border}`, borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box', color: C.text, background: C.surface, outline: 'none' },
+  button: { width: '100%', padding: '0.625rem 1rem', background: C.primary, color: 'white', border: 'none', borderRadius: '6px', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer', letterSpacing: '0.01em' },
+  error: { color: C.danger, textAlign: 'center', marginBottom: '0.75rem', fontSize: '0.875rem' },
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  layout: { display: 'flex', minHeight: '100vh', background: C.bg },
   nav: {
-    width: '250px',
+    width: '240px',
+    flexShrink: 0,
     background: 'linear-gradient(180deg, #163a63 0%, #1e4a7a 100%)',
-    padding: '1.25rem 1rem',
+    padding: '1rem 0.75rem',
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.35rem'
+    gap: '2px',
+    position: 'sticky',
+    top: 0,
+    height: '100vh',
+    overflowY: 'auto',
   },
-  navTitle: { color: 'white', marginBottom: '1rem', fontSize: '1rem' },
+  navTitle: { color: 'white', marginBottom: '1rem', fontSize: '0.875rem' },
   navLink: {
-    color: '#e6f0fb',
+    color: 'rgba(230,240,251,0.85)',
     textDecoration: 'none',
-    padding: '0.72rem 0.8rem',
-    borderRadius: '10px',
+    padding: '0.5rem 0.75rem',
+    borderRadius: '6px',
     display: 'flex',
     alignItems: 'center',
     gap: '0.5rem',
-    fontSize: '0.92rem',
-    transition: 'all 0.2s ease',
+    fontSize: '0.875rem',
+    fontWeight: '500',
+    transition: 'background 0.15s, color 0.15s',
   },
-  logoutBtn: { marginTop: 'auto', background: 'transparent', color: '#fc8181', border: '1px solid #fc8181', padding: '0.5rem', borderRadius: '6px', cursor: 'pointer' },
-  sidebarIcon: { width: '20px', textAlign: 'center', fontSize: '0.95rem' },
-  sidebarLink: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    padding: '0.65rem 0.9rem',
-    borderRadius: '8px',
-    color: 'white',
-    textDecoration: 'none',
-    fontSize: '0.9rem',
-    marginBottom: '0.35rem'
-  },
-  sidebarBadge: {
-    marginLeft: 'auto',
-    background: '#2b6cb0',
-    color: 'white',
-    fontSize: '0.75rem',
-    padding: '2px 7px',
-    borderRadius: '12px',
-    fontWeight: '600'
-  },
-  main: { flex: 1, padding: '2rem', background: '#f7fafc' },
-  pageTitle: { color: '#1a365d', marginBottom: '1.5rem' },
-  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' },
-  statCard: { background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', textAlign: 'center' },
-  statNum: { fontSize: '2.5rem', fontWeight: 'bold', color: '#2b6cb0' },
-  table: { width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  th: { background: '#edf2f7', padding: '0.75rem 1rem', textAlign: 'left', color: '#4a5568', fontSize: '0.85rem', fontWeight: '600', textTransform: 'uppercase' },
-  tr: { borderBottom: '1px solid #e2e8f0' },
-  td: { padding: '0.75rem 1rem', color: '#2d3748', fontSize: '0.95rem' },
-  form: { background: 'white', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  badge: { background: '#ebf8ff', color: '#2b6cb0', padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.85rem', whiteSpace: 'nowrap' },
+  logoutBtn: { marginTop: 'auto', background: 'transparent', color: '#fc8181', border: '1px solid rgba(252,129,129,0.4)', padding: '0.5rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '500' },
+  sidebarIcon: { width: '18px', textAlign: 'center', fontSize: '0.9rem', flexShrink: 0 },
+  sidebarLink: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: '6px', color: 'rgba(230,240,251,0.85)', textDecoration: 'none', fontSize: '0.875rem', fontWeight: '500' },
+  sidebarBadge: { marginLeft: 'auto', background: 'rgba(255,255,255,0.18)', color: 'white', fontSize: '0.72rem', padding: '1px 6px', borderRadius: '10px', fontWeight: '700' },
+  main: { flex: 1, padding: '1.5rem 2rem', background: C.bg, minWidth: 0 },
+
+  /* ── Page structure ─────────────────────────────────────── */
+  pageTitle: { color: C.primaryDark, marginBottom: '1.25rem', fontSize: '1.125rem', fontWeight: '700', letterSpacing: '-0.01em' },
+  pageHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '0.75rem' },
+  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' },
+  statCard: { background: C.surface, padding: '1.25rem', borderRadius: '8px', boxShadow: SHADOW.card, textAlign: 'center' },
+  statNum: { fontSize: '2rem', fontWeight: '700', color: C.primary, lineHeight: 1 },
+
+  /* ── Tables ─────────────────────────────────────────────── */
+  table: { width: '100%', borderCollapse: 'collapse', background: C.surface, borderRadius: '8px', overflow: 'hidden', boxShadow: SHADOW.card },
+  th: { background: '#f8fafc', padding: '0.5rem 0.75rem', textAlign: 'left', color: C.subtle, fontSize: '0.78rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: `2px solid ${C.border}` },
+  tr: { borderBottom: `1px solid ${C.border}` },
+  td: { padding: '0.5rem 0.75rem', color: C.text, fontSize: '0.875rem', verticalAlign: 'middle' },
+  form: { background: C.surface, padding: '1.25rem', borderRadius: '8px', marginBottom: '1rem', boxShadow: SHADOW.card },
+
+  /* ── Badges ─────────────────────────────────────────────── */
+  badge: { background: C.primaryLight, color: C.primary, padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.8rem', whiteSpace: 'nowrap', fontWeight: '500' },
 }
