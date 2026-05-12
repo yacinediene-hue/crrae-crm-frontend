@@ -4124,51 +4124,52 @@ function FicheClient360({ client, demandes, onClose }) {
 
   return (
     <div style={{
-      position:'fixed',
-      top:0,
-      right:0,
-      width:'420px',
-      height:'100%',
+      position:'fixed', top:0, right:0,
+      width:'420px', height:'100vh',
       background:'white',
-      boxShadow:'-5px 0 20px rgba(0,0,0,0.1)',
-      padding:'1.5rem',
-      zIndex:9999
+      boxShadow:'-5px 0 20px rgba(0,0,0,0.12)',
+      zIndex:9999,
+      display:'flex', flexDirection:'column',
     }}>
+      {/* En-tête fixe avec bouton fermer */}
+      <div style={{
+        display:'flex', justifyContent:'space-between', alignItems:'center',
+        padding:'1rem 1.25rem',
+        borderBottom:'1px solid #e2e8f0',
+        flexShrink:0,
+      }}>
+        <h3 style={{margin:0, color:'#1a365d', fontSize:'1rem', fontWeight:'700'}}>👤 Fiche client</h3>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{background:'none', border:'none', fontSize:'1.4rem', cursor:'pointer', color:'#718096', lineHeight:1, padding:'0.25rem'}}
+          title="Fermer"
+        >✕</button>
+      </div>
 
-      <h3>👤 Fiche client</h3>
+      {/* Contenu scrollable */}
+      <div style={{flex:1, overflowY:'auto', padding:'1.25rem'}}>
+        <p style={{margin:'0 0 0.5rem'}}><strong>{client.nomPrenom}</strong></p>
+        {client.telephone && <p style={{margin:'0 0 0.25rem', color:'#4a5568', fontSize:'0.9rem'}}>📞 {client.telephone}</p>}
+        {client.email    && <p style={{margin:'0 0 0.25rem', color:'#4a5568', fontSize:'0.9rem'}}>📧 {client.email}</p>}
+        {client.matricule && <p style={{margin:'0 0 0.25rem', color:'#4a5568', fontSize:'0.9rem'}}>🪪 {client.matricule}</p>}
 
-      <p><strong>{client.nomPrenom}</strong></p>
-      <p>📞 {client.telephone}</p>
-      <p>📧 {client.email || '—'}</p>
-      <p>🪪 {client.matricule || '—'}</p>
+        <hr style={{margin:'1rem 0', borderColor:'#e2e8f0'}} />
 
-      <hr style={{margin:'1rem 0'}} />
+        <h4 style={{margin:'0 0 0.75rem', color:'#1a365d', fontSize:'0.95rem'}}>Historique des demandes</h4>
 
-      <h4>Historique des demandes</h4>
-
-      {historique.map(d => (
-        <div key={d.id} style={{
-          padding:'0.5rem',
-          borderBottom:'1px solid #eee'
-        }}>
-          {d.numDemande} — {d.objetDemande} — {d.statut}
-        </div>
-      ))}
-
-      <button
-        onClick={onClose}
-        style={{
-          marginTop:'1rem',
-          padding:'0.5rem 1rem',
-          border:'none',
-          background:'#2b6cb0',
-          color:'white',
-          borderRadius:'6px'
-        }}
-      >
-        Fermer
-      </button>
-
+        {historique.length === 0
+          ? <div className="empty-state"><span className="empty-state-icon">📋</span>Aucune demande</div>
+          : historique.map(d => (
+            <div key={d.id} style={{padding:'0.6rem 0.75rem', borderBottom:'1px solid #edf2f7', fontSize:'0.875rem'}}>
+              <span style={{color:'#2b6cb0', fontWeight:'600'}}>{d.numDemande}</span>
+              <span style={{color:'#718096', margin:'0 0.4rem'}}>—</span>
+              <span>{d.objetDemande || '—'}</span>
+              <span style={{float:'right', fontSize:'0.78rem', color:'#718096'}}>{d.statut}</span>
+            </div>
+          ))
+        }
+      </div>
     </div>
   )
 }
