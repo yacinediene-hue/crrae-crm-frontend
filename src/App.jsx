@@ -3877,9 +3877,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
                     <button
                       title="Voir fiche client"
-                      onClick={() => {
-                        openClient(d)
-                      }}
+                      onClick={e => { e.stopPropagation(); openClient(d) }}
                       style={{background:'#edf2f7',color:'#4a5568',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
                     >
                       🪪
@@ -4020,21 +4018,19 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         </div>
       )}
 
-      {clientOpen && selectedClient?._mode === 'search' && (
-        <FicheClient
-          telephone={selectedClient.telephone}
-          matricule={selectedClient.matricule}
-          email={selectedClient.email}
-          onClose={closeClient}
-        />
-      )}
-
-      {clientOpen && selectedClient && !selectedClient._mode && (
-        <FicheClient360
-          client={selectedClient}
-          demandes={demandes}
-          onClose={closeClient}
-        />
+      {clientOpen && selectedClient && (
+        selectedClient._mode === 'search'
+          ? <FicheClient
+              telephone={selectedClient.telephone}
+              matricule={selectedClient.matricule}
+              email={selectedClient.email}
+              onClose={closeClient}
+            />
+          : <FicheClient360
+              client={selectedClient}
+              demandes={demandes}
+              onClose={closeClient}
+            />
       )}
 
       {ticketOuvert && (
