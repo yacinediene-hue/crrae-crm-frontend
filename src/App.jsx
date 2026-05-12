@@ -2783,7 +2783,6 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   }
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState(null)
-  const [showFiche, setShowFiche] = useState(false)
   const [clientOpen, setClientOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState(null)
 
@@ -3656,18 +3655,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </div>
 
             <form onSubmit={handleAdd} style={{...styles.form, marginBottom:0, boxShadow:'none', padding:0}}>
-          {showFiche && <FicheClient
-            telephone={ficheSearch.telephone}
-            matricule={ficheSearch.matricule}
-            email={ficheSearch.email}
-            onClose={() => setShowFiche(false)}
-          />}
           <h3 style={{color:'#1a365d',marginBottom:'1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>👤 Informations client</h3>
           <div style={col2}>
             <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom} onChange={e=>setForm({...form,nomPrenom:e.target.value})} required />
             <input style={inp} placeholder="Matricule" value={form.matricule} 
               onChange={e=>setForm({...form,matricule:e.target.value})}
-              onBlur={e=>{ if(e.target.value.length >= 4) { setFicheSearch({telephone:'', matricule:e.target.value}); setShowFiche(true) }}} />
+              onBlur={e=>{ if(e.target.value.length >= 4) openClient({ _mode:'search', telephone:'', matricule:e.target.value }) }} />
             <input style={inp} placeholder="Adhérent (BOAD, BCEAO...)" value={form.adherent} onChange={e=>setForm({...form,adherent:e.target.value})} />
             <select required style={inp} value={form.typeClient} onChange={e => setForm({ ...form, typeClient: e.target.value })}>
               <option value="">Profil client *</option>
@@ -3681,18 +3674,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
             <input style={inp} placeholder="Téléphone" value={form.telephone}
               onChange={e=>setForm({...form,telephone:e.target.value})}
-              onBlur={e=>{ if(e.target.value.replace(/[^0-9]/g,'').length >= 6) { setFicheSearch({telephone:e.target.value, matricule:''}); setShowFiche(true) }}} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
+              onBlur={e=>{ if(e.target.value.replace(/[^0-9]/g,'').length >= 6) openClient({ _mode:'search', telephone:e.target.value, matricule:'' }) }} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
             <input style={inp} type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}
-              onBlur={e=>{
-                if(e.target.value.length >= 6){
-                  setFicheSearch({
-                    telephone:'',
-                    matricule:'',
-                    email:e.target.value
-                  })
-                  setShowFiche(true)
-                }
-              }}
+              onBlur={e=>{ if(e.target.value.length >= 6) openClient({ _mode:'search', telephone:'', matricule:'', email:e.target.value }) }}
             />
             <input style={inp} placeholder="Heure appel (ex: 09h00)" value={form.heureAppel} onChange={e=>setForm({...form,heureAppel:e.target.value})} />
           </div>
@@ -4036,7 +4020,16 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         </div>
       )}
 
-      {clientOpen && (
+      {clientOpen && selectedClient?._mode === 'search' && (
+        <FicheClient
+          telephone={selectedClient.telephone}
+          matricule={selectedClient.matricule}
+          email={selectedClient.email}
+          onClose={closeClient}
+        />
+      )}
+
+      {clientOpen && selectedClient && !selectedClient._mode && (
         <FicheClient360
           client={selectedClient}
           demandes={demandes}
