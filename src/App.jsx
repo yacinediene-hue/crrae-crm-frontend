@@ -234,11 +234,12 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     API.get('/deals').then(r => setStats(s => ({ ...s, deals: r.data.length }))).catch(() => {})
   }, [])
 
-  // Répartition par statut — tous statuts présents dans les données
+  // Répartition par statut — Traité + Clôturé fusionnés
+  const STATUT_COLORS = { 'Traitées / Clôturées':'#276749','En cours':'#b7791f','En attente':'#2b6cb0','Escaladé':'#6b46c1','En cours N2':'#553c9a','Renvoyé N1':'#c53030' }
   const byStatutMap = demandesFiltrees.reduce((acc, d) => {
-    const s = d.statut || 'Inconnu'; acc[s] = (acc[s] || 0) + 1; return acc
+    const s = STATUTS_CLOS.includes(d.statut) ? 'Traitées / Clôturées' : (d.statut || 'Inconnu')
+    acc[s] = (acc[s] || 0) + 1; return acc
   }, {})
-  const STATUT_COLORS = { 'Traité':'#276749','Clôturé':'#718096','En cours':'#b7791f','En attente':'#2b6cb0','Escaladé':'#6b46c1','En cours N2':'#553c9a','Renvoyé N1':'#c53030' }
   const byStatut = Object.entries(byStatutMap)
     .map(([name, value]) => ({ name, value, color: STATUT_COLORS[name] || '#a0aec0' }))
     .sort((a, b) => b.value - a.value)
