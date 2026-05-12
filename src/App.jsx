@@ -234,11 +234,6 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     API.get('/deals').then(r => setStats(s => ({ ...s, deals: r.data.length }))).catch(() => {})
   }, [])
 
-  // Camembert statut — 2 parts correspondant exactement aux KPIs
-  const byStatut = [
-    { name: 'Traitées / Clôturées', value: demandesTraitees.length, color: '#276749' },
-    { name: 'En traitement',         value: demandesEnCours.length,  color: '#b7791f' },
-  ].filter(s => s.value > 0)
 
   // Répartition par service — dynamique
   const byService = Object.entries(
@@ -325,6 +320,12 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
 
   const demandesTraitees  = demandesFiltrees.filter(d => STATUTS_CLOS.includes(d.statut))
   const demandesEnCours   = demandesFiltrees.filter(d => !STATUTS_CLOS.includes(d.statut))
+
+  // Camembert statut — 2 parts correspondant exactement aux KPIs
+  const byStatut = [
+    { name: 'Traitées / Clôturées', value: demandesTraitees.length, color: '#276749' },
+    { name: 'En traitement',         value: demandesEnCours.length,  color: '#b7791f' },
+  ].filter(s => s.value > 0)
   const demandesCritiques = demandesFiltrees.filter(d =>
     STATUTS_ACTIFS.includes(d.statut) && (
       d.priorite === 'Urgent' ||
