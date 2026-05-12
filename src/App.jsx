@@ -2785,6 +2785,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [editId, setEditId] = useState(null)
   const [showFiche, setShowFiche] = useState(false)
   const [clientActif, setClientActif] = useState(null)
+  const closeClientSheet = () => { setShowClient(false); setClientActif(null) }
   const [ticketOuvert, setTicketOuvert] = useState(null)
   const [timelineTicket, setTimelineTicket] = useState([])
   const [showClient, setShowClient] = useState(false)
@@ -4027,11 +4028,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         </div>
       )}
 
-      {showClient && (
+      {showClient && clientActif && (
         <FicheClient360
           client={clientActif}
           demandes={demandes}
-          onClose={() => setShowClient(false)}
+          onClose={closeClientSheet}
         />
       )}
 
