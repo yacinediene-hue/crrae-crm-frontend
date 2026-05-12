@@ -912,7 +912,10 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
         </div>
 
         <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-          <h3 style={{ color: '#1a365d', marginBottom: '1rem', fontSize: '1rem' }}>🏢 Demandes par service</h3>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'1rem'}}>
+            <h3 style={{ color: '#1a365d', margin:0, fontSize: '1rem' }}>🏢 Demandes par service</h3>
+            <span style={{fontSize:'0.75rem',color:'#718096'}}>demandes avec service assigné</span>
+          </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={byService}>
               <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -920,7 +923,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
               <Tooltip />
               <Legend />
               <Bar dataKey="total" name="Total" fill="#2b6cb0" />
-              <Bar dataKey="traite" name="Traité" fill="#276749" />
+              <Bar dataKey="traite" name="Traitées" fill="#276749" />
             </BarChart>
           </ResponsiveContainer>
         </div>
