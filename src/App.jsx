@@ -174,10 +174,10 @@ function ResetPassword() {
 }
 
 // Dashboard
-function Dashboard({ alertes = [] }) {
+function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0 })
-  const [demandes, setDemandes] = useState([])
-  const [loading, setLoading] = useState(true)
+  const demandes = demandesProp
+  const loading = false
   const [periode, setPeriode] = useState('annee')
   const [periodeDebut, setPeriodeDebut] = useState('')
   const [periodeFin, setPeriodeFin] = useState('')
@@ -227,7 +227,6 @@ function Dashboard({ alertes = [] }) {
   }, {})
 
   useEffect(() => {
-    API.get('/demandes').then(r => { setDemandes(r.data); setLoading(false) }).catch(() => setLoading(false))
     API.get('/contacts').then(r => setStats(s => ({ ...s, contacts: r.data.length }))).catch(() => {})
     API.get('/deals').then(r => setStats(s => ({ ...s, deals: r.data.length }))).catch(() => {})
   }, [])
@@ -2758,7 +2757,7 @@ function PanneauCommentaires({ demande, onClose }) {
   )
 }
 
-function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte }) {
+function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte, demandesInitiales = [], onDemandesChange }) {
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
@@ -2772,6 +2771,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [showFiltres, setShowFiltres] = useState(false)
   const [filtresColonnes, setFiltresColonnes] = useState({})
   const [colonneActive, setColonneActive] = useState(null)
+
+  // Met à jour l'état local ET remonte au parent (App) pour le Dashboard
+  const syncDemandes = (updated) => {
+    setDemandes(updated)
+    onDemandesChange?.(updated)
+  }
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: '', profilClient: '', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WHATSAPP', telephone: '', email: '',
@@ -2807,7 +2812,16 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     nomPrenom: '',
     numDemande: '',
   })
-  useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
+  useEffect(() => {
+    if (demandesInitiales.length > 0) {
+      setDemandes(demandesInitiales)
+    } else {
+      API.get('/demandes').then(r => {
+        setDemandes(r.data)
+        onDemandesChange?.(r.data)
+      }).catch(() => {})
+    }
+  }, [])
 
   useEffect(() => {
     if (ticketOuvert) {
@@ -2858,7 +2872,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         }
         delete payload.numDemande
         const res = await API.put(`/demandes/${editId}`, payload)
-        setDemandes(demandes.map(d => d.id === editId ? res.data : d))
+        syncDemandes(demandes.map(d => d.id === editId ? res.data : d))
 
         await API.post('/timeline', {
           demandeId: editId,
@@ -2888,7 +2902,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         }
         delete createPayload.numDemande
         const res = await API.post('/demandes', createPayload)
-        setDemandes([res.data, ...demandes])
+        syncDemandes([res.data, ...demandes])
       }
       setForm(emptyForm)
       setShowForm(false)
@@ -2927,7 +2941,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const handlePrendreEnCharge = async (d) => {
     try {
       const res = await API.post(`/demandes/${d.id}/prendre-en-charge`)
-      setDemandes(demandes.map(x => x.id === d.id ? res.data : x))
+      syncDemandes(demandes.map(x => x.id === d.id ? res.data : x))
     } catch (err) { alert('Erreur : ' + (err?.response?.data?.message || err.message)) }
   }
 
@@ -2935,7 +2949,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     e.preventDefault()
     try {
       const res = await API.post(`/demandes/${renvoyerModal.id}/renvoyer-n1`, { motif: renvoyerMotif })
-      setDemandes(demandes.map(x => x.id === renvoyerModal.id ? res.data : x))
+      syncDemandes(demandes.map(x => x.id === renvoyerModal.id ? res.data : x))
       setRenvoyerModal(null); setRenvoyerMotif('')
     } catch (err) { alert('Erreur : ' + (err?.response?.data?.message || err.message)) }
   }
@@ -2945,7 +2959,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     setEscaladeLoading(true)
     try {
       const res = await API.post(`/demandes/${demandeEscalade.id}/escalader`, escaladeForm)
-      setDemandes(demandes.map(d => d.id === demandeEscalade.id ? res.data : d))
+      syncDemandes(demandes.map(d => d.id === demandeEscalade.id ? res.data : d))
       setDemandeEscalade(null)
       setEscaladeForm({ agentN2: '', service: '', motif: '' })
     } catch (err) {
@@ -2962,7 +2976,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (!auto && !window.confirm("Envoyer l'enquête de satisfaction par email ?")) return
     try {
       const res = await API.post(`/demandes/${d.id}/send-survey`)
-      setDemandes(demandes.map(item => item.id === d.id ? res.data : item))
+      syncDemandes(demandes.map(item => item.id === d.id ? res.data : item))
     } catch (err) {
       console.error("Erreur envoi enquête", err)
       alert("L'envoi de l'enquête a échoué.")
@@ -2973,7 +2987,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (!window.confirm('Supprimer cette demande ?')) return
     try {
       await API.delete(`/demandes/${id}`)
-      setDemandes(demandes.filter(d => d.id !== id))
+      syncDemandes(demandes.filter(d => d.id !== id))
     } catch { alert("Erreur suppression") }
   }
   const f = (v) => v || '—'
@@ -3118,7 +3132,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         // eslint-disable-next-line no-unused-vars
         const { _doublon, _raison, numDemande: _num, ...data } = ligne
         const res = await API.post('/demandes', data)
-        setDemandes(prev => [res.data, ...prev])
+        setDemandes(prev => { const n = [res.data, ...prev]; onDemandesChange?.(n); return n })
         importes++
       } catch (err) {
         erreurs++
@@ -5139,7 +5153,7 @@ export default function App() {
         {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
         {demandeAssignation && <ModalAssignation demande={demandeAssignation} onClose={() => setDemandeAssignation(null)} onAssigned={(d) => { setDemandeAssignation(null) }} />}
         <Routes>
-          <Route path="/dashboard" element={<Dashboard alertes={alertes} />} />
+          <Route path="/dashboard" element={<Dashboard alertes={alertes} demandes={demandesApp} />} />
           <Route path="/critiques" element={<FileCritique />} />
           <Route
             path="/demandes"
@@ -5149,6 +5163,8 @@ export default function App() {
                 onAssigner={setDemandeAssignation}
                 ouvrirNouvelleDemande={ouvrirNouvelleDemande}
                 onNouvelleDemandeOuverte={() => setOuvrirNouvelleDemande(false)}
+                demandesInitiales={demandesApp}
+                onDemandesChange={setDemandesApp}
               />
             }
           />
