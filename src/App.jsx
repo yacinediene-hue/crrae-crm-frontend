@@ -2784,11 +2784,20 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState(null)
   const [showFiche, setShowFiche] = useState(false)
-  const [clientActif, setClientActif] = useState(null)
-  const closeClientSheet = () => { setShowClient(false); setClientActif(null) }
+  const [clientOpen, setClientOpen] = useState(false)
+  const [selectedClient, setSelectedClient] = useState(null)
+
+  const openClient = (client) => {
+    setSelectedClient(client)
+    setClientOpen(true)
+  }
+
+  const closeClient = () => {
+    setClientOpen(false)
+    setSelectedClient(null)
+  }
   const [ticketOuvert, setTicketOuvert] = useState(null)
   const [timelineTicket, setTimelineTicket] = useState([])
-  const [showClient, setShowClient] = useState(false)
   const [importData, setImportData] = useState(null) // { lignes, doublons, aImporter }
   const [ignorerDoublons, setIgnorerDoublons] = useState(false)
   const [ficheSearch, setFicheSearch] = useState({
@@ -3885,8 +3894,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                     <button
                       title="Voir fiche client"
                       onClick={() => {
-                        setClientActif(d)
-                        setShowClient(true)
+                        openClient(d)
                       }}
                       style={{background:'#edf2f7',color:'#4a5568',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
                     >
@@ -4028,11 +4036,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         </div>
       )}
 
-      {showClient && clientActif && (
+      {clientOpen && (
         <FicheClient360
-          client={clientActif}
+          client={selectedClient}
           demandes={demandes}
-          onClose={closeClientSheet}
+          onClose={closeClient}
         />
       )}
 
