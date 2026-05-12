@@ -221,8 +221,8 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   const filesService = demandesFiltrees.reduce((acc, d) => {
     const service = d.service || 'Autre'
     if (!acc[service]) acc[service] = { enCours: 0, horsSla: 0 }
-    if (d.statut === 'En cours') acc[service].enCours++
-    if (d.statut !== 'Traité' && d.respectDelai === 'NON') acc[service].horsSla++
+    if (!STATUTS_CLOS.includes(d.statut)) acc[service].enCours++
+    if (!STATUTS_CLOS.includes(d.statut) && d.respectDelai === 'NON') acc[service].horsSla++
     return acc
   }, {})
 
@@ -231,24 +231,37 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     API.get('/deals').then(r => setStats(s => ({ ...s, deals: r.data.length }))).catch(() => {})
   }, [])
 
-  const byStatut = [
-    { name: 'Traité', value: demandesFiltrees.filter(d => d.statut === 'Traité').length, color: '#276749' },
-    { name: 'En cours', value: demandesFiltrees.filter(d => d.statut === 'En cours').length, color: '#b7791f' },
-    { name: 'En attente', value: demandesFiltrees.filter(d => d.statut === 'En attente').length, color: '#2b6cb0' },
-  ]
+  // Répartition par statut — tous statuts présents dans les données
+  const byStatutMap = demandesFiltrees.reduce((acc, d) => {
+    const s = d.statut || 'Inconnu'; acc[s] = (acc[s] || 0) + 1; return acc
+  }, {})
+  const STATUT_COLORS = { 'Traité':'#276749','Clôturé':'#718096','En cours':'#b7791f','En attente':'#2b6cb0','Escaladé':'#6b46c1','En cours N2':'#553c9a','Renvoyé N1':'#c53030' }
+  const byStatut = Object.entries(byStatutMap)
+    .map(([name, value]) => ({ name, value, color: STATUT_COLORS[name] || '#a0aec0' }))
+    .sort((a, b) => b.value - a.value)
 
-  const services = ['DPM','DPR','DSI','DCR','PATRIMOINE']
-  const byService = services.map(s => ({
-    name: s,
-    total: demandesFiltrees.filter(d => d.service === s).length,
-    traite: demandesFiltrees.filter(d => d.service === s && d.statut === 'Traité').length,
-  })).filter(s => s.total > 0)
+  // Répartition par service — dynamique
+  const byService = Object.entries(
+    demandesFiltrees.reduce((acc, d) => {
+      const s = d.service || 'Non défini'
+      if (!acc[s]) acc[s] = { total: 0, traite: 0 }
+      acc[s].total++
+      if (['Traité','Clôturé'].includes(d.statut)) acc[s].traite++
+      return acc
+    }, {})
+  ).map(([name, v]) => ({ name, total: v.total, traite: v.traite }))
+    .filter(s => s.total > 0)
+    .sort((a, b) => b.total - a.total)
 
-  const canaux = ['WhatsApp','Email','Appel','Courrier']
-  const byCanal = canaux.map(c => ({
-    name: c,
-    value: demandesFiltrees.filter(d => d.canal === c).length,
-  })).filter(c => c.value > 0)
+  // Répartition par canal — utilise labelCanalDemande pour les enums
+  const byCanal = Object.entries(
+    demandesFiltrees.reduce((acc, d) => {
+      const c = labelCanalDemande(d.canal) || 'Non défini'
+      acc[c] = (acc[c] || 0) + 1; return acc
+    }, {})
+  ).map(([name, value]) => ({ name, value }))
+    .filter(c => c.value > 0)
+    .sort((a, b) => b.value - a.value)
 
 
   const COLORS = ['#2b6cb0','#276749','#b7791f','#6b46c1','#c53030']
