@@ -310,8 +310,9 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     { name: 'Détracteurs', value: npsStats.detracteurs, color: '#c53030' },
   ]
 
-  const demandesEnCours = demandesFiltrees.filter(d => d.statut === 'En cours')
-  const demandesTraitees = demandesFiltrees.filter(d => d.statut === 'Traité')
+  const STATUTS_CLOS = ['Traité', 'Clôturé']
+  const demandesTraitees  = demandesFiltrees.filter(d => STATUTS_CLOS.includes(d.statut))
+  const demandesEnCours   = demandesFiltrees.filter(d => !STATUTS_CLOS.includes(d.statut))
   const demandesCritiques = demandesFiltrees.filter(d =>
     ['En cours', 'En attente'].includes(d.statut) && (
       d.priorite === 'Urgent' ||
@@ -395,8 +396,8 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
           {label:'Demandes', val:demandesFiltrees.length, col:'#2b6cb0', icon:'📥'},
-          {label:'En cours', val:demandesEnCours.length, col:'#b7791f', icon:'⏳'},
-          {label:'Traitées', val:demandesTraitees.length, col:'#276749', icon:'✅'},
+          {label:'En traitement', val:demandesEnCours.length, col:'#b7791f', icon:'⏳'},
+          {label:'Traitées / Clôturées', val:demandesTraitees.length, col:'#276749', icon:'✅'},
           {label:'Hors SLA', val:demandesHorsSla.length, col:'#c53030', icon:'⚠️'},
         ].map(card => (
           <div
