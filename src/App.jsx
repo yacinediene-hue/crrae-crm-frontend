@@ -327,14 +327,14 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     { name: 'En traitement',         value: demandesEnCours.length,  color: '#b7791f' },
   ].filter(s => s.value > 0)
   const demandesCritiques = demandesFiltrees.filter(d =>
-    STATUTS_ACTIFS.includes(d.statut) && (
+    !STATUTS_CLOS.includes(d.statut) && (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
       (d.objetDemande || '').toLowerCase().includes('réclamation')
     )
   )
   const demandesHorsSla = demandesFiltrees.filter(d =>
-    STATUTS_ACTIFS.includes(d.statut) && d.respectDelai === 'NON'
+    !STATUTS_CLOS.includes(d.statut) && d.respectDelai === 'NON'
   )
 
   const demandesEntrantes = [...demandesFiltrees]
