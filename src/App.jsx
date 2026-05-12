@@ -939,18 +939,27 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
 
         <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
           <h3 style={{ color: '#1a365d', marginBottom: '1rem', fontSize: '1rem' }}>⏱️ Respect des délais</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={[
-                { name: 'OUI', value: demandesFiltrees.filter(d => d.respectDelai === 'OUI').length, color: '#276749' },
-                { name: 'NON', value: demandesFiltrees.filter(d => d.respectDelai === 'NON').length, color: '#c53030' },
-              ]} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({name,value}) => `${name}: ${value}`}>
-                <Cell fill="#276749" />
-                <Cell fill="#c53030" />
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          {(() => {
+            const oui    = demandesFiltrees.filter(d => d.respectDelai === 'OUI').length
+            const non    = demandesFiltrees.filter(d => d.respectDelai === 'NON').length
+            const nonCalc = demandesFiltrees.filter(d => !d.respectDelai).length
+            const data = [
+              { name: 'Dans les délais', value: oui,     color: '#276749' },
+              { name: 'Hors délais',     value: non,     color: '#c53030' },
+              ...(nonCalc > 0 ? [{ name: 'Non calculé', value: nonCalc, color: '#cbd5e0' }] : []),
+            ].filter(d => d.value > 0)
+            return (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={data} cx="50%" cy="50%" outerRadius={80} dataKey="value"
+                    label={({name, value}) => `${name}: ${value}`}>
+                    {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )
+          })()}
         </div>
       </div>
     </div>
