@@ -178,7 +178,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   const [stats, setStats] = useState({ contacts: 0, deals: 0 })
   const demandes = demandesProp
   const loading = false
-  const [periode, setPeriode] = useState('annee')
+  const [periode, setPeriode] = useState('tout')
   const [periodeDebut, setPeriodeDebut] = useState('')
   const [periodeFin, setPeriodeFin] = useState('')
 
@@ -368,13 +368,14 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
           onChange={e => setPeriode(e.target.value)}
           style={{padding:'0.5rem 0.75rem', borderRadius:'6px', border:'1px solid #ddd', fontSize:'0.875rem'}}
         >
-          <option value="today">Aujourd'hui</option>
-          <option value="7j">7 derniers jours</option>
-          <option value="30j">30 derniers jours</option>
-          <option value="3m">3 derniers mois</option>
-          <option value="6m">6 derniers mois</option>
-          <option value="12m">12 derniers mois</option>
+          <option value="tout">Tout l'historique</option>
           <option value="annee">Cette année</option>
+          <option value="12m">12 derniers mois</option>
+          <option value="6m">6 derniers mois</option>
+          <option value="3m">3 derniers mois</option>
+          <option value="30j">30 derniers jours</option>
+          <option value="7j">7 derniers jours</option>
+          <option value="today">Aujourd'hui</option>
           <option value="custom">Période personnalisée</option>
         </select>
         {periode === 'custom' && (
