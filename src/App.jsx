@@ -3512,8 +3512,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
           {label:'Total',val:filtered.length,bg:'#ebf8ff',col:'#2b6cb0', icon:'📌'},
-          {label:'Traitées',val:filtered.filter(d=>d.statut==='Traité').length,bg:'#f0fff4',col:'#276749', icon:'✅'},
-          {label:'En cours',val:filtered.filter(d=>d.statut==='En cours').length,bg:'#fffbeb',col:'#b7791f', icon:'⏳'},
+          {label:'Traitées',val:filtered.filter(d=>['Traité','Clôturé'].includes(d.statut)).length,bg:'#f0fff4',col:'#276749', icon:'✅'},
+          {label:'En traitement',val:filtered.filter(d=>!['Traité','Clôturé'].includes(d.statut)).length,bg:'#fffbeb',col:'#b7791f', icon:'⏳'},
           {label:'Délai OK',val:filtered.filter(d=>d.respectDelai==='OUI').length,bg:'#faf5ff',col:'#6b46c1', icon:'📊'}
         ].map(s => (
           <div key={s.label} style={{
