@@ -2787,6 +2787,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [selectedClient, setSelectedClient] = useState(null)
 
   const openClient = (client) => {
+    setTicketOuvert(null)   // ferme le ticket panel s'il est ouvert
     setSelectedClient(client)
     setClientOpen(true)
   }
@@ -3793,7 +3794,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                     background: d.priorite === 'Urgent' ? '#fffaf0' : 'white',
                     cursor: 'pointer'
                   }}
-                  onClick={() => setTicketOuvert(d)}
+                  onClick={() => { closeClient(); setTicketOuvert(d) }}
                 >
                   <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
                   <td style={styles.td}>{d.dateReception?new Date(d.dateReception).toLocaleDateString('fr-FR'):'—'}</td>
