@@ -234,15 +234,11 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     API.get('/deals').then(r => setStats(s => ({ ...s, deals: r.data.length }))).catch(() => {})
   }, [])
 
-  // Répartition par statut — Traité + Clôturé fusionnés
-  const STATUT_COLORS = { 'Traitées / Clôturées':'#276749','En cours':'#b7791f','En attente':'#2b6cb0','Escaladé':'#6b46c1','En cours N2':'#553c9a','Renvoyé N1':'#c53030' }
-  const byStatutMap = demandesFiltrees.reduce((acc, d) => {
-    const s = STATUTS_CLOS.includes(d.statut) ? 'Traitées / Clôturées' : (d.statut || 'Inconnu')
-    acc[s] = (acc[s] || 0) + 1; return acc
-  }, {})
-  const byStatut = Object.entries(byStatutMap)
-    .map(([name, value]) => ({ name, value, color: STATUT_COLORS[name] || '#a0aec0' }))
-    .sort((a, b) => b.value - a.value)
+  // Camembert statut — 2 parts correspondant exactement aux KPIs
+  const byStatut = [
+    { name: 'Traitées / Clôturées', value: demandesTraitees.length, color: '#276749' },
+    { name: 'En traitement',         value: demandesEnCours.length,  color: '#b7791f' },
+  ].filter(s => s.value > 0)
 
   // Répartition par service — dynamique
   const byService = Object.entries(
