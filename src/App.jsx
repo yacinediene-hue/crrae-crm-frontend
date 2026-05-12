@@ -310,17 +310,20 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     { name: 'Détracteurs', value: npsStats.detracteurs, color: '#c53030' },
   ]
 
-  const STATUTS_CLOS = ['Traité', 'Clôturé']
+  const STATUTS_CLOS   = ['Traité', 'Clôturé']
+  const STATUTS_ACTIFS = ['En cours', 'En attente', 'Escaladé', 'En cours N2', 'Renvoyé N1']
   const demandesTraitees  = demandesFiltrees.filter(d => STATUTS_CLOS.includes(d.statut))
   const demandesEnCours   = demandesFiltrees.filter(d => !STATUTS_CLOS.includes(d.statut))
   const demandesCritiques = demandesFiltrees.filter(d =>
-    ['En cours', 'En attente'].includes(d.statut) && (
+    STATUTS_ACTIFS.includes(d.statut) && (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
-      d.objetDemande === 'Réclamation'
+      (d.objetDemande || '').toLowerCase().includes('réclamation')
     )
   )
-  const demandesHorsSla = demandesFiltrees.filter(d => ['En cours', 'En attente'].includes(d.statut) && d.respectDelai === 'NON')
+  const demandesHorsSla = demandesFiltrees.filter(d =>
+    STATUTS_ACTIFS.includes(d.statut) && d.respectDelai === 'NON'
+  )
 
   const demandesEntrantes = [...demandesFiltrees]
     .sort((a, b) => new Date(b.dateReception || b.createdAt) - new Date(a.dateReception || a.createdAt))
@@ -677,32 +680,25 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
         </div>
       </div>
 
-      {(demandesCritiques.length > 0 || demandesHorsSla.length > 0) && (
-        <div style={{
-          background:'white',
-          borderRadius:'14px',
-          padding:'1rem 1.25rem',
-          boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-          marginBottom:'1rem',
-          borderLeft:'5px solid #c53030'
-        }}>
-          <div style={{fontWeight:'700', color:'#1a365d', marginBottom:'0.6rem'}}>
-            🚨 Points de vigilance
+      <div style={{
+        display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0.75rem',
+        marginBottom:'1rem'
+      }}>
+        <div style={{background:'white', borderRadius:'10px', padding:'1rem', boxShadow:'0 1px 3px rgba(0,0,0,0.08)', borderLeft:'4px solid #c53030', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div>
+            <div style={{fontSize:'0.78rem', color:'#718096', marginBottom:'0.25rem'}}>🚨 Demandes critiques</div>
+            <div style={{fontSize:'1.75rem', fontWeight:'700', color:'#c53030', lineHeight:1}}>{demandesCritiques.length}</div>
           </div>
-
-          {demandesCritiques.length > 0 && (
-            <div style={{color:'#c53030', marginBottom:'0.35rem'}}>
-              {demandesCritiques.length} demande(s) critique(s)
-            </div>
-          )}
-
-          {demandesHorsSla.length > 0 && (
-            <div style={{color:'#b7791f'}}>
-              {demandesHorsSla.length} demande(s) hors SLA
-            </div>
-          )}
+          <Link to="/critiques" style={{fontSize:'0.78rem', color:'#c53030', textDecoration:'none', border:'1px solid #fed7d7', padding:'0.3rem 0.6rem', borderRadius:'6px'}}>Voir →</Link>
         </div>
-      )}
+        <div style={{background:'white', borderRadius:'10px', padding:'1rem', boxShadow:'0 1px 3px rgba(0,0,0,0.08)', borderLeft:'4px solid #b7791f', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <div>
+            <div style={{fontSize:'0.78rem', color:'#718096', marginBottom:'0.25rem'}}>⚠️ Hors SLA</div>
+            <div style={{fontSize:'1.75rem', fontWeight:'700', color:'#b7791f', lineHeight:1}}>{demandesHorsSla.length}</div>
+          </div>
+          <Link to="/demandes" style={{fontSize:'0.78rem', color:'#b7791f', textDecoration:'none', border:'1px solid #fbd38d', padding:'0.3rem 0.6rem', borderRadius:'6px'}}>Voir →</Link>
+        </div>
+      </div>
 
       {alertes && alertes.length > 0 && (
         <div style={{background:'#fff5f5', border:'1px solid #feb2b2', borderRadius:'12px', padding:'1.25rem', marginBottom:'1.5rem'}}>
