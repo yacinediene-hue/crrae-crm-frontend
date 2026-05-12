@@ -182,6 +182,9 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   const [periodeDebut, setPeriodeDebut] = useState('')
   const [periodeFin, setPeriodeFin] = useState('')
 
+  const STATUTS_CLOS   = ['Traité', 'Clôturé']
+  const STATUTS_ACTIFS = ['En cours', 'En attente', 'Escaladé', 'En cours N2', 'Renvoyé N1']
+
   const demandesFiltrees = demandes.filter((d) => {
     const ref = d.dateReception || d.createdAt
     if (!ref) return true
@@ -323,8 +326,6 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
     { name: 'Détracteurs', value: npsStats.detracteurs, color: '#c53030' },
   ]
 
-  const STATUTS_CLOS   = ['Traité', 'Clôturé']
-  const STATUTS_ACTIFS = ['En cours', 'En attente', 'Escaladé', 'En cours N2', 'Renvoyé N1']
   const demandesTraitees  = demandesFiltrees.filter(d => STATUTS_CLOS.includes(d.statut))
   const demandesEnCours   = demandesFiltrees.filter(d => !STATUTS_CLOS.includes(d.statut))
   const demandesCritiques = demandesFiltrees.filter(d =>
