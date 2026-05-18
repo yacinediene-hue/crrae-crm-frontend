@@ -698,7 +698,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
       }}>
         <div style={{background:'white', borderRadius:'10px', padding:'1rem', boxShadow:'0 1px 3px rgba(0,0,0,0.08)', borderLeft:'4px solid #c53030', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
           <div>
-            <div style={{fontSize:'0.78rem', color:'#718096', marginBottom:'0.25rem'}}>🚨 Demandes critiques</div>
+            <Link to="/critiques" style={{fontSize:'0.78rem', color:'#c53030', textDecoration:'none', fontWeight:'600', display:'block', marginBottom:'0.25rem'}}>🚨 Demandes critiques ↗</Link>
             <div style={{fontSize:'1.75rem', fontWeight:'700', color:'#c53030', lineHeight:1}}>{demandesCritiques.length}</div>
           </div>
           <Link to="/critiques" style={{fontSize:'0.78rem', color:'#c53030', textDecoration:'none', border:'1px solid #fed7d7', padding:'0.3rem 0.6rem', borderRadius:'6px'}}>Voir →</Link>
