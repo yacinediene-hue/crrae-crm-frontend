@@ -508,7 +508,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #f6e05e',
             borderRadius:'10px'
           }}>
-            <Link to="/demandes" style={{color:'#975a16', fontWeight:'600', textDecoration:'none'}}>Demandes hors SLA ↗</Link>
+            <Link to="/demandes?filtre=horsSla" style={{color:'#975a16', fontWeight:'600', textDecoration:'none'}}>Demandes hors SLA ↗</Link>
             <span style={{
               background:'#b7791f',
               color:'white',
@@ -530,7 +530,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #fbd38d',
             borderRadius:'10px'
           }}>
-            <Link to="/demandes" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
+            <Link to="/demandes?statut=En+cours" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
             <span style={{
               background:'#d69e2e',
               color:'white',
@@ -2797,10 +2797,14 @@ function PanneauCommentaires({ demande, onClose }) {
 }
 
 function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte, demandesInitiales = [], onDemandesChange }) {
+  const location = useLocation()
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
-  const [filterStatut, setFilterStatut] = useState('')
+  const [filterStatut, setFilterStatut] = useState(() => {
+    const p = new URLSearchParams(location.search)
+    return p.get('statut') || ''
+  })
   const [filterCanal, setFilterCanal] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterTypeClient, setFilterTypeClient] = useState('')
@@ -2852,6 +2856,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     nomPrenom: '',
     numDemande: '',
   })
+  // Appliquer le filtre URL horsSla au montage
+  useEffect(() => {
+    const p = new URLSearchParams(location.search)
+    if (p.get('filtre') === 'horsSla') {
+      setFiltresColonnes(f => ({ ...f, respectDelai: 'NON' }))
+    }
+  }, [])
+
   useEffect(() => {
     if (demandesInitiales.length > 0) {
       setDemandes(demandesInitiales)
@@ -3243,6 +3255,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (filtresColonnes.service && d.service !== filtresColonnes.service) return false
     if (filtresColonnes.statut && d.statut !== filtresColonnes.statut) return false
     if (filtresColonnes.priorite && d.priorite !== filtresColonnes.priorite) return false
+    if (filtresColonnes.respectDelai && d.respectDelai !== filtresColonnes.respectDelai) return false
     return true
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
