@@ -2522,7 +2522,7 @@ function Campagnes() {
 
 
 
-function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomProp, onClose }) {
+function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomProp, onClose, onUtiliser }) {
   const [client, setClient] = useState(null)
   const [demandes, setDemandes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -2598,7 +2598,18 @@ function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomPro
               <div style={{fontSize:'0.7rem', color:'#718096'}}>note moy.</div>
             </div>
           )}
-          <button onClick={onClose} style={{background:'transparent', border:'none', fontSize:'1.25rem', cursor:'pointer', color:'#276749', lineHeight:1, padding:'0.25rem'}} title="Fermer la fiche">✕</button>
+          <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+            {onUtiliser && (
+              <button
+                type="button"
+                onClick={() => onUtiliser(client)}
+                style={{background:'#276749',color:'white',border:'none',borderRadius:'6px',padding:'0.35rem 0.75rem',cursor:'pointer',fontSize:'0.8rem',fontWeight:'600'}}
+              >
+                ✔ Utiliser ce client
+              </button>
+            )}
+            <button onClick={onClose} style={{background:'transparent', border:'none', fontSize:'1.25rem', cursor:'pointer', color:'#276749', lineHeight:1, padding:'0.25rem'}} title="Fermer la fiche">✕</button>
+          </div>
         </div>
       </div>
       {demandes.length > 0 && (
@@ -2818,6 +2829,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [editId, setEditId] = useState(null)
   const [clientOpen, setClientOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState(null)
+  const [inlineSearch, setInlineSearch] = useState(null) // recherche inline dans le formulaire
 
   const openClient = (client) => {
     setTicketOuvert(null)   // ferme le ticket panel s'il est ouvert
@@ -3702,11 +3714,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           <div style={col2}>
             <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom}
               onChange={e=>setForm({...form,nomPrenom:e.target.value})}
-              onBlur={e=>{ if(e.target.value.trim().length >= 3) openClient({ _mode:'search', nomPrenom:e.target.value, telephone:'', matricule:'' }) }}
+              onBlur={e=>{ if(e.target.value.trim().length >= 3) setInlineSearch({ nomPrenom:e.target.value, telephone:'', matricule:'' }) }}
               required />
             <input style={inp} placeholder="Matricule" value={form.matricule} 
               onChange={e=>setForm({...form,matricule:e.target.value})}
-              onBlur={e=>{ if(e.target.value.length >= 4) openClient({ _mode:'search', telephone:'', matricule:e.target.value }) }} />
+              onBlur={e=>{ if(e.target.value.length >= 4) setInlineSearch({ telephone:'', matricule:e.target.value, nomPrenom:'' }) }} />
             <input style={inp} placeholder="Adhérent (BOAD, BCEAO...)" value={form.adherent} onChange={e=>setForm({...form,adherent:e.target.value})} />
             <select required style={inp} value={form.typeClient} onChange={e => setForm({ ...form, typeClient: e.target.value })}>
               <option value="">Profil client *</option>
@@ -3720,12 +3732,35 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
             <input style={inp} placeholder="Téléphone" value={form.telephone}
               onChange={e=>setForm({...form,telephone:e.target.value})}
-              onBlur={e=>{ if(e.target.value.replace(/[^0-9]/g,'').length >= 6) openClient({ _mode:'search', telephone:e.target.value, matricule:'' }) }} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
+              onBlur={e=>{ if(e.target.value.replace(/[^0-9]/g,'').length >= 6) setInlineSearch({ telephone:e.target.value, matricule:'', nomPrenom:'' }) }} onFocus={e=>{ if(!form.telephone && form.pays && INDICATIFS[form.pays]) setForm(f=>({...f,telephone:INDICATIFS[form.pays]}))}} />
             <input style={inp} type="email" placeholder="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}
-              onBlur={e=>{ if(e.target.value.length >= 6) openClient({ _mode:'search', telephone:'', matricule:'', email:e.target.value }) }}
+              onBlur={e=>{ if(e.target.value.length >= 6) setInlineSearch({ telephone:'', matricule:'', email:e.target.value, nomPrenom:'' }) }}
             />
             <input style={inp} placeholder="Heure appel (ex: 09h00)" value={form.heureAppel} onChange={e=>setForm({...form,heureAppel:e.target.value})} />
           </div>
+          {inlineSearch && (
+            <FicheClient
+              telephone={inlineSearch.telephone}
+              matricule={inlineSearch.matricule}
+              email={inlineSearch.email}
+              nomPrenom={inlineSearch.nomPrenom}
+              onClose={() => setInlineSearch(null)}
+              onUtiliser={(clientData) => {
+                setForm(f => ({
+                  ...f,
+                  nomPrenom:   clientData.nomPrenom  || f.nomPrenom,
+                  telephone:   clientData.telephone  || f.telephone,
+                  email:       clientData.email      || f.email,
+                  matricule:   clientData.matricule  || f.matricule,
+                  pays:        clientData.pays        || f.pays,
+                  typeClient:  clientData.typeClient  || f.typeClient,
+                  adherent:    clientData.adherent    || f.adherent,
+                }))
+                setInlineSearch(null)
+              }}
+            />
+          )}
+
           <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>📨 Demande</h3>
           <div style={col2}>
             <select style={inp} value={form.objetDemande} onChange={e=>setForm({...form,objetDemande:e.target.value})}>
