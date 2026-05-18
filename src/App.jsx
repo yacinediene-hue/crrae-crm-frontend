@@ -410,19 +410,23 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
-          {label:'Demandes', val:demandesFiltrees.length, col:'#2b6cb0', icon:'📥'},
-          {label:'Non résolues', val:demandesEnCours.length, col:'#b7791f', icon:'⏳'},
-          {label:'Traitées / Clôturées', val:demandesTraitees.length, col:'#276749', icon:'✅'},
-          {label:'Hors SLA', val:demandesHorsSla.length, col:'#c53030', icon:'⚠️'},
+          {label:'Demandes', val:demandesFiltrees.length, col:'#2b6cb0', icon:'📥', to:'/demandes'},
+          {label:'Non résolues', val:demandesEnCours.length, col:'#b7791f', icon:'⏳', to:'/demandes?filtre=enTraitement'},
+          {label:'Traitées / Clôturées', val:demandesTraitees.length, col:'#276749', icon:'✅', to:'/demandes'},
+          {label:'Hors SLA', val:demandesHorsSla.length, col:'#c53030', icon:'⚠️', to:'/demandes?filtre=horsSla'},
         ].map(card => (
-          <div
+          <Link
             key={card.label}
+            to={card.to}
             style={{
               background:'white',
               borderRadius:'14px',
               padding:'1rem',
               boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-              borderTop:`4px solid ${card.col}`
+              borderTop:`4px solid ${card.col}`,
+              textDecoration:'none',
+              display:'block',
+              cursor:'pointer'
             }}
           >
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -445,7 +449,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             <div style={{fontSize:'2rem', fontWeight:'700', color:card.col, marginTop:'0.45rem'}}>
               {card.val}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -530,7 +534,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #fbd38d',
             borderRadius:'10px'
           }}>
-            <Link to="/demandes?statut=En+cours" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
+            <Link to="/demandes?filtre=enTraitement" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Non résolues ↗</Link>
             <span style={{
               background:'#d69e2e',
               color:'white',
