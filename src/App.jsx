@@ -2806,7 +2806,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
-  const [filterEnTraitement, setFilterEnTraitement] = useState(false)
+  const urlParams = new URLSearchParams(location.search)
+  const filterEnTraitement = urlParams.get('filtre') === 'enTraitement'
+  const filterHorsSla      = urlParams.get('filtre') === 'horsSla'
   const [filterCanal, setFilterCanal] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterTypeClient, setFilterTypeClient] = useState('')
@@ -2862,11 +2864,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   useEffect(() => {
     const p = new URLSearchParams(location.search)
     const statut = p.get('statut')
-    const filtre = p.get('filtre')
     if (statut) setFilterStatut(statut)
-    if (filtre === 'horsSla')       setFiltresColonnes(f => ({ ...f, respectDelai: 'NON' }))
-    if (filtre === 'enTraitement')  setFilterEnTraitement(true)
-    else                            setFilterEnTraitement(false)
+    else setFilterStatut('')
   }, [location.search])
 
   useEffect(() => {
@@ -3245,7 +3244,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       (d.matricule||'').toLowerCase().includes(q)
     )) return false
     if (filterEnTraitement && ['Traité','Clôturé'].includes(d.statut)) return false
-    if (!filterEnTraitement && filterStatut && d.statut !== filterStatut) return false
+    if (filterHorsSla && d.respectDelai !== 'NON') return false
+    if (!filterEnTraitement && !filterHorsSla && filterStatut && d.statut !== filterStatut) return false
     if (filterCanal && d.canal !== filterCanal) return false
     if (filterService && d.service !== filterService) return false
     if (filterTypeClient && d.typeClient !== filterTypeClient) return false
@@ -3637,11 +3637,15 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           {filterEnTraitement && (
             <span style={{padding:'0.3rem 0.75rem',borderRadius:'20px',background:'#fffbeb',color:'#b7791f',fontSize:'0.82rem',fontWeight:'600',border:'1px solid #fbd38d'}}>
               Non résolues
-              <button onClick={()=>setFilterEnTraitement(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#b7791f',marginLeft:'0.25rem',padding:0}}>✕</button>
             </span>
           )}
-          {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search||filterEnTraitement||filtresColonnes.respectDelai) && (
-            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setFiltresColonnes({});setFilterEnTraitement(false) }}
+          {filterHorsSla && (
+            <span style={{padding:'0.3rem 0.75rem',borderRadius:'20px',background:'#fff5f5',color:'#c53030',fontSize:'0.82rem',fontWeight:'600',border:'1px solid #fed7d7'}}>
+              Hors SLA
+            </span>
+          )}
+          {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search||filterEnTraitement||filterHorsSla) && (
+            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setFiltresColonnes('');window.history.replaceState({},'','/demandes') }}
               style={{padding:'0.6rem 0.9rem',borderRadius:'8px',border:'1px solid #fed7d7',background:'#fff5f5',color:'#c53030',cursor:'pointer',fontSize:'0.85rem',whiteSpace:'nowrap'}}>
               ✕ Réinitialiser
             </button>
