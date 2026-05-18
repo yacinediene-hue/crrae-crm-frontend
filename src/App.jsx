@@ -1507,6 +1507,27 @@ function Contacts() {
             <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
           </label>
           <button
+            style={{ ...styles.button, background: '#276749', width:'auto', padding:'0.625rem 1rem' }}
+            onClick={() => {
+              const data = contactsFiltres.map(c => ({
+                'Nom':          c.name || '',
+                'Email':        c.email || '',
+                'Téléphone':    c.phone || '',
+                'Entreprise':   c.company || '',
+                'Profil':       c.profilClient || '',
+                'Statut':       c.status || '',
+                'Assigné à':    c.assignedTo || '',
+                'Créé le':      c.createdAt ? new Date(c.createdAt).toLocaleDateString('fr-FR') : '',
+              }))
+              const ws = XLSX.utils.json_to_sheet(data)
+              const wb = XLSX.utils.book_new()
+              XLSX.utils.book_append_sheet(wb, ws, 'Contacts')
+              XLSX.writeFile(wb, `Contacts_CRRAE_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`)
+            }}
+          >
+            📥 Exporter Excel
+          </button>
+          <button
             style={{ ...styles.button, background: '#6b46c1' }}
             onClick={async () => {
               if (!window.confirm('Synchroniser les contacts depuis les demandes (téléphone + email) ?')) return
