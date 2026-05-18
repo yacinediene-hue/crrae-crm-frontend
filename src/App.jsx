@@ -530,7 +530,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #fbd38d',
             borderRadius:'10px'
           }}>
-            <Link to="/demandes?statut=En+cours" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
+            <Link to="/demandes?filtre=enTraitement" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
             <span style={{
               background:'#d69e2e',
               color:'white',
@@ -2802,6 +2802,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
+  const [filterEnTraitement, setFilterEnTraitement] = useState(false)
   const [filterCanal, setFilterCanal] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterTypeClient, setFilterTypeClient] = useState('')
@@ -2858,12 +2859,10 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     const p = new URLSearchParams(location.search)
     const statut = p.get('statut')
     const filtre = p.get('filtre')
-    if (statut) {
-      setFilterStatut(statut)
-    }
-    if (filtre === 'horsSla') {
-      setFiltresColonnes(f => ({ ...f, respectDelai: 'NON' }))
-    }
+    if (statut) setFilterStatut(statut)
+    if (filtre === 'horsSla')       setFiltresColonnes(f => ({ ...f, respectDelai: 'NON' }))
+    if (filtre === 'enTraitement')  setFilterEnTraitement(true)
+    else                            setFilterEnTraitement(false)
   }, [location.search])
 
   useEffect(() => {
@@ -3241,7 +3240,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       (d.telephone||'').includes(q) ||
       (d.matricule||'').toLowerCase().includes(q)
     )) return false
-    if (filterStatut && d.statut !== filterStatut) return false
+    if (filterEnTraitement && ['Traité','Clôturé'].includes(d.statut)) return false
+    if (!filterEnTraitement && filterStatut && d.statut !== filterStatut) return false
     if (filterCanal && d.canal !== filterCanal) return false
     if (filterService && d.service !== filterService) return false
     if (filterTypeClient && d.typeClient !== filterTypeClient) return false
@@ -3630,8 +3630,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               </span>
             )}
           </button>
-          {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search) && (
-            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setFiltresColonnes({}) }}
+          {filterEnTraitement && (
+            <span style={{padding:'0.3rem 0.75rem',borderRadius:'20px',background:'#fffbeb',color:'#b7791f',fontSize:'0.82rem',fontWeight:'600',border:'1px solid #fbd38d'}}>
+              En traitement ✕
+              <button onClick={()=>setFilterEnTraitement(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#b7791f',marginLeft:'0.25rem',padding:0}}>✕</button>
+            </span>
+          )}
+          {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search||filterEnTraitement||filtresColonnes.respectDelai) && (
+            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setFiltresColonnes({});setFilterEnTraitement(false) }}
               style={{padding:'0.6rem 0.9rem',borderRadius:'8px',border:'1px solid #fed7d7',background:'#fff5f5',color:'#c53030',cursor:'pointer',fontSize:'0.85rem',whiteSpace:'nowrap'}}>
               ✕ Réinitialiser
             </button>
