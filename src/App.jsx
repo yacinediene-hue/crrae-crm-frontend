@@ -4480,25 +4480,32 @@ function Rapports() {
 
   useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
 
+  // Constantes locales alignées sur le Dashboard
+  const CLOS   = ['Traité', 'Clôturé']
+  const ACTIFS = ['En cours', 'En attente', 'Escaladé', 'En cours N2', 'Renvoyé N1']
+
   const now = new Date()
   const filtered = demandes.filter(d => {
-    if (!d.dateReception) return false
-    const date = new Date(d.dateReception)
+    // Utilise dateReception en priorité, sinon createdAt (cohérent avec Dashboard)
+    const ref = d.dateReception || d.createdAt
+    if (!ref) return true
+    const date = new Date(ref)
     if (periode === 'semaine') return (now - date) / (1000*60*60*24) <= 7
     if (periode === 'mois') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
     if (periode === 'annee') return date.getFullYear() === now.getFullYear()
     return true
   })
 
-  // KPIs de base
-  const total = filtered.length
-  const traitees = filtered.filter(d => d.statut === 'Traité').length
-  const enCours = filtered.filter(d => d.statut === 'En cours').length
-  const enAttente = filtered.filter(d => d.statut === 'En attente').length
-  const horsSla = filtered.filter(d => d.respectDelai === 'NON').length
-  const escaladeN2 = filtered.filter(d => d.niveauTraitement === 2).length
-  const tauxTraite = total > 0 ? Math.round(traitees / total * 100) : 0
-  const tauxSla = total > 0 ? Math.round(filtered.filter(d => d.respectDelai === 'OUI').length / total * 100) : 0
+  // KPIs de base — alignés sur Dashboard (CLOS = Traité + Clôturé)
+  const total       = filtered.length
+  const traitees    = filtered.filter(d => CLOS.includes(d.statut)).length
+  const nonResolues = filtered.filter(d => !CLOS.includes(d.statut)).length
+  const enCours     = filtered.filter(d => d.statut === 'En cours').length
+  const enAttente   = filtered.filter(d => d.statut === 'En attente').length
+  const horsSla     = filtered.filter(d => !CLOS.includes(d.statut) && d.respectDelai === 'NON').length
+  const escaladeN2  = filtered.filter(d => d.niveauTraitement === 2).length
+  const tauxTraite  = total > 0 ? Math.round(traitees / total * 100) : 0
+  const tauxSla     = total > 0 ? Math.round(filtered.filter(d => d.respectDelai === 'OUI').length / total * 100) : 0
 
   // Délai moyen de traitement
   const delaisValides = filtered.filter(d => d.delaiTraitement !== null && d.delaiTraitement !== undefined)
@@ -4533,8 +4540,8 @@ function Rapports() {
   const perfAgents = agents.map(a => ({
     name: a,
     total: filtered.filter(d => d.agentN1 === a).length,
-    traite: filtered.filter(d => d.agentN1 === a && d.statut === 'Traité').length,
-    horsSla: filtered.filter(d => d.agentN1 === a && d.respectDelai === 'NON').length,
+    traite: filtered.filter(d => d.agentN1 === a && CLOS.includes(d.statut)).length,
+    horsSla: filtered.filter(d => d.agentN1 === a && !CLOS.includes(d.statut) && d.respectDelai === 'NON').length,
   })).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
 
   // Performance services
@@ -4545,9 +4552,13 @@ function Rapports() {
     return { name: s, total: t.length, taux: t.length > 0 ? Math.round(oui/t.length*100) : 0 }
   }).filter(s => s.total > 0)
 
-  // Critiques
+  // Critiques — aligné sur Dashboard (!CLOS + priorité/délai/réclamation)
   const demandesCritiques = filtered.filter(d =>
-    ['En cours','En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
+    !CLOS.includes(d.statut) && (
+      d.priorite === 'Urgent' ||
+      d.respectDelai === 'NON' ||
+      (d.objetDemande || '').toLowerCase().includes('réclamation')
+    )
   )
 
   const activiteRecente = [...filtered].sort((a,b) => new Date(b.updatedAt)-new Date(a.updatedAt)).slice(0,5)
@@ -4589,20 +4600,20 @@ function Rapports() {
         </div>
       </div>
 
-      {/* Ligne 1 — Volume et traitement */}
+      {/* Ligne 1 — Volume et traitement (Traitées + Non résolues = Total) */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:'0.9rem',marginBottom:'0.9rem'}}>
         {card('📥','Total demandes', total, '#2b6cb0')}
-        {card('✅','Taux de traitement', `${tauxTraite}%`, '#276749', `${traitees} traitées sur ${total}`)}
-        {card('📋','Respect des délais (SLA)', `${tauxSla}%`, tauxSla >= 80 ? '#276749' : '#c53030', `${horsSla} hors SLA`)}
+        {card('✅','Traitées / Clôturées', traitees, '#276749', `${tauxTraite}% — Traité + Clôturé`)}
+        {card('⏳','Non résolues', nonResolues, '#b7791f', `${total > 0 ? Math.round(nonResolues/total*100) : 0}% — tous statuts actifs`)}
         {card('⏱️','Délai moyen', delaiMoyen === '—' ? '—' : `${delaiMoyen}j`, '#2b6cb0', 'Jours ouvrables moyen')}
       </div>
 
-      {/* Ligne 2 — Statuts et escalades */}
+      {/* Ligne 2 — SLA et escalades */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:'0.9rem',marginBottom:'0.9rem'}}>
-        {card('⏳','En cours', enCours, '#b7791f')}
-        {card('🕐','En attente', enAttente, '#718096')}
+        {card('📋','Taux SLA', `${tauxSla}%`, tauxSla >= 80 ? '#276749' : '#c53030', `${horsSla} hors SLA (actives seulement)`)}
+        {card('⚠️','Hors SLA actives', horsSla, '#c53030', 'Non résolues + délai dépassé')}
         {card('🔺','Escalades N2', escaladeN2, '#6b46c1', `${total > 0 ? Math.round(escaladeN2/total*100) : 0}% des demandes`)}
-        {card('⚠️','Demandes urgentes', filtered.filter(d=>d.priorite==='Urgent').length, '#c53030', 'Priorité critique')}
+        {card('🚨','Demandes critiques', demandesCritiques.length, '#c53030', 'Urgent ou hors SLA ou réclamation')}
       </div>
 
       {/* Ligne 3 — Satisfaction */}
