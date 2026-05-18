@@ -411,7 +411,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
           {label:'Demandes', val:demandesFiltrees.length, col:'#2b6cb0', icon:'📥', to:'/demandes'},
-          {label:'Non résolues', val:demandesEnCours.length, col:'#b7791f', icon:'⏳', to:'/demandes?filtre=enTraitement'},
+          {label:'Non résolues', val:demandesEnCours.length, col:'#b7791f', icon:'⏳', to:'/encours'},
           {label:'Traitées / Clôturées', val:demandesTraitees.length, col:'#276749', icon:'✅', to:'/demandes'},
           {label:'Hors SLA', val:demandesHorsSla.length, col:'#c53030', icon:'⚠️', to:'/demandes?filtre=horsSla'},
         ].map(card => (
@@ -534,7 +534,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #fbd38d',
             borderRadius:'10px'
           }}>
-            <Link to="/demandes?filtre=enTraitement" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Non résolues ↗</Link>
+            <Link to="/encours" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Non résolues ↗</Link>
             <span style={{
               background:'#d69e2e',
               color:'white',
@@ -1142,6 +1142,146 @@ function FileCritique() {
                   </div>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DemandesEnCours() {
+  const [demandes, setDemandes] = useState([])
+  const [ticketOuvert, setTicketOuvert] = useState(null)
+  const [timelineTicket, setTimelineTicket] = useState([])
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (ticketOuvert) {
+      API.get(`/timeline/demande/${ticketOuvert.id}`)
+        .then(r => setTimelineTicket(r.data))
+        .catch(() => setTimelineTicket([]))
+    } else {
+      setTimelineTicket([])
+    }
+  }, [ticketOuvert])
+
+  const STATUTS_CLOS = ['Traité', 'Clôturé']
+  const sColor = (s) => ({
+    'En cours':    {background:'#fffbeb',color:'#b7791f'},
+    'En attente':  {background:'#ebf8ff',color:'#2b6cb0'},
+    'Escaladé':    {background:'#faf5ff',color:'#6b46c1'},
+    'En cours N2': {background:'#f0e6ff',color:'#553c9a'},
+    'Renvoyé N1':  {background:'#fff5f5',color:'#c53030'},
+  }[s] || {background:'#f7fafc',color:'#718096'})
+
+  const q = search.toLowerCase()
+  const enCours = demandes
+    .filter(d => !STATUTS_CLOS.includes(d.statut))
+    .filter(d => !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q) || (d.matricule||'').toLowerCase().includes(q) || (d.telephone||'').includes(q))
+    .sort((a, b) => new Date(b.dateReception || b.createdAt) - new Date(a.dateReception || a.createdAt))
+
+  const parStatut = ['En cours','En attente','Escaladé','En cours N2','Renvoyé N1'].map(s => ({
+    s, n: demandes.filter(d => d.statut === s).length
+  })).filter(x => x.n > 0)
+
+  const f = (v) => v || '—'
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>⏳ Demandes non résolues</h2>
+        <div style={{display:'flex',gap:'0.5rem',alignItems:'center',flexWrap:'wrap'}}>
+          {parStatut.map(({s,n}) => (
+            <span key={s} style={{...sColor(s),padding:'0.2rem 0.6rem',borderRadius:'20px',fontSize:'0.78rem',fontWeight:'600'}}>{s} : {n}</span>
+          ))}
+          <span style={{fontSize:'0.85rem',color:'#718096',marginLeft:'0.5rem'}}>Total : {enCours.length}</span>
+        </div>
+      </div>
+
+      <div style={{marginBottom:'1rem'}}>
+        <input
+          style={{...styles.input,maxWidth:'320px',marginBottom:0}}
+          placeholder="Rechercher nom, N°, matricule, téléphone…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      <div style={{background:'white',borderRadius:'12px',padding:'1rem',boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>N°</th>
+              <th style={styles.th}>Date</th>
+              <th style={styles.th}>Client</th>
+              <th style={styles.th}>Objet</th>
+              <th style={styles.th}>Service</th>
+              <th style={styles.th}>Agent N1</th>
+              <th style={styles.th}>Statut</th>
+              <th style={styles.th}>Délai</th>
+              <th style={styles.th}>SLA</th>
+            </tr>
+          </thead>
+          <tbody>
+            {enCours.length === 0
+              ? <tr><td colSpan={9}><div className="empty-state"><span className="empty-state-icon">✅</span>Aucune demande non résolue</div></td></tr>
+              : enCours.map(d => (
+                <tr key={d.id} style={{...styles.tr,cursor:'pointer'}} onClick={() => setTicketOuvert(d)}>
+                  <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
+                  <td style={styles.td}>{d.dateReception ? new Date(d.dateReception).toLocaleDateString('fr-FR') : '—'}</td>
+                  <td style={styles.td}>{f(d.nomPrenom)}</td>
+                  <td style={{...styles.td,fontSize:'0.82rem'}}>{f(d.objetDemande)}</td>
+                  <td style={styles.td}>{f(d.service)}</td>
+                  <td style={styles.td}>{f(d.agentN1)}</td>
+                  <td style={styles.td}><span style={{...styles.badge,...sColor(d.statut),padding:'0.15rem 0.5rem',fontSize:'0.78rem'}}>{f(d.statut)}</span></td>
+                  <td style={styles.td}>{d.delaiTraitement != null ? `${d.delaiTraitement}j` : '—'}</td>
+                  <td style={styles.td}>
+                    {d.respectDelai === 'NON'
+                      ? <span style={{background:'#fff5f5',color:'#c53030',padding:'2px 8px',borderRadius:'8px',fontSize:'0.75rem'}}>Hors SLA</span>
+                      : d.respectDelai === 'OUI'
+                        ? <span style={{background:'#f0fff4',color:'#276749',padding:'2px 8px',borderRadius:'8px',fontSize:'0.75rem'}}>OK</span>
+                        : '—'}
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+
+      {ticketOuvert && (
+        <div style={{position:'fixed',top:0,right:0,width:'420px',height:'100vh',background:'white',boxShadow:'-6px 0 20px rgba(0,0,0,0.15)',zIndex:9999,padding:'1.25rem',overflowY:'auto'}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:'1rem'}}>
+            <h3 style={{margin:0}}>🎫 {ticketOuvert.numDemande}</h3>
+            <button onClick={() => setTicketOuvert(null)} style={{background:'transparent',border:'none',fontSize:'1.4rem',cursor:'pointer'}}>✕</button>
+          </div>
+          <div style={{marginBottom:'0.75rem'}}><strong>Client :</strong> {ticketOuvert.nomPrenom}</div>
+          {ticketOuvert.email && <div style={{marginBottom:'0.75rem'}}><strong>Email :</strong> <a href={`mailto:${ticketOuvert.email}`} style={{color:'#2b6cb0'}}>{ticketOuvert.email}</a></div>}
+          {ticketOuvert.telephone && <div style={{marginBottom:'0.75rem'}}><strong>Téléphone :</strong> {ticketOuvert.telephone}</div>}
+          <div style={{marginBottom:'0.75rem'}}><strong>Objet :</strong> {ticketOuvert.objetDemande}</div>
+          <div style={{marginBottom:'0.75rem'}}><strong>Service :</strong> {ticketOuvert.service || '—'}</div>
+          <div style={{marginBottom:'0.75rem'}}><strong>Statut :</strong> <span style={{...sColor(ticketOuvert.statut),padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.82rem',fontWeight:'600'}}>{ticketOuvert.statut}</span></div>
+          <div style={{marginBottom:'0.75rem'}}><strong>Commentaire :</strong><div style={{marginTop:'0.3rem',color:'#4a5568'}}>{ticketOuvert.commentaire || '—'}</div></div>
+          <div>
+            <strong>Timeline :</strong>
+            <div style={{marginTop:'0.6rem',display:'grid',gap:'0.55rem'}}>
+              {timelineTicket.length === 0
+                ? <div style={{color:'#718096',fontSize:'0.9rem'}}>Aucun événement</div>
+                : timelineTicket.map(t => (
+                  <div key={t.id} style={{border:'1px solid #e2e8f0',borderRadius:'10px',padding:'0.65rem 0.75rem',background:'#f8fafc'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',gap:'0.75rem'}}>
+                      <span style={{fontWeight:'600',color:'#2d3748',fontSize:'0.875rem'}}>{t.action}</span>
+                      <span style={{fontSize:'0.75rem',color:'#718096'}}>{new Date(t.createdAt).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+                    </div>
+                    {t.detail && <div style={{fontSize:'0.82rem',color:'#718096',marginTop:'0.25rem'}}>{t.detail}</div>}
+                  </div>
+                ))
+              }
             </div>
           </div>
         </div>
@@ -5203,6 +5343,10 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
           {enCours > 0 && <span style={styles.sidebarBadge}>{enCours}</span>}
           {escaladees > 0 && <span style={{...styles.sidebarBadge, background:'#6b46c1', marginLeft:'2px'}}>{escaladees}</span>}
         </NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/encours">
+          <span style={styles.sidebarIcon}>⏳</span>Non résolues
+          {escaladees > 0 && <span style={{...styles.sidebarBadge, background:'#6b46c1', marginLeft:'2px'}}>{escaladees}</span>}
+        </NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/critiques">
           <span style={styles.sidebarIcon}>🔥</span>File critique
           {critiques > 0 && (
@@ -5337,6 +5481,7 @@ export default function App() {
         <Routes>
           <Route path="/dashboard" element={<Dashboard alertes={alertes} demandes={demandesApp} />} />
           <Route path="/critiques" element={<FileCritique />} />
+          <Route path="/encours" element={<DemandesEnCours />} />
           <Route
             path="/demandes"
             element={
