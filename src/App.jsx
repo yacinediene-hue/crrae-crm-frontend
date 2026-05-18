@@ -530,7 +530,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #fbd38d',
             borderRadius:'10px'
           }}>
-            <Link to="/demandes?filtre=enTraitement" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
+            <Link to="/demandes?statut=En+cours" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
             <span style={{
               background:'#d69e2e',
               color:'white',
