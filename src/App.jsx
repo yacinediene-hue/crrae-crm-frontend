@@ -2860,12 +2860,20 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     nomPrenom: '',
     numDemande: '',
   })
-  // Appliquer les filtres depuis l'URL (réactif au changement de navigation)
+  // Appliquer les filtres depuis l'URL et réinitialiser les filtres persistants
   useEffect(() => {
     const p = new URLSearchParams(location.search)
     const statut = p.get('statut')
-    if (statut) setFilterStatut(statut)
-    else setFilterStatut('')
+    const filtre = p.get('filtre')
+    setFilterStatut(statut || '')
+    // Si un filtre URL est actif, on réinitialise les filtres colonnes pour éviter les conflits
+    if (filtre || statut) {
+      setFiltresColonnes({})
+      setFilterCanal('')
+      setFilterService('')
+      setFilterTypeClient('')
+      setFilterObjet('')
+    }
   }, [location.search])
 
   useEffect(() => {
