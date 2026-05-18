@@ -2801,10 +2801,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
-  const [filterStatut, setFilterStatut] = useState(() => {
-    const p = new URLSearchParams(location.search)
-    return p.get('statut') || ''
-  })
+  const [filterStatut, setFilterStatut] = useState('')
   const [filterCanal, setFilterCanal] = useState('')
   const [filterService, setFilterService] = useState('')
   const [filterTypeClient, setFilterTypeClient] = useState('')
@@ -2856,13 +2853,18 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     nomPrenom: '',
     numDemande: '',
   })
-  // Appliquer le filtre URL horsSla au montage
+  // Appliquer les filtres depuis l'URL (réactif au changement de navigation)
   useEffect(() => {
     const p = new URLSearchParams(location.search)
-    if (p.get('filtre') === 'horsSla') {
+    const statut = p.get('statut')
+    const filtre = p.get('filtre')
+    if (statut) {
+      setFilterStatut(statut)
+    }
+    if (filtre === 'horsSla') {
       setFiltresColonnes(f => ({ ...f, respectDelai: 'NON' }))
     }
-  }, [])
+  }, [location.search])
 
   useEffect(() => {
     if (demandesInitiales.length > 0) {
