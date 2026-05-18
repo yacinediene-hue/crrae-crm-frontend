@@ -2522,7 +2522,7 @@ function Campagnes() {
 
 
 
-function FicheClient({ telephone, matricule, onClose }) {
+function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomProp, onClose }) {
   const [client, setClient] = useState(null)
   const [demandes, setDemandes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -2530,16 +2530,13 @@ function FicheClient({ telephone, matricule, onClose }) {
   useEffect(() => {
     API.get('/demandes').then(r => {
       const all = r.data
+      const q = (nomProp || '').toLowerCase().trim()
       const filtered = all.filter(d =>
-        (telephone &&
-          telephone.length >= 6 &&
-          d.telephone &&
-          d.telephone.replace(/[^0-9]/g, '').includes(telephone.replace(/[^0-9]/g, ''))) ||
-        (matricule &&
-          matricule.length >= 4 &&
-          d.matricule &&
-          d.matricule === matricule) ||
-        (d.email && client?.email && d.email.toLowerCase() === client.email.toLowerCase())
+        (telephone && telephone.replace(/[^0-9]/g,'').length >= 6 &&
+          d.telephone && d.telephone.replace(/[^0-9]/g,'').includes(telephone.replace(/[^0-9]/g,''))) ||
+        (matricule && matricule.length >= 4 && d.matricule && d.matricule === matricule) ||
+        (emailProp && emailProp.length >= 4 && d.email && d.email.toLowerCase() === emailProp.toLowerCase()) ||
+        (q.length >= 3 && d.nomPrenom && d.nomPrenom.toLowerCase().includes(q))
       )
       if (filtered.length > 0) {
         const last = filtered[0]
@@ -3694,7 +3691,10 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             <form onSubmit={handleAdd} style={{...styles.form, marginBottom:0, boxShadow:'none', padding:0}}>
           <h3 style={{color:'#1a365d',marginBottom:'1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>👤 Informations client</h3>
           <div style={col2}>
-            <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom} onChange={e=>setForm({...form,nomPrenom:e.target.value})} required />
+            <input style={inp} placeholder="Nom et prénom *" value={form.nomPrenom}
+              onChange={e=>setForm({...form,nomPrenom:e.target.value})}
+              onBlur={e=>{ if(e.target.value.trim().length >= 3) openClient({ _mode:'search', nomPrenom:e.target.value, telephone:'', matricule:'' }) }}
+              required />
             <input style={inp} placeholder="Matricule" value={form.matricule} 
               onChange={e=>setForm({...form,matricule:e.target.value})}
               onBlur={e=>{ if(e.target.value.length >= 4) openClient({ _mode:'search', telephone:'', matricule:e.target.value }) }} />
@@ -4061,6 +4061,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               telephone={selectedClient.telephone}
               matricule={selectedClient.matricule}
               email={selectedClient.email}
+              nomPrenom={selectedClient.nomPrenom}
               onClose={closeClient}
             />
           : <FicheClient360
@@ -4773,6 +4774,7 @@ function RechercheGlobale({ onClose }) {
   const [query, setQuery] = useState('')
   const [resultats, setResultats] = useState({ demandes: [], contacts: [] })
   const [loading, setLoading] = useState(false)
+  const [ficheClient, setFicheClient] = useState(null) // demande sélectionnée pour la fiche
 
   useEffect(() => {
     if (query.length < 2) { setResultats({ demandes: [], contacts: [] }); return }
@@ -4835,21 +4837,21 @@ function RechercheGlobale({ onClose }) {
             <div>
               <div style={{padding:'0.5rem 0.75rem',fontSize:'0.75rem',fontWeight:'600',color:'#718096',textTransform:'uppercase'}}>📋 Demandes</div>
               {resultats.demandes.map(d => (
-                <div
-                  key={d.id}
-                  onClick={() => ouvrirDemande(d)}
-                  style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center'}}
+                <div key={d.id}
+                  style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer',display:'flex',justifyContent:'space-between',alignItems:'center', background: ficheClient?.id === d.id ? '#ebf8ff' : 'transparent'}}
                   onMouseEnter={e=>e.currentTarget.style.background='#f7fafc'}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  onMouseLeave={e=>e.currentTarget.style.background= ficheClient?.id === d.id ? '#ebf8ff' : 'transparent'}
+                  onClick={() => setFicheClient(d)}
                 >
                   <div>
                     <span style={{fontWeight:'600',color:'#2b6cb0',fontSize:'0.85rem'}}>{d.numDemande}</span>
                     <span style={{color:'#4a5568',fontSize:'0.85rem',margin:'0 0.5rem'}}>—</span>
                     <span style={{color:'#2d3748',fontSize:'0.85rem'}}>{d.nomPrenom}</span>
                   </div>
-                  <div style={{display:'flex',gap:'0.5rem'}}>
+                  <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
                     <span style={{background:'#ebf8ff',color:'#2b6cb0',padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.75rem'}}>{d.objetDemande}</span>
                     <span style={{background: d.statut==='Traité'?'#f0fff4':'#fffbeb',color: d.statut==='Traité'?'#276749':'#b7791f',padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.75rem'}}>{d.statut}</span>
+                    <button onClick={e=>{e.stopPropagation();ouvrirDemande(d)}} style={{background:'none',border:'1px solid #e2e8f0',borderRadius:'4px',padding:'0.1rem 0.4rem',cursor:'pointer',fontSize:'0.72rem',color:'#718096'}}>Ouvrir →</button>
                   </div>
                 </div>
               ))}
@@ -4859,14 +4861,30 @@ function RechercheGlobale({ onClose }) {
             <div>
               <div style={{padding:'0.5rem 0.75rem',fontSize:'0.75rem',fontWeight:'600',color:'#718096',textTransform:'uppercase'}}>👥 Contacts</div>
               {resultats.contacts.map(c => (
-                <div key={c.id} style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer'}}
+                <div key={c.id}
+                  style={{padding:'0.65rem 0.75rem',borderRadius:'8px',cursor:'pointer', background: ficheClient?.contactId === c.id ? '#ebf8ff' : 'transparent'}}
                   onMouseEnter={e=>e.currentTarget.style.background='#f7fafc'}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+                  onClick={() => setFicheClient({ nomPrenom: c.name, telephone: c.phone, email: c.email, matricule: c.phone, contactId: c.id })}
+                >
                   <span style={{fontWeight:'600',color:'#2d3748',fontSize:'0.85rem'}}>{c.name}</span>
-                  <span style={{color:'#718096',fontSize:'0.85rem',margin:'0 0.5rem'}}>—</span>
-                  <span style={{color:'#718096',fontSize:'0.85rem'}}>{c.email}</span>
+                  {c.phone && <span style={{color:'#718096',fontSize:'0.85rem',margin:'0 0.5rem'}}>📞 {c.phone}</span>}
+                  {c.email && <span style={{color:'#718096',fontSize:'0.85rem'}}>✉ {c.email}</span>}
                 </div>
               ))}
+            </div>
+          )}
+          {/* Mini fiche client inline */}
+          {ficheClient && (
+            <div style={{margin:'0.75rem',padding:'1rem',background:'#f8fafc',borderRadius:'10px',border:'1px solid #e2e8f0'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.75rem'}}>
+                <strong style={{color:'#1a365d',fontSize:'0.9rem'}}>👤 {ficheClient.nomPrenom}</strong>
+                <button onClick={()=>setFicheClient(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#718096',fontSize:'1rem'}}>✕</button>
+              </div>
+              {ficheClient.telephone && <div style={{fontSize:'0.82rem',color:'#4a5568',marginBottom:'0.25rem'}}>📞 {ficheClient.telephone}</div>}
+              {ficheClient.email    && <div style={{fontSize:'0.82rem',color:'#4a5568',marginBottom:'0.25rem'}}>✉ {ficheClient.email}</div>}
+              {ficheClient.matricule && !ficheClient.contactId && <div style={{fontSize:'0.82rem',color:'#4a5568',marginBottom:'0.25rem'}}>🪪 {ficheClient.matricule}</div>}
+              {ficheClient.statut   && <div style={{fontSize:'0.82rem',color:'#718096'}}>{ficheClient.objetDemande} — {ficheClient.statut}</div>}
             </div>
           )}
         </div>
