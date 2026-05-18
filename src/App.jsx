@@ -486,7 +486,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #fed7d7',
             borderRadius:'10px'
           }}>
-            <span style={{color:'#9b2c2c', fontWeight:'600'}}>Demandes critiques</span>
+            <Link to="/critiques" style={{color:'#9b2c2c', fontWeight:'600', textDecoration:'none'}}>Demandes critiques ↗</Link>
             <span style={{
               background:'#c53030',
               color:'white',
@@ -508,7 +508,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #f6e05e',
             borderRadius:'10px'
           }}>
-            <span style={{color:'#975a16', fontWeight:'600'}}>Demandes hors SLA</span>
+            <Link to="/demandes" style={{color:'#975a16', fontWeight:'600', textDecoration:'none'}}>Demandes hors SLA ↗</Link>
             <span style={{
               background:'#b7791f',
               color:'white',
@@ -530,7 +530,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             border:'1px solid #fbd38d',
             borderRadius:'10px'
           }}>
-            <span style={{color:'#b7791f', fontWeight:'600'}}>Demandes en cours</span>
+            <Link to="/demandes" style={{color:'#b7791f', fontWeight:'600', textDecoration:'none'}}>Demandes en cours ↗</Link>
             <span style={{
               background:'#d69e2e',
               color:'white',
