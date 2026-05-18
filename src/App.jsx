@@ -1181,7 +1181,10 @@ function DemandesEnCours() {
 
   const q = search.toLowerCase()
   const enCours = demandes
-    .filter(d => !STATUTS_CLOS.includes(d.statut))
+    .filter(d => {
+      const s = (d.statut || '').trim()
+      return s !== 'Traité' && s !== 'Clôturé' && s !== 'Traitée'
+    })
     .filter(d => !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q) || (d.matricule||'').toLowerCase().includes(q) || (d.telephone||'').includes(q))
     .sort((a, b) => new Date(b.dateReception || b.createdAt) - new Date(a.dateReception || a.createdAt))
 
