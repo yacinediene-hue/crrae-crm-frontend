@@ -324,7 +324,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   // Camembert statut — 2 parts correspondant exactement aux KPIs
   const byStatut = [
     { name: 'Traitées / Clôturées', value: demandesTraitees.length, color: '#276749' },
-    { name: 'En traitement',         value: demandesEnCours.length,  color: '#b7791f' },
+    { name: 'Non résolues',         value: demandesEnCours.length,  color: '#b7791f' },
   ].filter(s => s.value > 0)
   const demandesCritiques = demandesFiltrees.filter(d =>
     !STATUTS_CLOS.includes(d.statut) && (
@@ -411,7 +411,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
           {label:'Demandes', val:demandesFiltrees.length, col:'#2b6cb0', icon:'📥'},
-          {label:'En traitement', val:demandesEnCours.length, col:'#b7791f', icon:'⏳'},
+          {label:'Non résolues', val:demandesEnCours.length, col:'#b7791f', icon:'⏳'},
           {label:'Traitées / Clôturées', val:demandesTraitees.length, col:'#276749', icon:'✅'},
           {label:'Hors SLA', val:demandesHorsSla.length, col:'#c53030', icon:'⚠️'},
         ].map(card => (
@@ -3582,7 +3582,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         {[
           {label:'Total',val:filtered.length,bg:'#ebf8ff',col:'#2b6cb0', icon:'📌'},
           {label:'Traitées',val:filtered.filter(d=>['Traité','Clôturé'].includes(d.statut)).length,bg:'#f0fff4',col:'#276749', icon:'✅'},
-          {label:'En traitement',val:filtered.filter(d=>!['Traité','Clôturé'].includes(d.statut)).length,bg:'#fffbeb',col:'#b7791f', icon:'⏳'},
+          {label:'Non résolues',val:filtered.filter(d=>!['Traité','Clôturé'].includes(d.statut)).length,bg:'#fffbeb',col:'#b7791f', icon:'⏳'},
           {label:'Délai OK',val:filtered.filter(d=>d.respectDelai==='OUI').length,bg:'#faf5ff',col:'#6b46c1', icon:'📊'}
         ].map(s => (
           <div key={s.label} style={{
@@ -3632,7 +3632,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           </button>
           {filterEnTraitement && (
             <span style={{padding:'0.3rem 0.75rem',borderRadius:'20px',background:'#fffbeb',color:'#b7791f',fontSize:'0.82rem',fontWeight:'600',border:'1px solid #fbd38d'}}>
-              En traitement ✕
+              Non résolues
               <button onClick={()=>setFilterEnTraitement(false)} style={{background:'none',border:'none',cursor:'pointer',color:'#b7791f',marginLeft:'0.25rem',padding:0}}>✕</button>
             </span>
           )}
