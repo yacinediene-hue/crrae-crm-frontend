@@ -4774,7 +4774,25 @@ function RechercheGlobale({ onClose }) {
   const [query, setQuery] = useState('')
   const [resultats, setResultats] = useState({ demandes: [], contacts: [] })
   const [loading, setLoading] = useState(false)
-  const [ficheClient, setFicheClient] = useState(null) // demande sélectionnée pour la fiche
+  const [ficheClient, setFicheClient] = useState(null)
+  const [historique, setHistorique] = useState([])
+  const [loadingFiche, setLoadingFiche] = useState(false)
+
+  useEffect(() => {
+    if (!ficheClient) { setHistorique([]); return }
+    setLoadingFiche(true)
+    API.get('/demandes').then(r => {
+      const tel = (ficheClient.telephone || '').replace(/[^0-9]/g, '')
+      const email = (ficheClient.email || '').toLowerCase()
+      const nom = (ficheClient.nomPrenom || '').toLowerCase()
+      const hist = r.data.filter(d =>
+        (tel.length >= 6 && d.telephone && d.telephone.replace(/[^0-9]/g,'').includes(tel)) ||
+        (email.length >= 4 && d.email && d.email.toLowerCase() === email) ||
+        (nom.length >= 3 && d.nomPrenom && d.nomPrenom.toLowerCase() === nom)
+      ).sort((a, b) => new Date(b.dateReception || b.createdAt) - new Date(a.dateReception || a.createdAt))
+      setHistorique(hist)
+    }).catch(() => {}).finally(() => setLoadingFiche(false))
+  }, [ficheClient])
 
   useEffect(() => {
     if (query.length < 2) { setResultats({ demandes: [], contacts: [] }); return }
@@ -4874,17 +4892,47 @@ function RechercheGlobale({ onClose }) {
               ))}
             </div>
           )}
-          {/* Mini fiche client inline */}
+          {/* Mini fiche client inline avec historique */}
           {ficheClient && (
             <div style={{margin:'0.75rem',padding:'1rem',background:'#f8fafc',borderRadius:'10px',border:'1px solid #e2e8f0'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.75rem'}}>
+              {/* En-tête client */}
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.5rem'}}>
                 <strong style={{color:'#1a365d',fontSize:'0.9rem'}}>👤 {ficheClient.nomPrenom}</strong>
                 <button onClick={()=>setFicheClient(null)} style={{background:'none',border:'none',cursor:'pointer',color:'#718096',fontSize:'1rem'}}>✕</button>
               </div>
-              {ficheClient.telephone && <div style={{fontSize:'0.82rem',color:'#4a5568',marginBottom:'0.25rem'}}>📞 {ficheClient.telephone}</div>}
-              {ficheClient.email    && <div style={{fontSize:'0.82rem',color:'#4a5568',marginBottom:'0.25rem'}}>✉ {ficheClient.email}</div>}
-              {ficheClient.matricule && !ficheClient.contactId && <div style={{fontSize:'0.82rem',color:'#4a5568',marginBottom:'0.25rem'}}>🪪 {ficheClient.matricule}</div>}
-              {ficheClient.statut   && <div style={{fontSize:'0.82rem',color:'#718096'}}>{ficheClient.objetDemande} — {ficheClient.statut}</div>}
+              <div style={{display:'flex',gap:'1rem',flexWrap:'wrap',marginBottom:'0.75rem'}}>
+                {ficheClient.telephone && <span style={{fontSize:'0.8rem',color:'#4a5568'}}>📞 {ficheClient.telephone}</span>}
+                {ficheClient.email     && <span style={{fontSize:'0.8rem',color:'#4a5568'}}>✉ {ficheClient.email}</span>}
+                {ficheClient.matricule && !ficheClient.contactId && <span style={{fontSize:'0.8rem',color:'#4a5568'}}>🪪 {ficheClient.matricule}</span>}
+              </div>
+
+              {/* Historique des interactions */}
+              <div style={{borderTop:'1px solid #e2e8f0',paddingTop:'0.6rem'}}>
+                <div style={{fontSize:'0.75rem',fontWeight:'600',color:'#718096',marginBottom:'0.4rem',textTransform:'uppercase'}}>
+                  Historique — {loadingFiche ? '…' : `${historique.length} demande(s)`}
+                </div>
+                {loadingFiche
+                  ? <div style={{fontSize:'0.8rem',color:'#718096'}}>Chargement…</div>
+                  : historique.length === 0
+                    ? <div style={{fontSize:'0.8rem',color:'#a0aec0',fontStyle:'italic'}}>Aucune demande trouvée</div>
+                    : historique.map(d => (
+                      <div key={d.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0.35rem 0',borderBottom:'1px solid #edf2f7',fontSize:'0.8rem'}}>
+                        <div>
+                          <span style={{color:'#2b6cb0',fontWeight:'600',marginRight:'0.4rem'}}>{d.numDemande}</span>
+                          <span style={{color:'#4a5568'}}>{d.objetDemande || '—'}</span>
+                        </div>
+                        <div style={{display:'flex',gap:'0.4rem',alignItems:'center',flexShrink:0}}>
+                          {d.dateReception && <span style={{color:'#a0aec0',fontSize:'0.75rem'}}>{new Date(d.dateReception).toLocaleDateString('fr-FR')}</span>}
+                          <span style={{
+                            padding:'0.1rem 0.4rem',borderRadius:'20px',fontSize:'0.72rem',fontWeight:'600',
+                            background:['Traité','Clôturé'].includes(d.statut)?'#f0fff4':'#fffbeb',
+                            color:['Traité','Clôturé'].includes(d.statut)?'#276749':'#b7791f'
+                          }}>{d.statut}</span>
+                        </div>
+                      </div>
+                    ))
+                }
+              </div>
             </div>
           )}
         </div>
