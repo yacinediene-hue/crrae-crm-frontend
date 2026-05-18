@@ -3806,6 +3806,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 <th style={styles.th}>N°</th>
                 <th style={styles.th}>Date</th>
                 <th style={styles.th}>Nom</th>
+                <th style={styles.th}>Matricule</th>
                 {renderHeaderFiltrable('Type', 'typeClient')}
                 {renderHeaderFiltrable('Pays', 'pays')}
                 {renderHeaderFiltrable('Objet', 'objetDemande')}
@@ -3835,6 +3836,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                   <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
                   <td style={styles.td}>{d.dateReception?new Date(d.dateReception).toLocaleDateString('fr-FR'):'—'}</td>
                   <td style={styles.td}>{f(d.nomPrenom)}</td>
+                  <td style={{...styles.td,fontSize:'0.8rem',color:'#718096'}}>{f(d.matricule)}</td>
                   <td style={styles.td}><span style={{ ...styles.badge, ...profilClientColor(d.typeClient) }}>{d.typeClient || '—'}</span></td>
                   <td style={styles.td}>{f(d.pays)}</td>
                   <td style={styles.td}><span style={{...styles.badge,...(d.objetDemande==='Réclamation'?{background:'#fff5f5',color:'#c53030'}:{background:'#ebf8ff',color:'#2b6cb0'})}}>{f(d.objetDemande)}</span></td>
