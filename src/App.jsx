@@ -2531,10 +2531,11 @@ function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomPro
     API.get('/demandes').then(r => {
       const all = r.data
       const q = (nomProp || '').toLowerCase().trim()
+      const mat = (matricule || '').trim().toLowerCase()
       const filtered = all.filter(d =>
         (telephone && telephone.replace(/[^0-9]/g,'').length >= 6 &&
           d.telephone && d.telephone.replace(/[^0-9]/g,'').includes(telephone.replace(/[^0-9]/g,''))) ||
-        (matricule && matricule.length >= 4 && d.matricule && d.matricule === matricule) ||
+        (mat.length >= 4 && d.matricule && d.matricule.toLowerCase().includes(mat)) ||
         (emailProp && emailProp.length >= 4 && d.email && d.email.toLowerCase() === emailProp.toLowerCase()) ||
         (q.length >= 3 && d.nomPrenom && d.nomPrenom.toLowerCase().includes(q))
       )
@@ -2542,18 +2543,26 @@ function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomPro
         const last = filtered[0]
         setClient({ nomPrenom: last.nomPrenom, telephone: last.telephone, email: last.email, pays: last.pays, typeClient: last.typeClient, adherent: last.adherent, matricule: last.matricule })
         setDemandes(filtered)
+      } else {
+        setClient(null)
+        setDemandes([])
       }
       setLoading(false)
     }).catch(() => setLoading(false))
-  }, [telephone, matricule])
+  }, [telephone, matricule, emailProp, nomProp])
 
   if (loading) return (
     <div style={{background:'#ebf8ff', borderRadius:'8px', padding:'0.75rem 1rem', marginBottom:'1rem', color:'#2b6cb0', fontSize:'0.9rem'}}>
-      🔍 Recherche du profil client...
+      🔍 Recherche du profil client…
     </div>
   )
 
-  if (!client) return null
+  if (!client) return (
+    <div style={{background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'8px', padding:'0.65rem 1rem', marginBottom:'1rem', color:'#c53030', fontSize:'0.85rem', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      <span>Aucun client trouvé pour cette recherche.</span>
+      <button onClick={onClose} style={{background:'none',border:'none',cursor:'pointer',color:'#c53030',fontSize:'1.1rem',lineHeight:1}}>✕</button>
+    </div>
+  )
 
   const notes = demandes.filter(d => d.noteSatisfaction).map(d => d.noteSatisfaction)
   const moyNote = notes.length > 0 ? (notes.reduce((a,b) => a+b, 0) / notes.length).toFixed(1) : null
