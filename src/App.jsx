@@ -183,7 +183,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   const [periodeFin, setPeriodeFin] = useState('')
 
   const STATUTS_CLOS   = ['Traité', 'Clôturé']
-  const STATUTS_ACTIFS = ['En cours', 'En attente', 'Escaladé', 'En cours N2', 'Renvoyé N1']
+  const STATUTS_ACTIFS = ['En cours', 'En attente', 'En retard', 'Escaladé', 'En cours N2', 'Renvoyé N1']
 
   const demandesFiltrees = demandes.filter((d) => {
     const ref = d.dateReception || d.createdAt
@@ -1182,13 +1182,13 @@ function DemandesEnCours() {
   const q = search.toLowerCase()
   const enCours = demandes
     .filter(d => {
-      const s = (d.statut || '').trim()
-      return s !== 'Traité' && s !== 'Clôturé' && s !== 'Traitée'
+      const s = (d.statut || '').trim().toLowerCase()
+      return s !== 'traité' && s !== 'clôturé' && s !== 'traitée' && s !== 'traite'
     })
     .filter(d => !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q) || (d.matricule||'').toLowerCase().includes(q) || (d.telephone||'').includes(q))
     .sort((a, b) => new Date(b.dateReception || b.createdAt) - new Date(a.dateReception || a.createdAt))
 
-  const parStatut = ['En cours','En attente','Escaladé','En cours N2','Renvoyé N1'].map(s => ({
+  const parStatut = ['En cours','En attente','En retard','Escaladé','En cours N2','Renvoyé N1'].map(s => ({
     s, n: demandes.filter(d => d.statut === s).length
   })).filter(x => x.n > 0)
 
@@ -3202,6 +3202,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     'Traité':      {background:'#f0fff4',color:'#276749'},
     'En cours':    {background:'#fffbeb',color:'#b7791f'},
     'En attente':  {background:'#ebf8ff',color:'#2b6cb0'},
+    'En retard':   {background:'#fff5f5',color:'#c53030'},
     'Escaladé':    {background:'#faf5ff',color:'#6b46c1'},
     'En cours N2': {background:'#f0e6ff',color:'#553c9a'},
     'Clôturé':     {background:'#f7fafc',color:'#718096'},
@@ -3769,8 +3770,10 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             <option value="">Tous statuts</option>
             <option>En cours</option>
             <option>En attente</option>
+            <option>En retard</option>
             <option>Escaladé</option>
             <option>En cours N2</option>
+            <option>Renvoyé N1</option>
             <option>Traité</option>
             <option>Clôturé</option>
           </select>
@@ -3977,8 +3980,10 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             <select style={inp} value={form.statut} onChange={e=>setForm({...form,statut:e.target.value})}>
               <option>En cours</option>
               <option>En attente</option>
+              <option>En retard</option>
               <option>Escaladé</option>
               <option>En cours N2</option>
+              <option>Renvoyé N1</option>
               <option>Traité</option>
               <option>Clôturé</option>
             </select>
