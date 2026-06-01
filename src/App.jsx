@@ -2638,7 +2638,7 @@ function Campagnes() {
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>📣 Campagnes</h2>
-        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Ajouter</button>
+        <button style={styles.button} onClick={() => setShowForm(!showForm)}>+ Nouvelle campagne</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -5497,7 +5497,7 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
       </nav>
       <main style={styles.main}>
-        {pathname !== '/deals' && <div style={{
+        {pathname !== '/deals' && pathname !== '/campagnes' && <div style={{
           display:'flex',
           justifyContent:'flex-end',
           marginBottom:'1rem'
