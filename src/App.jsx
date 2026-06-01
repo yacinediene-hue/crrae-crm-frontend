@@ -4158,6 +4158,33 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
           </div>
           <textarea style={{...inp,height:'70px',resize:'vertical',width:'100%'}} placeholder="Commentaire" value={form.commentaire} onChange={e=>setForm({...form,commentaire:e.target.value})} />
+
+          {/* Zone pièces jointes — visible dès l'ouverture du formulaire */}
+          {!editId && (
+            <div style={{border:'2px dashed #bee3f8',borderRadius:'8px',padding:'0.75rem',background:'#ebf8ff',marginBottom:'0.5rem'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.4rem'}}>
+                <span style={{fontSize:'0.82rem',fontWeight:'700',color:'#2b6cb0'}}>
+                  📎 Pièces jointes
+                  {fichiersAJoindre.length > 0 && <span style={{marginLeft:'0.5rem',background:'#2b6cb0',color:'white',padding:'0.1rem 0.4rem',borderRadius:'20px',fontSize:'0.72rem'}}>{fichiersAJoindre.length} fichier(s)</span>}
+                </span>
+                <label style={{background:'#2b6cb0',color:'white',borderRadius:'6px',padding:'0.3rem 0.7rem',cursor:'pointer',fontSize:'0.8rem',fontWeight:'600'}}>
+                  + Joindre un fichier
+                  <input type="file" multiple style={{display:'none'}} onChange={e => {setFichiersAJoindre(prev => [...prev, ...Array.from(e.target.files)]);e.target.value=''}} />
+                </label>
+              </div>
+              {fichiersAJoindre.length === 0
+                ? <div style={{fontSize:'0.78rem',color:'#4a90d9',textAlign:'center',padding:'0.25rem 0'}}>Cliquez sur "+ Joindre un fichier" pour ajouter des documents</div>
+                : fichiersAJoindre.map((f,i) => (
+                  <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'white',borderRadius:'6px',padding:'0.3rem 0.6rem',marginTop:'0.3rem',fontSize:'0.8rem'}}>
+                    <span style={{color:'#2d3748',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
+                    <button type="button" onClick={() => setFichiersAJoindre(prev=>prev.filter((_,j)=>j!==i))}
+                      style={{background:'none',border:'none',cursor:'pointer',color:'#c53030',flexShrink:0,marginLeft:'0.5rem'}}>✕</button>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+
           <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>
             ⚙️ Traitement
             <span style={{marginLeft:'0.6rem',fontSize:'0.75rem',padding:'0.15rem 0.5rem',borderRadius:'4px',fontWeight:'700',
@@ -4205,41 +4232,6 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
           </div>
           <textarea style={{...inp,height:'60px',resize:'vertical',width:'100%'}} placeholder="Action menée" value={form.actionMenee} onChange={e=>setForm({...form,actionMenee:e.target.value})} />
-
-          {/* Zone pièces jointes — uniquement à la création */}
-          {!editId && (
-            <div style={{border:'1px solid #e2e8f0',borderRadius:'8px',padding:'0.75rem',background:'#f8fafc'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.5rem'}}>
-                <span style={{fontSize:'0.78rem',fontWeight:'600',color:'#4a5568'}}>
-                  📎 Pièces jointes
-                  {fichiersAJoindre.length > 0 && <span style={{marginLeft:'0.5rem',background:'#ebf8ff',color:'#2b6cb0',padding:'0.1rem 0.4rem',borderRadius:'20px',fontSize:'0.72rem'}}>{fichiersAJoindre.length} fichier(s)</span>}
-                </span>
-                <label style={{background:'#2b6cb0',color:'white',borderRadius:'6px',padding:'0.3rem 0.7rem',cursor:'pointer',fontSize:'0.8rem',fontWeight:'600'}}>
-                  + Ajouter
-                  <input type="file" multiple style={{display:'none'}} onChange={e => {
-                    const nouveaux = Array.from(e.target.files)
-                    setFichiersAJoindre(prev => [...prev, ...nouveaux])
-                    e.target.value = ''
-                  }} />
-                </label>
-              </div>
-              {fichiersAJoindre.length === 0
-                ? <div style={{fontSize:'0.8rem',color:'#a0aec0',fontStyle:'italic'}}>Aucun fichier sélectionné</div>
-                : <div style={{display:'grid',gap:'0.3rem'}}>
-                    {fichiersAJoindre.map((f, i) => (
-                      <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'white',borderRadius:'6px',padding:'0.35rem 0.6rem',border:'1px solid #e2e8f0',fontSize:'0.82rem'}}>
-                        <span style={{color:'#2d3748',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
-                        <span style={{display:'flex',gap:'0.5rem',alignItems:'center',flexShrink:0,marginLeft:'0.5rem'}}>
-                          <span style={{color:'#a0aec0',fontSize:'0.75rem'}}>{(f.size/1024).toFixed(1)} Ko</span>
-                          <button type="button" onClick={() => setFichiersAJoindre(prev => prev.filter((_,j) => j !== i))}
-                            style={{background:'none',border:'none',cursor:'pointer',color:'#c53030',fontSize:'0.9rem',padding:0}}>✕</button>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-              }
-            </div>
-          )}
 
           <div style={{display:'flex',gap:'0.75rem',marginTop:'0.25rem'}}>
             <button style={styles.button} type="submit">{editId ? '💾 Modifier' : '💾 Enregistrer'}</button>
