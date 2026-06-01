@@ -3165,8 +3165,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   }
   const [ticketOuvert, setTicketOuvert] = useState(null)
   const [timelineTicket, setTimelineTicket] = useState([])
+  const [docsTicket, setDocsTicket] = useState([])
+  const [uploadTicketLoading, setUploadTicketLoading] = useState(false)
   const [importData, setImportData] = useState(null) // { lignes, doublons, aImporter }
   const [ignorerDoublons, setIgnorerDoublons] = useState(false)
+  const [fichiersAJoindre, setFichiersAJoindre] = useState([]) // fichiers sélectionnés avant création
   const [ficheSearch, setFicheSearch] = useState({
     telephone: '',
     matricule: '',
@@ -3203,13 +3206,28 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
   useEffect(() => {
     if (ticketOuvert) {
-      API.get(`/timeline/demande/${ticketOuvert.id}`)
-        .then(r => setTimelineTicket(r.data))
-        .catch(() => setTimelineTicket([]))
-    } else {
-      setTimelineTicket([])
-    }
+      API.get(`/timeline/demande/${ticketOuvert.id}`).then(r => setTimelineTicket(r.data)).catch(() => setTimelineTicket([]))
+      API.get(`/demandes/${ticketOuvert.id}/documents`).then(r => setDocsTicket(r.data)).catch(() => setDocsTicket([]))
+    } else { setTimelineTicket([]); setDocsTicket([]) }
   }, [ticketOuvert])
+
+  const handleUploadTicket = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length || !ticketOuvert) return
+    e.target.value = ''
+    setUploadTicketLoading(true)
+    for (const file of files) {
+      try {
+        const buffer = await file.arrayBuffer()
+        const bytes = new Uint8Array(buffer)
+        let binary = ''
+        for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192))
+        const res = await API.post(`/demandes/${ticketOuvert.id}/documents`, { nom: file.name, type: file.type || 'application/octet-stream', contenu: btoa(binary) })
+        setDocsTicket(prev => [res.data, ...prev])
+      } catch { alert(`Erreur upload : ${file.name}`) }
+    }
+    setUploadTicketLoading(false)
+  }
 
   useEffect(() => {
     const demandeRechercheeId = localStorage.getItem('demandeRechercheeId')
@@ -3281,6 +3299,19 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         delete createPayload.numDemande
         const res = await API.post('/demandes', createPayload)
         syncDemandes([res.data, ...demandes])
+        // Upload des fichiers joints après création
+        if (fichiersAJoindre.length > 0) {
+          for (const file of fichiersAJoindre) {
+            try {
+              const buffer = await file.arrayBuffer()
+              const bytes = new Uint8Array(buffer)
+              let binary = ''
+              for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192))
+              await API.post(`/demandes/${res.data.id}/documents`, { nom: file.name, type: file.type || 'application/octet-stream', contenu: btoa(binary) })
+            } catch { /* upload non bloquant */ }
+          }
+          setFichiersAJoindre([])
+        }
       }
       setForm(emptyForm)
       setShowForm(false)
@@ -4174,6 +4205,42 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
           </div>
           <textarea style={{...inp,height:'60px',resize:'vertical',width:'100%'}} placeholder="Action menée" value={form.actionMenee} onChange={e=>setForm({...form,actionMenee:e.target.value})} />
+
+          {/* Zone pièces jointes — uniquement à la création */}
+          {!editId && (
+            <div style={{border:'1px solid #e2e8f0',borderRadius:'8px',padding:'0.75rem',background:'#f8fafc'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.5rem'}}>
+                <span style={{fontSize:'0.78rem',fontWeight:'600',color:'#4a5568'}}>
+                  📎 Pièces jointes
+                  {fichiersAJoindre.length > 0 && <span style={{marginLeft:'0.5rem',background:'#ebf8ff',color:'#2b6cb0',padding:'0.1rem 0.4rem',borderRadius:'20px',fontSize:'0.72rem'}}>{fichiersAJoindre.length} fichier(s)</span>}
+                </span>
+                <label style={{background:'#2b6cb0',color:'white',borderRadius:'6px',padding:'0.3rem 0.7rem',cursor:'pointer',fontSize:'0.8rem',fontWeight:'600'}}>
+                  + Ajouter
+                  <input type="file" multiple style={{display:'none'}} onChange={e => {
+                    const nouveaux = Array.from(e.target.files)
+                    setFichiersAJoindre(prev => [...prev, ...nouveaux])
+                    e.target.value = ''
+                  }} />
+                </label>
+              </div>
+              {fichiersAJoindre.length === 0
+                ? <div style={{fontSize:'0.8rem',color:'#a0aec0',fontStyle:'italic'}}>Aucun fichier sélectionné</div>
+                : <div style={{display:'grid',gap:'0.3rem'}}>
+                    {fichiersAJoindre.map((f, i) => (
+                      <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',background:'white',borderRadius:'6px',padding:'0.35rem 0.6rem',border:'1px solid #e2e8f0',fontSize:'0.82rem'}}>
+                        <span style={{color:'#2d3748',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
+                        <span style={{display:'flex',gap:'0.5rem',alignItems:'center',flexShrink:0,marginLeft:'0.5rem'}}>
+                          <span style={{color:'#a0aec0',fontSize:'0.75rem'}}>{(f.size/1024).toFixed(1)} Ko</span>
+                          <button type="button" onClick={() => setFichiersAJoindre(prev => prev.filter((_,j) => j !== i))}
+                            style={{background:'none',border:'none',cursor:'pointer',color:'#c53030',fontSize:'0.9rem',padding:0}}>✕</button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+          )}
+
           <div style={{display:'flex',gap:'0.75rem',marginTop:'0.25rem'}}>
             <button style={styles.button} type="submit">{editId ? '💾 Modifier' : '💾 Enregistrer'}</button>
             {editId && form.niveauTraitement !== 2 && !['Traité','Clôturé','Escaladé','En cours N2'].includes(form.statut) && (
@@ -4539,6 +4606,31 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               <div style={{ fontSize:'0.88rem', color:'#333' }}>{ticketOuvert.actionMenee}</div>
             </div>
           )}
+
+          {/* Pièces jointes */}
+          <div style={{marginTop:'1rem',borderTop:'1px solid #e2e8f0',paddingTop:'0.75rem'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'0.5rem'}}>
+              <span style={{fontSize:'0.78rem',fontWeight:'700',color:'#1a365d',textTransform:'uppercase',letterSpacing:'0.04em'}}>📎 Pièces jointes ({docsTicket.length})</span>
+              <label style={{background:'#2b6cb0',color:'white',borderRadius:'6px',padding:'0.25rem 0.6rem',cursor:'pointer',fontSize:'0.78rem',fontWeight:'600'}}>
+                {uploadTicketLoading ? '…' : '+ Ajouter'}
+                <input type="file" multiple style={{display:'none'}} onChange={handleUploadTicket} disabled={uploadTicketLoading} />
+              </label>
+            </div>
+            {docsTicket.length === 0
+              ? <div style={{fontSize:'0.8rem',color:'#a0aec0',fontStyle:'italic'}}>Aucun document joint</div>
+              : docsTicket.map(doc => (
+                <div key={doc.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0.4rem 0.6rem',background:'#f8fafc',borderRadius:'6px',border:'1px solid #e2e8f0',marginBottom:'0.3rem',fontSize:'0.8rem'}}>
+                  <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#2d3748'}}>{doc.nom}</span>
+                  <div style={{display:'flex',gap:'0.3rem',flexShrink:0,marginLeft:'0.5rem'}}>
+                    <a href={`${API.defaults.baseURL}/demandes/${ticketOuvert.id}/documents/${doc.id}/download`} download={doc.nom}
+                      style={{background:'#ebf8ff',color:'#2b6cb0',borderRadius:'4px',padding:'0.2rem 0.4rem',textDecoration:'none',fontSize:'0.72rem'}}>⬇</a>
+                    <button onClick={async()=>{if(!window.confirm('Supprimer ?'))return;await API.delete(`/demandes/${ticketOuvert.id}/documents/${doc.id}`);setDocsTicket(prev=>prev.filter(d=>d.id!==doc.id))}}
+                      style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'4px',padding:'0.2rem 0.4rem',cursor:'pointer',fontSize:'0.72rem'}}>🗑</button>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
 
           <div style={{ marginTop:'1.5rem', display:'flex', gap:'0.5rem' }}>
             <button onClick={() => { setSelected(ticketOuvert); setModalOpen(true); setTicketOuvert(null); }} style={{ flex:1, padding:'0.6rem', background:'#1e3a5f', color:'#fff', border:'none', borderRadius:'8px', cursor:'pointer', fontWeight:600 }}>✏️ Modifier</button>
