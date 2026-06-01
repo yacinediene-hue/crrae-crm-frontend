@@ -2012,6 +2012,41 @@ function Deals() {
   const [showForm, setShowForm] = useState(false)
   const [dealOuvert, setDealOuvert] = useState(null)
   const [vueDeals, setVueDeals] = useState('tableau')
+  const [piecesJointes, setPiecesJointes] = useState([])
+  const [uploadLoading, setUploadLoading] = useState(false)
+
+  useEffect(() => {
+    if (!dealOuvert) { setPiecesJointes([]); return }
+    API.get(`/deals/${dealOuvert.id}/documents`)
+      .then(r => setPiecesJointes(r.data))
+      .catch(() => {})
+  }, [dealOuvert])
+
+  const handleUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length || !dealOuvert) return
+    e.target.value = ''
+    setUploadLoading(true)
+    for (const file of files) {
+      try {
+        const buffer = await file.arrayBuffer()
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        const res = await API.post(`/deals/${dealOuvert.id}/documents`, {
+          nom: file.name, type: file.type, contenu: base64,
+        })
+        setPiecesJointes(prev => [res.data, ...prev])
+      } catch { alert(`Erreur upload : ${file.name}`) }
+    }
+    setUploadLoading(false)
+  }
+
+  const handleDeleteDoc = async (docId) => {
+    if (!window.confirm('Supprimer ce document ?')) return
+    try {
+      await API.delete(`/deals/${dealOuvert.id}/documents/${docId}`)
+      setPiecesJointes(prev => prev.filter(d => d.id !== docId))
+    } catch { alert('Erreur suppression') }
+  }
   const formVide = {
     nomPrenom: '', institution: '', pays: '', telephone: '', email: '',
     typeClient: 'Individuel', typeAdhesion: '', modeAdhesion: '',
@@ -2446,10 +2481,49 @@ function Deals() {
               </div>
             )}
 
+            {/* Pièces jointes */}
+            <div style={{ marginTop: '1.25rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: '700', color: '#1a365d', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  📎 Pièces jointes ({piecesJointes.length})
+                </div>
+                <label style={{ background: '#2b6cb0', color: 'white', border: 'none', borderRadius: '6px', padding: '0.35rem 0.75rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}>
+                  {uploadLoading ? 'Envoi…' : '+ Ajouter'}
+                  <input type="file" multiple style={{ display: 'none' }} onChange={handleUpload} disabled={uploadLoading} />
+                </label>
+              </div>
+              {piecesJointes.length === 0
+                ? <div style={{ fontSize: '0.82rem', color: '#a0aec0', fontStyle: 'italic' }}>Aucun document joint</div>
+                : <div style={{ display: 'grid', gap: '0.4rem' }}>
+                    {piecesJointes.map(doc => (
+                      <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0.75rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.85rem', color: '#2d3748', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#a0aec0' }}>
+                            {(doc.taille / 1024).toFixed(1)} Ko · {new Date(doc.createdAt).toLocaleDateString('fr-FR')}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0, marginLeft: '0.5rem' }}>
+                          <a href={`${API.defaults.baseURL}/deals/${dealOuvert.id}/documents/${doc.id}/download`}
+                            download={doc.nom}
+                            style={{ background: '#ebf8ff', color: '#2b6cb0', border: 'none', borderRadius: '6px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'none' }}>
+                            ⬇ Télécharger
+                          </a>
+                          <button onClick={() => handleDeleteDoc(doc.id)}
+                            style={{ background: '#fff5f5', color: '#c53030', border: 'none', borderRadius: '6px', padding: '0.3rem 0.5rem', cursor: 'pointer', fontSize: '0.75rem' }}>
+                            🗑
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+              }
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
               <button onClick={() => handleDelete(dealOuvert.id)}
                 style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2', borderRadius: '6px', padding: '0.4rem 1rem', cursor: 'pointer', fontSize: '0.85rem' }}>
-                🗑️ Supprimer
+                🗑️ Supprimer le deal
               </button>
             </div>
           </div>
