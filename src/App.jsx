@@ -5022,7 +5022,19 @@ function Rapports() {
     <div>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>📈 Rapports</h2>
-        <div style={{display:'flex',gap:'0.5rem'}}>
+        <div style={{display:'flex',gap:'0.5rem',flexWrap:'wrap',alignItems:'center'}}>
+          <button
+            style={{...styles.button, background:'#c53030', width:'auto', padding:'0.5rem 1rem', fontSize:'0.85rem'}}
+            onClick={async () => {
+              if (!window.confirm('Envoyer les alertes SLA par email aux agents concernés ?')) return
+              try {
+                const res = await API.post('/alertes/sla')
+                alert(`✅ ${res.data.message}`)
+              } catch { alert('Erreur lors de l\'envoi des alertes') }
+            }}
+          >
+            ⚠️ Alertes SLA
+          </button>
           {[{val:'semaine',label:'Cette semaine'},{val:'mois',label:'Ce mois'},{val:'annee',label:'Cette année'},{val:'tout',label:'Tout'}].map(p => (
             <button key={p.val} onClick={() => setPeriode(p.val)}
               style={{padding:'0.5rem 1rem',borderRadius:'6px',border:'none',cursor:'pointer',
