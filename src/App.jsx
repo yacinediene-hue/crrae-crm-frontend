@@ -5319,6 +5319,7 @@ function PageEnquete() {
 // Layout
 function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, demandes = [] }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const userRole = localStorage.getItem('userRole') || 'agent'
   const isAdmin = userRole === 'admin'
   const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager'
@@ -5412,7 +5413,7 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
       </nav>
       <main style={styles.main}>
-        <div style={{
+        {pathname !== '/deals' && <div style={{
           display:'flex',
           justifyContent:'flex-end',
           marginBottom:'1rem'
@@ -5436,7 +5437,7 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
           >
             ➕ Nouvelle demande
           </button>
-        </div>
+        </div>}
         {children}
       </main>
     </div>
