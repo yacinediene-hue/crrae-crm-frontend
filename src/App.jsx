@@ -2030,7 +2030,14 @@ function Deals() {
     for (const file of files) {
       try {
         const buffer = await file.arrayBuffer()
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        // Conversion base64 robuste pour les gros fichiers (évite la limite du spread)
+        const bytes = new Uint8Array(buffer)
+        let binary = ''
+        const chunk = 8192
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+        }
+        const base64 = btoa(binary)
         const res = await API.post(`/deals/${dealOuvert.id}/documents`, {
           nom: file.name, type: file.type, contenu: base64,
         })
