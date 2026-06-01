@@ -1261,7 +1261,7 @@ function DemandesEnCours() {
               ? <tr><td colSpan={9}><div className="empty-state"><span className="empty-state-icon">✅</span>Aucune demande non résolue</div></td></tr>
               : enCours.map(d => (
                 <tr key={d.id} style={{...styles.tr,cursor:'pointer'}} onClick={() => setTicketOuvert(d)}>
-                  <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
+                  <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600',position:'sticky',left:0,background:d.priorite==='Urgent'?'#fffaf0':'white',zIndex:1,whiteSpace:'nowrap'}}>{f(d.numDemande)}</td>
                   <td style={styles.td}>{d.dateReception ? new Date(d.dateReception).toLocaleDateString('fr-FR') : '—'}</td>
                   <td style={styles.td}>{f(d.nomPrenom)}</td>
                   <td style={{...styles.td,fontSize:'0.82rem'}}>{f(d.objetDemande)}</td>
@@ -4256,28 +4256,28 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         background:'white',
         borderRadius:'14px',
         boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
-        overflow:'visible'
+        overflow:'hidden'
       }}>
-        <div style={{overflowX:'auto', overflowY:'visible'}}>
+        <div style={{overflowX:'auto', overflowY:'auto', maxHeight:'70vh'}}>
           <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
-            <thead>
+            <thead style={{position:'sticky', top:0, zIndex:10}}>
               <tr>
-                <th style={styles.th}>N°</th>
-                <th style={styles.th}>Date</th>
-                <th style={styles.th}>Nom</th>
-                <th style={styles.th}>Matricule</th>
+                <th style={{...styles.th, position:'sticky', left:0, zIndex:11, background:'#f8fafc', minWidth:'90px'}}>N°</th>
+                <th style={{...styles.th, minWidth:'80px'}}>Date</th>
+                <th style={{...styles.th, minWidth:'140px'}}>Nom</th>
+                <th style={{...styles.th, minWidth:'120px'}}>Matricule</th>
                 {renderHeaderFiltrable('Type', 'typeClient')}
                 {renderHeaderFiltrable('Pays', 'pays')}
-                {renderHeaderFiltrable('Objet', 'objetDemande')}
+                <th style={{...styles.th, minWidth:'160px'}}>Objet</th>
                 {renderHeaderFiltrable('Canal', 'canal')}
                 {renderHeaderFiltrable('Agent N1', 'agentN1')}
                 {renderHeaderFiltrable('Service', 'service')}
                 {renderHeaderFiltrable('Statut', 'statut')}
                 {renderHeaderFiltrable('Priorité', 'priorite')}
-                <th style={styles.th}>Délai</th>
-                <th style={styles.th}>Note</th>
-                <th style={styles.th}>Enquête</th>
-                <th style={styles.th}>Actions</th>
+                <th style={{...styles.th, minWidth:'60px'}}>Délai</th>
+                <th style={{...styles.th, minWidth:'70px'}}>Note</th>
+                <th style={{...styles.th, minWidth:'80px'}}>Enquête</th>
+                <th style={{...styles.th, minWidth:'180px', position:'sticky', right:0, background:'#f8fafc', zIndex:11}}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -4292,7 +4292,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                   }}
                   onClick={() => { closeClient(); setTicketOuvert(d) }}
                 >
-                  <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600'}}>{f(d.numDemande)}</td>
+                  <td style={{...styles.td,color:'#2b6cb0',fontWeight:'600',position:'sticky',left:0,background:d.priorite==='Urgent'?'#fffaf0':'white',zIndex:1,whiteSpace:'nowrap'}}>{f(d.numDemande)}</td>
                   <td style={styles.td}>{d.dateReception?new Date(d.dateReception).toLocaleDateString('fr-FR'):'—'}</td>
                   <td style={styles.td}>{f(d.nomPrenom)}</td>
                   <td style={{...styles.td,fontSize:'0.8rem',color:'#718096'}}>{f(d.matricule)}</td>
@@ -4340,7 +4340,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       <span style={{color:'#b7791f'}}>—</span>
                     }
                   </td>
-                  <td style={{...styles.td, whiteSpace:'nowrap'}}>
+                  <td style={{...styles.td, whiteSpace:'nowrap', position:'sticky', right:0, background:d.priorite==='Urgent'?'#fffaf0':'white', zIndex:1}}>
                     <button
                       title="Modifier"
                       onClick={()=>handleEdit(d)}

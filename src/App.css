@@ -25,6 +25,18 @@
 /* ── Table interactivity ───────────────────────────────────── */
 tbody tr { transition: background 0.1s; }
 tbody tr:hover { background: #f8fafc !important; }
+tbody tr:hover td[style*="sticky"] { background: #f8fafc !important; }
+
+/* ── Sticky header shadow ──────────────────────────────────── */
+thead { box-shadow: 0 2px 4px rgba(0,0,0,0.06); }
+
+/* ── Sticky column separator ───────────────────────────────── */
+td[style*="sticky"][style*="left:0"], th[style*="sticky"][style*="left:0"] {
+  border-right: 2px solid #e2e8f0;
+}
+td[style*="sticky"][style*="right:0"], th[style*="sticky"][style*="right:0"] {
+  border-left: 2px solid #e2e8f0;
+}
 
 /* ── Nav hover ─────────────────────────────────────────────── */
 nav a:hover { background: rgba(255,255,255,0.10) !important; color: white !important; }
