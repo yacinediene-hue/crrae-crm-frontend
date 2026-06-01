@@ -2066,6 +2066,7 @@ function Deals() {
       setDeals([res.data, ...deals])
       setForm(formVide)
       setShowForm(false)
+      setDealOuvert(res.data) // ouvre le panneau pour permettre l'upload de documents
     } catch (err) {
       console.error('Erreur création deal', err)
       alert('Erreur lors de la création')
