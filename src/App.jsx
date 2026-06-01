@@ -214,10 +214,19 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   }, {})
 
   const agentStats = demandesFiltrees.reduce((acc, item) => {
-    const agent = item.agentN1 || 'Non assigné'
-    if (!acc[agent]) acc[agent] = { total: 0, slaOk: 0 }
-    acc[agent].total++
-    if (item.respectDelai === 'OUI') acc[agent].slaOk++
+    // N1
+    const n1 = item.agentN1
+    if (n1) {
+      if (!acc[n1]) acc[n1] = { asN1: 0, asN2: 0, slaOk: 0 }
+      acc[n1].asN1++
+      if (item.respectDelai === 'OUI') acc[n1].slaOk++
+    }
+    // N2 (seulement si différent de N1)
+    const n2 = item.agentN2
+    if (n2 && n2 !== n1) {
+      if (!acc[n2]) acc[n2] = { asN1: 0, asN2: 0, slaOk: 0 }
+      acc[n2].asN2++
+    }
     return acc
   }, {})
 
@@ -281,12 +290,17 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   })
 
   const agentRows = Object.entries(agentStats).map(([agent, values]) => {
-    const taux = values.total > 0 ? Math.round((values.slaOk / values.total) * 100) : 0
+    const total = values.asN1 + values.asN2
+    const taux  = total > 0 ? Math.round((values.slaOk / values.asN1) * 100) : 0
+    const role  = values.asN1 > 0 && values.asN2 > 0 ? 'N1+N2' : values.asN2 > 0 ? 'N2' : 'N1'
     return {
       agent,
-      total: values.total,
+      asN1:  values.asN1,
+      asN2:  values.asN2,
+      total,
       slaOk: values.slaOk,
       taux,
+      role,
     }
   })
 
@@ -816,15 +830,27 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
           <thead>
             <tr>
               <th style={styles.th}>Agent</th>
-              <th style={styles.th}>Demandes</th>
-              <th style={styles.th}>SLA respecté</th>
+              <th style={styles.th}>Rôle</th>
+              <th style={styles.th}>N1</th>
+              <th style={styles.th}>N2</th>
+              <th style={styles.th}>Total</th>
+              <th style={styles.th}>SLA OK</th>
               <th style={styles.th}>Taux</th>
             </tr>
           </thead>
           <tbody>
-            {agentRows.map((row) => (
+            {agentRows.sort((a,b) => b.total - a.total).map((row) => (
               <tr key={row.agent} style={styles.tr}>
-                <td style={styles.td}>{row.agent}</td>
+                <td style={{...styles.td, fontWeight:'600'}}>{row.agent}</td>
+                <td style={styles.td}>
+                  <span style={{
+                    padding:'0.15rem 0.5rem', borderRadius:'20px', fontSize:'0.75rem', fontWeight:'600',
+                    background: row.role==='N2' ? '#faf5ff' : row.role==='N1+N2' ? '#ebf8ff' : '#f0fff4',
+                    color:      row.role==='N2' ? '#6b46c1' : row.role==='N1+N2' ? '#2b6cb0' : '#276749',
+                  }}>{row.role}</span>
+                </td>
+                <td style={styles.td}>{row.asN1 || '—'}</td>
+                <td style={styles.td}>{row.asN2 || '—'}</td>
                 <td style={styles.td}>{row.total}</td>
                 <td style={styles.td}>{row.slaOk}</td>
                 <td style={styles.td}>
@@ -4836,14 +4862,25 @@ function Rapports() {
     filtered.reduce((acc, d) => { const k = labelCanalDemande(d.canal)||'—'; acc[k]=(acc[k]||0)+1; return acc }, {})
   ).sort((a,b) => b[1]-a[1])
 
-  // Performance agents
-  const agents = [...new Set(filtered.map(d => d.agentN1).filter(Boolean))]
-  const perfAgents = agents.map(a => ({
-    name: a,
-    total: filtered.filter(d => d.agentN1 === a).length,
-    traite: filtered.filter(d => d.agentN1 === a && CLOS.includes(d.statut)).length,
-    horsSla: filtered.filter(d => d.agentN1 === a && !CLOS.includes(d.statut) && d.respectDelai === 'NON').length,
-  })).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
+  // Performance agents — N1 + N2
+  const allAgents = [...new Set([
+    ...filtered.map(d => d.agentN1).filter(Boolean),
+    ...filtered.map(d => d.agentN2).filter(Boolean),
+  ])]
+  const perfAgents = allAgents.map(a => {
+    const asN1 = filtered.filter(d => d.agentN1 === a)
+    const asN2 = filtered.filter(d => d.agentN2 === a && d.agentN1 !== a)
+    const all  = [...asN1, ...asN2]
+    const role = asN1.length > 0 && asN2.length > 0 ? 'N1+N2' : asN2.length > 0 ? 'N2' : 'N1'
+    return {
+      name: a, role,
+      asN1: asN1.length,
+      asN2: asN2.length,
+      total: all.length,
+      traite:  all.filter(d => CLOS.includes(d.statut)).length,
+      horsSla: all.filter(d => !CLOS.includes(d.statut) && d.respectDelai === 'NON').length,
+    }
+  }).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
 
   // Performance services
   const SLA_SERVICES = {DPM:'3j',DPR:'5j',DSI:'6j',PATRIMOINE:'7j',DCR:'5j',DFC:'5j',DRUC:'5j',REGISSEUR:'5j',Autre:'5j'}
@@ -4982,12 +5019,24 @@ function Rapports() {
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem',marginBottom:'1rem'}}>
         {panel('👤 Performance par agent', 'Traitement & SLA', (
           <table style={{...styles.table,boxShadow:'none',borderRadius:0}}>
-            <thead><tr><th style={styles.th}>Agent</th><th style={styles.th}>Total</th><th style={styles.th}>Traités</th><th style={styles.th}>Hors SLA</th><th style={styles.th}>Taux</th></tr></thead>
+            <thead><tr>
+              <th style={styles.th}>Agent</th>
+              <th style={styles.th}>Rôle</th>
+              <th style={styles.th}>N1</th>
+              <th style={styles.th}>N2</th>
+              <th style={styles.th}>Total</th>
+              <th style={styles.th}>Traités</th>
+              <th style={styles.th}>Hors SLA</th>
+              <th style={styles.th}>Taux</th>
+            </tr></thead>
             <tbody>
-              {perfAgents.length === 0 && <tr><td colSpan={5} style={{...styles.td,color:'#718096',textAlign:'center'}}>Aucune donnée</td></tr>}
+              {perfAgents.length === 0 && <tr><td colSpan={8} style={{...styles.td,color:'#718096',textAlign:'center'}}>Aucune donnée</td></tr>}
               {perfAgents.map(a => (
                 <tr key={a.name} style={styles.tr}>
-                  <td style={styles.td}>{a.name}</td>
+                  <td style={{...styles.td,fontWeight:'600'}}>{a.name}</td>
+                  <td style={styles.td}><span style={{...styles.badge,background:a.role==='N2'?'#faf5ff':a.role==='N1+N2'?'#ebf8ff':'#f0fff4',color:a.role==='N2'?'#6b46c1':a.role==='N1+N2'?'#2b6cb0':'#276749'}}>{a.role}</span></td>
+                  <td style={styles.td}>{a.asN1||'—'}</td>
+                  <td style={styles.td}>{a.asN2||'—'}</td>
                   <td style={styles.td}>{a.total}</td>
                   <td style={styles.td}>{a.traite}</td>
                   <td style={styles.td}><span style={{...styles.badge,background:a.horsSla>0?'#fff5f5':'#f0fff4',color:a.horsSla>0?'#c53030':'#276749'}}>{a.horsSla}</span></td>
