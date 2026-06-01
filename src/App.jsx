@@ -4258,7 +4258,19 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         boxShadow:'0 2px 10px rgba(0,0,0,0.06)',
         overflow:'hidden'
       }}>
-        <div style={{overflowX:'auto', overflowY:'auto', maxHeight:'70vh'}}>
+        <div style={{display:'flex', justifyContent:'flex-end', gap:'0.4rem', padding:'0.5rem 0.75rem', borderBottom:'1px solid #e2e8f0', background:'#f8fafc'}}>
+          <button type="button"
+            onClick={() => { const el = document.getElementById('demandes-table-scroll'); if(el) el.scrollLeft -= 250 }}
+            style={{background:'white', border:'1px solid #e2e8f0', borderRadius:'6px', padding:'0.3rem 0.75rem', cursor:'pointer', fontSize:'0.85rem', color:'#4a5568', fontWeight:'600'}}>
+            ← Gauche
+          </button>
+          <button type="button"
+            onClick={() => { const el = document.getElementById('demandes-table-scroll'); if(el) el.scrollLeft += 250 }}
+            style={{background:'#2b6cb0', border:'none', borderRadius:'6px', padding:'0.3rem 0.75rem', cursor:'pointer', fontSize:'0.85rem', color:'white', fontWeight:'600'}}>
+            Droite →
+          </button>
+        </div>
+        <div id="demandes-table-scroll" style={{overflowX:'auto', overflowY:'auto', maxHeight:'70vh'}}>
           <table style={{...styles.table, boxShadow:'none', borderRadius:0}}>
             <thead style={{position:'sticky', top:0, zIndex:10}}>
               <tr>
