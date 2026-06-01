@@ -2169,13 +2169,18 @@ function Deals() {
             🧩 Pipeline
           </button>
           <button style={styles.button} onClick={() => setShowForm(!showForm)}>
-            + Nouveau dossier
+            + Nouveau deal
           </button>
         </div>
       </div>
 
       {showForm && (
         <form onSubmit={handleAdd} style={{ ...styles.form, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+          <div style={{ gridColumn:'1/-1', display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.25rem' }}>
+            <h3 style={{ margin:0, color:'#1a365d', fontSize:'1rem', fontWeight:'700' }}>💼 Nouveau deal — Prospect</h3>
+            <button type="button" onClick={() => { setShowForm(false); setForm(formVide) }}
+              style={{ background:'none', border:'none', fontSize:'1.4rem', cursor:'pointer', color:'#718096' }}>✕</button>
+          </div>
           <input style={inp} placeholder="Nom & Prénom *" value={form.nomPrenom} onChange={e => setForm({...form, nomPrenom: e.target.value})} required />
           <input style={inp} placeholder="Institution / Employeur" value={form.institution} onChange={e => setForm({...form, institution: e.target.value})} />
           <input style={inp} placeholder="Pays" value={form.pays} onChange={e => setForm({...form, pays: e.target.value})} />
@@ -2240,8 +2245,8 @@ function Deals() {
               onChange={e => setForm({...form, commentaire: e.target.value})} />
           </div>
           <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem' }}>
-            <button style={styles.button} type="submit">💾 Enregistrer</button>
-            <button style={{ ...styles.button, background: '#718096' }} type="button" onClick={() => { setShowForm(false); setForm(formVide) }}>Annuler</button>
+            <button style={styles.button} type="submit">💾 Enregistrer le deal</button>
+            <button style={{ ...styles.button, background: '#718096', width:'auto', padding:'0.625rem 1rem' }} type="button" onClick={() => { setShowForm(false); setForm(formVide) }}>Annuler</button>
           </div>
         </form>
       )}
