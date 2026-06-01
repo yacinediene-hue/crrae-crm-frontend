@@ -3576,7 +3576,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
     if (d.statut !== 'Traité' && d.dateReception) {
       const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24))
-      const delaisService = { DPM: 3, DPR: 5, DSI: 6, PATRIMOINE: 7, DCR: 5, DFC: 5, REGISSEUR: 5, Autre: 5 }
+      const delaisService = { DPM: 3, DPR: 5, DSI: 6, PATRIMOINE: 7, DCR: 5, DFC: 5, DRUC: 5, REGISSEUR: 5, Autre: 5 }
       const delaiMax = delaisService[d.service] ?? 3
 
       if (jours === delaiMax || jours === delaiMax - 1) {
@@ -3960,7 +3960,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterService} onChange={e=>setFilterService(e.target.value)}>
               <option value="">Tous services</option>
-              {['DPM','DPR','DSI','DCR','DFC','PATRIMOINE','REGISSEUR','Autre'].map(s=><option key={s}>{s}</option>)}
+              {['DPM','DPR','DSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Autre'].map(s=><option key={s}>{s}</option>)}
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterTypeClient} onChange={e=>setFilterTypeClient(e.target.value)}>
               <option value="">Tous types</option>
@@ -4116,7 +4116,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             {form.niveauTraitement===2 ? (
               <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
                 <option value="">-- Service --</option>
-                {["DPM","DPR","DSI","DCR","DFC","PATRIMOINE","REGISSEUR","Autre"].map(s=><option key={s}>{s}</option>)}
+                {["DPM","DPR","DSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Autre"].map(s=><option key={s}>{s}</option>)}
               </select>
             ) : <div />}
             {form.niveauTraitement===2 && (
@@ -4372,7 +4372,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 onChange={e => setEscaladeForm({...escaladeForm, service: e.target.value})}
               >
                 <option value="">-- Sélectionner un service --</option>
-                {['DPM','DPR','DSI','DCR','DFC','PATRIMOINE','REGISSEUR','Autre'].map(s => <option key={s}>{s}</option>)}
+                {['DPM','DPR','DSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Autre'].map(s => <option key={s}>{s}</option>)}
               </select>
 
               <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>
@@ -4846,7 +4846,7 @@ function Rapports() {
   })).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
 
   // Performance services
-  const SLA_SERVICES = {DPM:'3j',DPR:'5j',DSI:'6j',PATRIMOINE:'7j',DCR:'5j',DFC:'5j',REGISSEUR:'5j',Autre:'5j'}
+  const SLA_SERVICES = {DPM:'3j',DPR:'5j',DSI:'6j',PATRIMOINE:'7j',DCR:'5j',DFC:'5j',DRUC:'5j',REGISSEUR:'5j',Autre:'5j'}
   const perfServices = Object.keys(SLA_SERVICES).map(s => {
     const t = filtered.filter(d => d.service === s)
     const oui = t.filter(d => d.respectDelai === 'OUI').length
@@ -5110,7 +5110,7 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
             <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Service</label>
             <select style={{...styles.input, marginBottom:0}} value={service} onChange={e=>setService(e.target.value)}>
               <option value="">-- Service --</option>
-              {["DPM","DPR","DSI","DCR","DFC","PATRIMOINE","REGISSEUR","Autre"].map(s => <option key={s} value={s}>{s}</option>)}
+              {["DPM","DPR","DSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Autre"].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div style={{marginBottom:'1rem'}}>
