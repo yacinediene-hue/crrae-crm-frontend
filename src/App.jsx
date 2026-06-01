@@ -2177,11 +2177,13 @@ function Deals() {
   }
 
   const statutDossier = (deal) => {
-    const hasMissingDocs = deal.documentsManquants && deal.documentsManquants.trim() !== ''
-    if (hasMissingDocs) {
+    const hasMissing   = deal.documentsManquants && deal.documentsManquants.trim() !== ''
+    const hasAttendus  = deal.documentsAttendus  && deal.documentsAttendus.trim()  !== ''
+    if (hasMissing)
       return { label: 'Dossier incomplet', style: { background: '#fff5f5', color: '#c53030', border: '1px solid #feb2b2' } }
-    }
-    return { label: 'Dossier complet', style: { background: '#f0fff4', color: '#276749', border: '1px solid #9ae6b4' } }
+    if (hasAttendus)
+      return { label: 'Dossier complet', style: { background: '#f0fff4', color: '#276749', border: '1px solid #9ae6b4' } }
+    return { label: 'Non évalué', style: { background: '#f7fafc', color: '#718096', border: '1px solid #e2e8f0' } }
   }
 
   const avancerEtapeDeal = (deal) => {
