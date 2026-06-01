@@ -2558,6 +2558,7 @@ function Campagnes() {
     canal: 'email',
     statut: 'draft',
     profilClient: '',
+    profilsSelectionnes: [], // tableau local, converti en string à l'envoi
     subject: '',
     content: '',
     dateEnvoi: '',
@@ -2582,7 +2583,12 @@ function Campagnes() {
   const handleAdd = async (e) => {
     e.preventDefault()
     try {
-      const payload = { ...form, status: form.statut }
+      const { profilsSelectionnes, ...rest } = form
+      const payload = {
+        ...rest,
+        status: form.statut,
+        profilClient: profilsSelectionnes.length > 0 ? profilsSelectionnes.join(',') : '',
+      }
       const res = await API.post('/campaigns', payload)
       setCampagnes([res.data, ...campagnes])
       setForm(formVide)
@@ -2681,12 +2687,39 @@ function Campagnes() {
             <option value="whatsapp">WhatsApp</option>
             <option value="sms">SMS</option>
           </select>
-          <select style={styles.input} value={form.profilClient} onChange={e => setForm({ ...form, profilClient: e.target.value })}>
-            <option value="">Tous les profils</option>
-            {PROFILS_CLIENTS.map(p => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
+          <div style={{ gridColumn:'1/-1', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'0.75rem', background:'white' }}>
+            <div style={{ fontSize:'0.78rem', fontWeight:'600', color:'#4a5568', marginBottom:'0.5rem' }}>
+              Profils destinataires
+              {form.profilsSelectionnes.length > 0 && (
+                <span style={{ marginLeft:'0.5rem', background:'#ebf8ff', color:'#2b6cb0', padding:'0.1rem 0.4rem', borderRadius:'20px', fontSize:'0.72rem' }}>
+                  {form.profilsSelectionnes.length} sélectionné(s)
+                </span>
+              )}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'0.35rem' }}>
+              {PROFILS_CLIENTS.map(p => (
+                <label key={p} style={{ display:'flex', alignItems:'center', gap:'0.4rem', fontSize:'0.82rem', cursor:'pointer', padding:'0.2rem 0.4rem', borderRadius:'6px', background: form.profilsSelectionnes.includes(p) ? '#ebf8ff' : 'transparent' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.profilsSelectionnes.includes(p)}
+                    onChange={e => {
+                      const sel = e.target.checked
+                        ? [...form.profilsSelectionnes, p]
+                        : form.profilsSelectionnes.filter(x => x !== p)
+                      setForm({ ...form, profilsSelectionnes: sel })
+                    }}
+                    style={{ cursor:'pointer' }}
+                  />
+                  {p}
+                </label>
+              ))}
+            </div>
+            {form.profilsSelectionnes.length === 0 && (
+              <div style={{ fontSize:'0.75rem', color:'#a0aec0', marginTop:'0.4rem', fontStyle:'italic' }}>
+                Aucun profil sélectionné = campagne pour tous
+              </div>
+            )}
+          </div>
           <select style={styles.input} value={form.statut} onChange={e => setForm({ ...form, statut: e.target.value })}>
             <option value="draft">Brouillon</option>
             <option value="planned">Planifiée</option>
@@ -2758,7 +2791,9 @@ function Campagnes() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               {[
-                ['Profil ciblé', campagneOuverte.profilClient || 'Tous'],
+                ['Profil(s) ciblé(s)', campagneOuverte.profilClient
+                  ? campagneOuverte.profilClient.split(',').join(' · ')
+                  : 'Tous'],
                 ['Contacts ciblés', targets.length],
                 ['Canal', campagneOuverte.canal || '—'],
                 ['Statut', campagneOuverte.statut || campagneOuverte.status || '—'],
