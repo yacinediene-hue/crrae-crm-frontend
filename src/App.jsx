@@ -3541,7 +3541,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       try {
         // eslint-disable-next-line no-unused-vars
         const { _doublon, _raison, numDemande: _num, ...data } = ligne
-        const res = await API.post('/demandes', data)
+        const res = await API.post('/demandes', { ...data, skipEmail: true })
         setDemandes(prev => { const n = [res.data, ...prev]; onDemandesChange?.(n); return n })
         importes++
       } catch (err) {
