@@ -3583,10 +3583,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     return jours > 3
   })
 
+  const [sortDateAsc, setSortDateAsc] = useState(false)
+
   const demandesTriees = [...demandes].sort((a, b) => {
     const dateA = new Date(a.dateReception || a.createdAt || 0).getTime()
     const dateB = new Date(b.dateReception || b.createdAt || 0).getTime()
-    return dateB - dateA  // plus récent en premier
+    return sortDateAsc ? dateA - dateB : dateB - dateA
   })
 
   const filtered = demandesTriees.filter(d => {
@@ -4275,7 +4277,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             <thead style={{position:'sticky', top:0, zIndex:10}}>
               <tr>
                 <th style={{...styles.th, position:'sticky', left:0, zIndex:11, background:'#f8fafc', minWidth:'90px'}}>N°</th>
-                <th style={{...styles.th, minWidth:'80px'}}>Date</th>
+                <th
+                  style={{...styles.th, minWidth:'80px', cursor:'pointer', userSelect:'none'}}
+                  onClick={() => setSortDateAsc(v => !v)}
+                  title="Cliquer pour changer l'ordre"
+                >
+                  Date {sortDateAsc ? '↑' : '↓'}
+                </th>
                 <th style={{...styles.th, minWidth:'140px'}}>Nom</th>
                 <th style={{...styles.th, minWidth:'120px'}}>Matricule</th>
                 {renderHeaderFiltrable('Type', 'typeClient')}
