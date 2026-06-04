@@ -3120,6 +3120,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
+  const [sortDateAsc, setSortDateAsc] = useState(false)
   const urlParams = new URLSearchParams(location.search)
   const filterEnTraitement = urlParams.get('filtre') === 'enTraitement'
   const filterHorsSla      = urlParams.get('filtre') === 'horsSla'
@@ -3582,8 +3583,6 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
     return jours > 3
   })
-
-  const [sortDateAsc, setSortDateAsc] = useState(false)
 
   const demandesTriees = [...demandes].sort((a, b) => {
     const dateA = new Date(a.dateReception || a.createdAt || 0).getTime()
