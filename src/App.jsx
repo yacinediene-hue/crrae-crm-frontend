@@ -3584,9 +3584,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   })
 
   const demandesTriees = [...demandes].sort((a, b) => {
-    const dateA = new Date(a.dateReception || a.createdAt)
-    const dateB = new Date(b.dateReception || b.createdAt)
-    return dateB - dateA
+    const dateA = new Date(a.dateReception || a.createdAt || 0).getTime()
+    const dateB = new Date(b.dateReception || b.createdAt || 0).getTime()
+    return dateB - dateA  // plus récent en premier
   })
 
   const filtered = demandesTriees.filter(d => {
