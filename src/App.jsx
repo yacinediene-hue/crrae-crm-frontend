@@ -11,24 +11,86 @@ const INDICATIFS = {
   "France": "+33",
 }
 
-const AGENTS = ["Koffi Stephane", "Kacou Michèle", "Kouame Faty"]
+const AGENTS = ["KOFFI Stephane", "KACOU Michèle", "Fatty KOUAME"]
+// Agents Back Office (N2) — peuvent aussi traiter en N1
+const AGENTS_N2 = ['KACOU Michèle', 'Fatty KOUAME', 'COULIBALY Ismail', 'Yacine DIENE']
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import API from './api'
 import './App.css'
 import * as XLSX from 'xlsx'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+import pptxgen from 'pptxgenjs'
+
+// OTP — 2FA pour les administrateurs
+function OtpVerification({ otpToken, onLogin }) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true); setError('')
+    try {
+      const res = await API.post('/auth/verify-otp', { otpToken, code })
+      localStorage.setItem('token', res.data.access_token)
+      localStorage.setItem('userName', res.data.user.name)
+      localStorage.setItem('userRole', res.data.user.role)
+      localStorage.setItem('userEmail', res.data.user.email)
+      onLogin()
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Code invalide ou expiré')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={styles.loginContainer}>
+      <div style={{...styles.loginBox, maxWidth:'400px'}}>
+        <div style={{textAlign:'center', marginBottom:'1.5rem'}}>
+          <div style={{fontSize:'2.5rem', marginBottom:'0.5rem'}}>🔐</div>
+          <div style={{fontSize:'1.3rem', fontWeight:'800', color:'#1a365d'}}>Vérification en deux étapes</div>
+          <div style={{fontSize:'0.85rem', color:'#718096', marginTop:'0.4rem'}}>Un code à 6 chiffres a été envoyé à votre adresse email administrateur</div>
+        </div>
+        {error && <p style={styles.error}>{error}</p>}
+        <form onSubmit={handleSubmit}>
+          <input
+            style={{...styles.input, textAlign:'center', fontSize:'1.6rem', fontWeight:'700', letterSpacing:'0.5em', padding:'0.75rem'}}
+            type="text" inputMode="numeric" maxLength={6}
+            value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="000000" autoFocus
+          />
+          <button style={{...styles.button, background: loading ? '#718096' : '#1a365d'}} type="submit" disabled={loading || code.length !== 6}>
+            {loading ? 'Vérification…' : 'Confirmer'}
+          </button>
+        </form>
+        <p style={{textAlign:'center', marginTop:'1rem', color:'#718096', fontSize:'0.8rem'}}>
+          Code valable 10 minutes · Ne partagez jamais ce code
+        </p>
+      </div>
+    </div>
+  )
+}
 
 // Login
 function Login({ onLogin }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [otpPending, setOtpPending] = useState(null) // otpToken si 2FA requis
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError('')
     try {
       const res = await API.post('/auth/login', { email, password })
+      if (res.data.requiresOtp) {
+        setOtpPending(res.data.otpToken)
+        return
+      }
       localStorage.setItem('token', res.data.access_token)
       localStorage.setItem('userName', res.data.user.name)
       localStorage.setItem('userRole', res.data.user.role)
@@ -38,6 +100,8 @@ function Login({ onLogin }) {
       setError('Email ou mot de passe incorrect')
     }
   }
+
+  if (otpPending) return <OtpVerification otpToken={otpPending} onLogin={onLogin} />
 
   return (
     <div style={styles.loginContainer}>
@@ -357,11 +421,17 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
 
   const chargeParAgent = Object.entries(
     demandesFiltrees.reduce((acc, d) => {
-      const agent = d.agentN1 || 'Non assigné'
-      acc[agent] = (acc[agent] || 0) + 1
+      const n1 = d.agentN1 || 'Non assigné'
+      if (!acc[n1]) acc[n1] = { n1: 0, n2: 0 }
+      acc[n1].n1++
+      const n2 = d.agentN2
+      if (n2 && n2 !== n1) {
+        if (!acc[n2]) acc[n2] = { n1: 0, n2: 0 }
+        acc[n2].n2++
+      }
       return acc
     }, {})
-  ).map(([agent, total]) => ({ agent, total }))
+  ).map(([agent, counts]) => ({ agent, total: counts.n1 + counts.n2, n1: counts.n1, n2: counts.n2 }))
    .sort((a, b) => b.total - a.total)
 
   const chargeParService = Object.entries(
@@ -626,18 +696,30 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
             {chargeParAgent.length === 0 ? (
               <div style={{color:'#718096', fontSize:'0.9rem'}}>Aucune donnée</div>
             ) : (
-              chargeParAgent.slice(0, 6).map(item => (
+              chargeParAgent.slice(0, 8).map(item => (
                 <div key={item.agent} style={{
                   border:'1px solid #edf2f7', borderRadius:'10px',
                   padding:'0.75rem 0.85rem', display:'flex',
                   justifyContent:'space-between', alignItems:'center'
                 }}>
                   <span style={{color:'#2d3748', fontWeight:'500'}}>{item.agent}</span>
-                  <span style={{
-                    background:'#ebf8ff', color:'#2b6cb0',
-                    borderRadius:'999px', padding:'0.2rem 0.6rem',
-                    fontSize:'0.8rem', fontWeight:'700'
-                  }}>{item.total}</span>
+                  <div style={{display:'flex', gap:'0.4rem', alignItems:'center'}}>
+                    {item.n1 > 0 && <span style={{
+                      background:'#ebf8ff', color:'#2b6cb0',
+                      borderRadius:'999px', padding:'0.15rem 0.5rem',
+                      fontSize:'0.75rem', fontWeight:'700'
+                    }}>N1 {item.n1}</span>}
+                    {item.n2 > 0 && <span style={{
+                      background:'#faf5ff', color:'#6b46c1',
+                      borderRadius:'999px', padding:'0.15rem 0.5rem',
+                      fontSize:'0.75rem', fontWeight:'700'
+                    }}>N2 {item.n2}</span>}
+                    <span style={{
+                      background:'#f7fafc', color:'#4a5568',
+                      borderRadius:'999px', padding:'0.15rem 0.5rem',
+                      fontSize:'0.75rem', fontWeight:'700'
+                    }}>{item.total}</span>
+                  </div>
                 </div>
               ))
             )}
@@ -1978,6 +2060,7 @@ const CANAUX_DEMANDE = [
   { value: 'WHATSAPP',  label: 'WhatsApp' },
   { value: 'SITE_WEB',  label: 'Site web' },
   { value: 'GUICHET',   label: 'Guichet' },
+  { value: 'PHYSIQUE',  label: 'Physique' },
   { value: 'LINKEDIN',  label: 'LinkedIn' },
   { value: 'FACEBOOK',  label: 'Facebook' },
   { value: 'AUTRE',     label: 'Autre' },
@@ -1998,6 +2081,8 @@ const OBJETS_DEMANDE = [
   'Informations sur les cotisations',
   'Assistance technique - Plateforme en ligne',
   'Services et informations générales',
+  'Prise en charge',
+  'Entente préalable',
   'Autre demande ou réclamation',
 ]
 
@@ -3114,7 +3199,7 @@ function PanneauCommentaires({ demande, onClose }) {
   )
 }
 
-function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte, demandesInitiales = [], onDemandesChange }) {
+function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte, demandesInitiales = [], onDemandesChange, controlee = false }) {
   const location = useLocation()
   const [demandes, setDemandes] = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -3197,13 +3282,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   useEffect(() => {
     if (demandesInitiales.length > 0) {
       setDemandes(demandesInitiales)
-    } else {
+    } else if (!controlee) {
       API.get('/demandes').then(r => {
         setDemandes(r.data)
         onDemandesChange?.(r.data)
       }).catch(() => {})
     }
-  }, [])
+  }, [demandesInitiales])
 
   useEffect(() => {
     if (ticketOuvert) {
@@ -3325,7 +3410,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       nomPrenom: d.nomPrenom || '', matricule: d.matricule || '',
       adherent: d.adherent || '', typeClient: d.typeClient || '', profilClient: d.profilClient || '',
       pays: d.pays || '', heureAppel: d.heureAppel || '',
-      canal: d.canal || 'WHATSAPP', telephone: d.telephone || '',
+      canal: d.canal || '', telephone: d.telephone || '',
       email: d.email || '', objetDemande: d.objetDemande || 'Information',
       commentaire: d.commentaire || '', agentN1: d.agentN1 || '',
       service: d.service || '', agentN2: d.agentN2 || '',
@@ -3470,6 +3555,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         if (s === 'whatsapp' || s === 'wha' || s === 'wa') return 'WHATSAPP'
         if (s === 'siteweb' || s === 'web' || s === 'site' || s === 'internet') return 'SITE_WEB'
         if (s === 'guichet' || s === 'agence' || s === 'presentiel') return 'GUICHET'
+        if (s === 'physique') return 'PHYSIQUE'
         if (s === 'linkedin') return 'LINKEDIN'
         if (s === 'facebook' || s === 'fb') return 'FACEBOOK'
         if (s === 'autre' || s === 'other') return 'AUTRE'
@@ -3562,7 +3648,6 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
   const userRole = localStorage.getItem('userRole')
   const userName = localStorage.getItem('userName')
-  const AGENTS_N2 = ['Michèle KACOU', 'Fatty KOUAME', 'Ismael COULIBALY', 'Yacine DIENE']
   const isN2 = AGENTS_N2.some(n => userName && n.toLowerCase() === userName.toLowerCase())
   const isFullAccess = userRole === 'admin' || userRole === 'manager' || isN2
 
@@ -3634,7 +3719,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
     if (d.statut !== 'Traité' && d.dateReception) {
       const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24))
-      const delaisService = { DPM: 3, DPR: 5, DSI: 6, PATRIMOINE: 7, DCR: 5, DFC: 5, DRUC: 5, REGISSEUR: 5, Autre: 5 }
+      const delaisService = { DPM: 3, DPR: 5, DDSI: 6, PATRIMOINE: 7, DCR: 5, DFC: 5, DRUC: 5, REGISSEUR: 5, Autre: 5 }
       const delaiMax = delaisService[d.service] ?? 3
 
       if (jours === delaiMax || jours === delaiMax - 1) {
@@ -4018,7 +4103,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterService} onChange={e=>setFilterService(e.target.value)}>
               <option value="">Tous services</option>
-              {['DPM','DPR','DSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Autre'].map(s=><option key={s}>{s}</option>)}
+              {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s=><option key={s}>{s}</option>)}
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterTypeClient} onChange={e=>setFilterTypeClient(e.target.value)}>
               <option value="">Tous types</option>
@@ -4201,7 +4286,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             {form.niveauTraitement===2 ? (
               <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
                 <option value="">-- Service --</option>
-                {["DPM","DPR","DSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Autre"].map(s=><option key={s}>{s}</option>)}
+                {["DPM","DPR","DDSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Division Développement","Autre"].map(s=><option key={s}>{s}</option>)}
               </select>
             ) : <div />}
             {form.niveauTraitement===2 && (
@@ -4476,7 +4561,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 onChange={e => setEscaladeForm({...escaladeForm, service: e.target.value})}
               >
                 <option value="">-- Sélectionner un service --</option>
-                {['DPM','DPR','DSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Autre'].map(s => <option key={s}>{s}</option>)}
+                {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s => <option key={s}>{s}</option>)}
               </select>
 
               <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>
@@ -4716,6 +4801,150 @@ function FicheClient360({ client, demandes, onClose }) {
   )
 }
 
+function JournalAudit() {
+  const [logs, setLogs] = useState([])
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [filtreAction, setFiltreAction] = useState('')
+  const [filtreEntite, setFiltreEntite] = useState('')
+  const [filtreAuteur, setFiltreAuteur] = useState('')
+
+  const charger = async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filtreAction) params.set('action', filtreAction)
+      if (filtreEntite) params.set('entite', filtreEntite)
+      if (filtreAuteur) params.set('auteur', filtreAuteur)
+      params.set('limit', '300')
+      const [logsRes, statsRes] = await Promise.all([
+        API.get(`/audit/logs?${params}`),
+        API.get('/audit/stats'),
+      ])
+      setLogs(logsRes.data)
+      setStats(statsRes.data)
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { charger() }, [])
+
+  const ACTION_CONFIG = {
+    LOGIN_SUCCESS: { label: 'Connexion', bg: '#f0fff4', col: '#276749', icon: '✅' },
+    LOGIN_FAILED:  { label: 'Échec connexion', bg: '#fff5f5', col: '#c53030', icon: '❌' },
+    OTP_SENT:      { label: 'OTP envoyé', bg: '#ebf8ff', col: '#2b6cb0', icon: '📧' },
+    OTP_SUCCESS:   { label: '2FA validé', bg: '#f0fff4', col: '#276749', icon: '🔐' },
+    OTP_FAILED:    { label: '2FA échoué', bg: '#fff5f5', col: '#c53030', icon: '🔐' },
+    PASSWORD_RESET:{ label: 'Mot de passe réinitialisé', bg: '#fffbeb', col: '#b7791f', icon: '🔑' },
+    DELETE:        { label: 'Suppression', bg: '#fff5f5', col: '#c53030', icon: '🗑️' },
+    EXPORT:        { label: 'Export', bg: '#faf5ff', col: '#6b46c1', icon: '📤' },
+    IMPORT:        { label: 'Import', bg: '#ebf8ff', col: '#2b6cb0', icon: '📥' },
+    UPDATE:        { label: 'Modification', bg: '#fffbeb', col: '#b7791f', icon: '✏️' },
+    CREATE:        { label: 'Création', bg: '#f0fff4', col: '#276749', icon: '➕' },
+  }
+
+  const actionCfg = a => ACTION_CONFIG[a] || { label: a, bg: '#edf2f7', col: '#4a5568', icon: '📋' }
+
+  const entites = [...new Set(logs.map(l => l.entite))].sort()
+  const actions = [...new Set(logs.map(l => l.action))].sort()
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>🛡️ Journal de sécurité</h2>
+        <span style={{fontSize:'0.82rem', color:'#718096', background:'#edf2f7', borderRadius:'999px', padding:'0.3rem 0.75rem'}}>
+          Connexions · Actions sensibles · Audit trail
+        </span>
+      </div>
+
+      {stats && (
+        <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'0.9rem', marginBottom:'1rem'}}>
+          {[
+            ['📋', 'Événements totaux', stats.total, '#2b6cb0'],
+            ['🔑', 'Événements Auth', stats.connexions, '#276749'],
+            ['⚙️', 'Actions sur données', stats.actions, '#b7791f'],
+          ].map(([icon, label, val, col]) => (
+            <div key={label} style={{background:'white', borderRadius:'12px', padding:'1rem', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', borderTop:`3px solid ${col}`}}>
+              <div style={{fontSize:'0.8rem', color:'#718096'}}>{icon} {label}</div>
+              <div style={{fontSize:'1.8rem', fontWeight:'700', color:col, marginTop:'0.25rem'}}>{val?.toLocaleString('fr-FR')}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{background:'white', borderRadius:'12px', padding:'1rem', marginBottom:'1rem', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', display:'flex', gap:'0.75rem', flexWrap:'wrap', alignItems:'flex-end'}}>
+        <div style={{flex:'1', minWidth:'140px'}}>
+          <div style={{fontSize:'0.78rem', color:'#718096', marginBottom:'0.3rem'}}>Action</div>
+          <select value={filtreAction} onChange={e => setFiltreAction(e.target.value)}
+            style={{width:'100%', border:'1px solid #e2e8f0', borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.85rem'}}>
+            <option value="">Toutes</option>
+            {actions.map(a => <option key={a} value={a}>{actionCfg(a).label}</option>)}
+          </select>
+        </div>
+        <div style={{flex:'1', minWidth:'120px'}}>
+          <div style={{fontSize:'0.78rem', color:'#718096', marginBottom:'0.3rem'}}>Entité</div>
+          <select value={filtreEntite} onChange={e => setFiltreEntite(e.target.value)}
+            style={{width:'100%', border:'1px solid #e2e8f0', borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.85rem'}}>
+            <option value="">Toutes</option>
+            {entites.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+        </div>
+        <div style={{flex:'2', minWidth:'160px'}}>
+          <div style={{fontSize:'0.78rem', color:'#718096', marginBottom:'0.3rem'}}>Utilisateur</div>
+          <input value={filtreAuteur} onChange={e => setFiltreAuteur(e.target.value)}
+            placeholder="Rechercher..." onKeyDown={e => e.key === 'Enter' && charger()}
+            style={{width:'100%', border:'1px solid #e2e8f0', borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.85rem', boxSizing:'border-box'}} />
+        </div>
+        <button onClick={charger} style={{...styles.button, width:'auto', padding:'0.45rem 1.2rem', fontSize:'0.85rem', background:'#1a365d'}}>
+          🔍 Filtrer
+        </button>
+      </div>
+
+      <div style={{background:'white', borderRadius:'12px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', overflow:'hidden'}}>
+        {loading ? (
+          <div style={{padding:'3rem', textAlign:'center', color:'#718096'}}>Chargement…</div>
+        ) : logs.length === 0 ? (
+          <div style={{padding:'3rem', textAlign:'center', color:'#718096'}}>Aucun événement trouvé</div>
+        ) : (
+          <table style={{width:'100%', borderCollapse:'collapse', fontSize:'0.83rem'}}>
+            <thead>
+              <tr style={{background:'#f7fafc', borderBottom:'2px solid #e2e8f0'}}>
+                {['Date & heure','Utilisateur','Rôle','Action','Entité','Détail','IP'].map(h => (
+                  <th key={h} style={{padding:'0.65rem 0.75rem', textAlign:'left', color:'#718096', fontWeight:'600', fontSize:'0.75rem', textTransform:'uppercase', letterSpacing:'0.04em'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((l, i) => {
+                const cfg = actionCfg(l.action)
+                return (
+                  <tr key={l.id} style={{borderBottom:'1px solid #f7fafc', background: i%2===0 ? 'white' : '#fafafa'}}>
+                    <td style={{padding:'0.55rem 0.75rem', color:'#4a5568', whiteSpace:'nowrap'}}>
+                      {new Date(l.createdAt).toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+                    </td>
+                    <td style={{padding:'0.55rem 0.75rem', fontWeight:'600', color:'#1a365d'}}>{l.auteur}</td>
+                    <td style={{padding:'0.55rem 0.75rem'}}>
+                      {l.role && <span style={{background: l.role==='admin'?'#faf5ff':l.role==='manager'?'#ebf8ff':'#f0fff4', color: l.role==='admin'?'#6b46c1':l.role==='manager'?'#2b6cb0':'#276749', borderRadius:'999px', padding:'0.1rem 0.5rem', fontSize:'0.72rem', fontWeight:'700'}}>{l.role}</span>}
+                    </td>
+                    <td style={{padding:'0.55rem 0.75rem'}}>
+                      <span style={{background:cfg.bg, color:cfg.col, borderRadius:'999px', padding:'0.15rem 0.55rem', fontSize:'0.75rem', fontWeight:'600', whiteSpace:'nowrap'}}>
+                        {cfg.icon} {cfg.label}
+                      </span>
+                    </td>
+                    <td style={{padding:'0.55rem 0.75rem', color:'#4a5568'}}>{l.entite}{l.entiteId ? ` #${l.entiteId.slice(0,8)}` : ''}</td>
+                    <td style={{padding:'0.55rem 0.75rem', color:'#718096', fontSize:'0.78rem', maxWidth:'200px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.detail || '—'}</td>
+                    <td style={{padding:'0.55rem 0.75rem', color:'#a0aec0', fontSize:'0.75rem', fontFamily:'monospace'}}>{l.ip || '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Users() {
   const [users, setUsers] = useState([])
   const [showForm, setShowForm] = useState(false)
@@ -4904,11 +5133,9 @@ function Users() {
 }
 
 
-function Rapports() {
-  const [demandes, setDemandes] = useState([])
-  const [periode, setPeriode] = useState('mois')
-
-  useEffect(() => { API.get('/demandes').then(r => setDemandes(r.data)).catch(() => {}) }, [])
+function Rapports({ demandes: demandesProp = [] }) {
+  const demandes = demandesProp
+  const [periode, setPeriode] = useState('tout')
 
   // Constantes locales alignées sur le Dashboard
   const CLOS   = ['Traité', 'Clôturé']
@@ -4974,7 +5201,8 @@ function Rapports() {
     const asN1 = filtered.filter(d => d.agentN1 === a)
     const asN2 = filtered.filter(d => d.agentN2 === a && d.agentN1 !== a)
     const all  = [...asN1, ...asN2]
-    const role = asN1.length > 0 && asN2.length > 0 ? 'N1+N2' : asN2.length > 0 ? 'N2' : 'N1'
+    const estAgentN2 = AGENTS_N2.some(n => n.toLowerCase() === a.toLowerCase())
+    const role = (estAgentN2 || asN1.length > 0) && asN2.length > 0 ? 'N1+N2' : asN2.length > 0 ? 'N2' : 'N1'
     return {
       name: a, role,
       asN1: asN1.length,
@@ -4986,7 +5214,7 @@ function Rapports() {
   }).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
 
   // Performance services
-  const SLA_SERVICES = {DPM:'3j',DPR:'5j',DSI:'6j',PATRIMOINE:'7j',DCR:'5j',DFC:'5j',DRUC:'5j',REGISSEUR:'5j',Autre:'5j'}
+  const SLA_SERVICES = {DPM:'3j',DPR:'5j',DDSI:'6j',PATRIMOINE:'7j',DCR:'5j',DFC:'5j',DRUC:'5j',REGISSEUR:'5j',Autre:'5j'}
   const perfServices = Object.keys(SLA_SERVICES).map(s => {
     const t = filtered.filter(d => d.service === s)
     const oui = t.filter(d => d.respectDelai === 'OUI').length
@@ -5003,6 +5231,130 @@ function Rapports() {
   )
 
   const activiteRecente = [...filtered].sort((a,b) => new Date(b.updatedAt)-new Date(a.updatedAt)).slice(0,5)
+
+  const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
+  const dateExport = new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')
+
+  const exportPDF = () => {
+    const doc = new jsPDF()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    let y = 15
+
+    doc.setFontSize(16)
+    doc.setTextColor(26, 54, 93)
+    doc.text('Rapport CRRAE-CRM', 14, y)
+    y += 7
+    doc.setFontSize(10)
+    doc.setTextColor(113, 128, 150)
+    doc.text(`Période : ${periodeLabel} — Généré le ${new Date().toLocaleString('fr-FR')}`, 14, y)
+    y += 6
+
+    const addTable = (title, head, body) => {
+      if (y > pageHeight - 40) { doc.addPage(); y = 15 }
+      doc.setFontSize(12)
+      doc.setTextColor(26, 54, 93)
+      doc.text(title, 14, y)
+      autoTable(doc, {
+        startY: y + 3,
+        head: [head],
+        body,
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [43, 108, 176] },
+        margin: { left: 14, right: 14 },
+      })
+      y = doc.lastAutoTable.finalY + 10
+    }
+
+    addTable('Indicateurs clés', ['Indicateur', 'Valeur'], [
+      ['Total demandes', total],
+      ['Traitées / Clôturées', `${traitees} (${tauxTraite}%)`],
+      ['Non résolues', nonResolues],
+      ['Délai moyen de traitement', delaiMoyen === '—' ? '—' : `${delaiMoyen}j`],
+      ['Taux SLA', `${tauxSla}%`],
+      ['Hors SLA actives', horsSla],
+      ['Escalades N2', escaladeN2],
+      ['Demandes critiques', demandesCritiques.length],
+      ['Note moyenne satisfaction', moyNote === '—' ? '—' : `${moyNote}/5`],
+      ['Taux de réponse enquêtes', `${tauxReponse}%`],
+    ])
+
+    addTable('Répartition par type de demande', ['Type de demande', 'Nb', '%'],
+      parObjet.map(([objet, nb]) => [objet, nb, `${total > 0 ? Math.round(nb/total*100) : 0}%`])
+    )
+
+    addTable('Répartition par canal', ['Canal', 'Nb', '%'],
+      parCanal.map(([canal, nb]) => [canal, nb, `${total > 0 ? Math.round(nb/total*100) : 0}%`])
+    )
+
+    addTable('Performance par agent', ['Agent','Rôle','N1','N2','Total','Traités','Hors SLA','Taux'],
+      perfAgents.map(a => [a.name, a.role, a.asN1, a.asN2, a.total, a.traite, a.horsSla, `${a.total>0?Math.round(a.traite/a.total*100):0}%`])
+    )
+
+    addTable('Respect des délais par service', ['Service','Total','SLA max','Taux'],
+      perfServices.map(s => [s.name, s.total, SLA_SERVICES[s.name], `${s.taux}%`])
+    )
+
+    doc.save(`Rapport_CRRAE_${periode}_${dateExport}.pdf`)
+  }
+
+  const exportPPTX = () => {
+    const pptx = new pptxgen()
+    pptx.layout = 'LAYOUT_WIDE'
+
+    const headerStyle = { bold: true, fill: { color: '2b6cb0' }, color: 'FFFFFF' }
+    const head = (...labels) => labels.map(text => ({ text, options: headerStyle }))
+
+    const titleSlide = pptx.addSlide()
+    titleSlide.addText('Rapport CRRAE-CRM', { x: 0.5, y: 1.8, w: 12.3, h: 1, fontSize: 36, bold: true, color: '1a365d' })
+    titleSlide.addText(`Période : ${periodeLabel}`, { x: 0.5, y: 2.8, fontSize: 18, color: '4a5568' })
+    titleSlide.addText(`Généré le ${new Date().toLocaleString('fr-FR')}`, { x: 0.5, y: 3.3, fontSize: 14, color: '718096' })
+
+    const kpiSlide = pptx.addSlide()
+    kpiSlide.addText('Indicateurs clés', { x: 0.4, y: 0.25, fontSize: 24, bold: true, color: '1a365d' })
+    kpiSlide.addTable([
+      head('Indicateur', 'Valeur'),
+      ['Total demandes', String(total)],
+      ['Traitées / Clôturées', `${traitees} (${tauxTraite}%)`],
+      ['Non résolues', String(nonResolues)],
+      ['Délai moyen de traitement', delaiMoyen === '—' ? '—' : `${delaiMoyen}j`],
+      ['Taux SLA', `${tauxSla}%`],
+      ['Hors SLA actives', String(horsSla)],
+      ['Escalades N2', String(escaladeN2)],
+      ['Demandes critiques', String(demandesCritiques.length)],
+      ['Note moyenne satisfaction', moyNote === '—' ? '—' : `${moyNote}/5`],
+      ['Taux de réponse enquêtes', `${tauxReponse}%`],
+    ], { x: 0.4, y: 0.9, w: 9, fontSize: 12, border: { type: 'solid', color: 'E2E8F0' } })
+
+    const repartSlide = pptx.addSlide()
+    repartSlide.addText('Répartition par type de demande', { x: 0.4, y: 0.25, fontSize: 22, bold: true, color: '1a365d' })
+    repartSlide.addTable([
+      head('Type de demande', 'Nb', '%'),
+      ...parObjet.map(([objet, nb]) => [objet, String(nb), `${total>0?Math.round(nb/total*100):0}%`])
+    ], { x: 0.4, y: 0.9, w: 6, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+
+    const canalSlide = pptx.addSlide()
+    canalSlide.addText('Répartition par canal', { x: 0.4, y: 0.25, fontSize: 22, bold: true, color: '1a365d' })
+    canalSlide.addTable([
+      head('Canal', 'Nb', '%'),
+      ...parCanal.map(([canal, nb]) => [canal, String(nb), `${total>0?Math.round(nb/total*100):0}%`])
+    ], { x: 0.4, y: 0.9, w: 6, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+
+    const agentSlide = pptx.addSlide()
+    agentSlide.addText('Performance par agent', { x: 0.4, y: 0.25, fontSize: 22, bold: true, color: '1a365d' })
+    agentSlide.addTable([
+      head('Agent','Rôle','N1','N2','Total','Traités','Hors SLA','Taux'),
+      ...perfAgents.map(a => [a.name, a.role, String(a.asN1), String(a.asN2), String(a.total), String(a.traite), String(a.horsSla), `${a.total>0?Math.round(a.traite/a.total*100):0}%`])
+    ], { x: 0.4, y: 0.9, w: 12, fontSize: 10, border: { type: 'solid', color: 'E2E8F0' } })
+
+    const serviceSlide = pptx.addSlide()
+    serviceSlide.addText('Respect des délais par service', { x: 0.4, y: 0.25, fontSize: 22, bold: true, color: '1a365d' })
+    serviceSlide.addTable([
+      head('Service','Total','SLA max','Taux'),
+      ...perfServices.map(s => [s.name, String(s.total), SLA_SERVICES[s.name], `${s.taux}%`])
+    ], { x: 0.4, y: 0.9, w: 6, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+
+    pptx.writeFile({ fileName: `Rapport_CRRAE_${periode}_${dateExport}.pptx` })
+  }
 
   const card = (icon, label, val, col, sub) => (
     <div style={{background:'white',borderRadius:'14px',padding:'1rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',borderTop:`4px solid ${col}`}}>
@@ -5033,7 +5385,7 @@ function Rapports() {
           <button
             style={{...styles.button, background:'#c53030', width:'auto', padding:'0.5rem 1rem', fontSize:'0.85rem'}}
             onClick={async () => {
-              if (!window.confirm('Envoyer les alertes SLA par email aux agents concernés ?')) return
+              if (!window.confirm('Envoyer les alertes SLA (hors délai) aux agents concernés ?')) return
               try {
                 const res = await API.post('/alertes/sla')
                 alert(`✅ ${res.data.message}`)
@@ -5041,6 +5393,30 @@ function Rapports() {
             }}
           >
             ⚠️ Alertes SLA
+          </button>
+          <button
+            style={{...styles.button, background:'#b7791f', width:'auto', padding:'0.5rem 1rem', fontSize:'0.85rem'}}
+            onClick={async () => {
+              if (!window.confirm('Envoyer les alertes "approche délai" (≥75% SLA) aux agents concernés ?')) return
+              try {
+                const res = await API.post('/alertes/approche-delai')
+                alert(`✅ ${res.data.message}`)
+              } catch { alert('Erreur lors de l\'envoi') }
+            }}
+          >
+            🟡 Approche délai
+          </button>
+          <button
+            style={{...styles.button, background:'#2b6cb0', width:'auto', padding:'0.5rem 1rem', fontSize:'0.85rem'}}
+            onClick={async () => {
+              if (!window.confirm('Envoyer les relances aux agents avec des demandes inactives depuis 2j+ ?')) return
+              try {
+                const res = await API.post('/alertes/relance')
+                alert(`✅ ${res.data.message}`)
+              } catch { alert('Erreur lors de l\'envoi') }
+            }}
+          >
+            🔔 Relances agents
           </button>
           {[{val:'semaine',label:'Cette semaine'},{val:'mois',label:'Ce mois'},{val:'annee',label:'Cette année'},{val:'tout',label:'Tout'}].map(p => (
             <button key={p.val} onClick={() => setPeriode(p.val)}
@@ -5050,6 +5426,18 @@ function Rapports() {
               {p.label}
             </button>
           ))}
+          <button
+            style={{...styles.button, background:'#276749', width:'auto', padding:'0.5rem 1rem', fontSize:'0.85rem'}}
+            onClick={exportPDF}
+          >
+            📄 Export PDF
+          </button>
+          <button
+            style={{...styles.button, background:'#b7791f', width:'auto', padding:'0.5rem 1rem', fontSize:'0.85rem'}}
+            onClick={exportPPTX}
+          >
+            📊 Export PowerPoint
+          </button>
         </div>
       </div>
 
@@ -5218,11 +5606,10 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
     API.get('/users').then(r => setUsers(r.data.filter(u => u.active !== false))).catch(() => {})
   }, [])
 
-  const AGENTS_N2_LIST = ['Michèle KACOU', 'Fatty KOUAME', 'Ismael COULIBALY', 'Yacine DIENE']
   const agentsN1 = users.map(u => u.name)
   const agentsN2 = users.length > 0
-    ? users.filter(u => AGENTS_N2_LIST.some(n => n.toLowerCase() === (u.name||'').toLowerCase())).map(u => u.name)
-    : AGENTS_N2_LIST
+    ? users.filter(u => AGENTS_N2.some(n => n.toLowerCase() === (u.name||'').toLowerCase())).map(u => u.name)
+    : AGENTS_N2
 
   const priorites = [
     { value: 'Faible', label: 'Faible', color: '#276749', bg: '#f0fff4' },
@@ -5274,7 +5661,7 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
             <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Service</label>
             <select style={{...styles.input, marginBottom:0}} value={service} onChange={e=>setService(e.target.value)}>
               <option value="">-- Service --</option>
-              {["DPM","DPR","DSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Autre"].map(s => <option key={s} value={s}>{s}</option>)}
+              {["DPM","DPR","DDSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Division Développement","Autre"].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div style={{marginBottom:'1rem'}}>
@@ -5599,6 +5986,977 @@ function PageEnquete() {
   )
 }
 
+// Agent Data Storytelling — rapports narratifs pour le Comité de Direction
+function AgentRapport() {
+  const [periode, setPeriode] = useState('mois')
+  const [debut, setDebut] = useState('')
+  const [fin, setFin] = useState('')
+  const [type, setType] = useState('complet')
+  const [loading, setLoading] = useState(false)
+  const [rapport, setRapport] = useState(null)
+  const [meta, setMeta] = useState(null)
+  const [analytics, setAnalytics] = useState(null)
+  const [erreur, setErreur] = useState(null)
+  const [onglet, setOnglet] = useState('visualisations')
+
+  const generer = async () => {
+    setLoading(true)
+    setRapport(null)
+    setMeta(null)
+    setAnalytics(null)
+    setErreur(null)
+    try {
+      const res = await API.post('/story', {
+        periode,
+        debut: periode === 'custom' ? debut : undefined,
+        fin:   periode === 'custom' ? fin   : undefined,
+        type,
+      })
+      setRapport(res.data.rapport)
+      setMeta(res.data.metadata)
+      setAnalytics(res.data.analytics)
+      setOnglet('visualisations')
+    } catch (e) {
+      setErreur(e?.response?.data?.message || 'Erreur lors de la génération du rapport')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copier = () => { navigator.clipboard.writeText(rapport || ''); alert('Rapport copié') }
+
+  const exporterPDF = () => {
+    if (!rapport || !meta || !analytics) return
+    const doc = new jsPDF()
+    const margin = 14
+    const maxWidth = doc.internal.pageSize.getWidth() - margin * 2
+    const pageH = doc.internal.pageSize.getHeight()
+    const dateStr = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')
+
+    // Bandeau en-tête
+    doc.setFillColor(26, 54, 93)
+    doc.rect(0, 0, doc.internal.pageSize.getWidth(), 36, 'F')
+    doc.setFontSize(14); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold')
+    doc.text('CRRAE-UMOA — Rapport Service Client — Comité de Direction', margin, 13)
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal')
+    doc.text(`Période : ${meta.periode}`, margin, 21)
+    doc.text(`Généré le ${new Date(meta.genereLe).toLocaleString('fr-FR')}`, margin, 28)
+    let y = 46
+
+    // KPIs
+    doc.setFontSize(11); doc.setTextColor(26, 54, 93); doc.setFont('helvetica', 'bold')
+    doc.text('Indicateurs Clés de Performance', margin, y); y += 3
+    autoTable(doc, {
+      startY: y,
+      head: [['Indicateur', 'Valeur']],
+      body: [
+        ['Total demandes', String(meta.totalDemandes)],
+        ['Traitées / Clôturées', `${meta.traites} (${meta.tauxTraite}%)`],
+        ['En cours', String(meta.enCours)],
+        ['En attente', String(meta.enAttente)],
+        ['Escaladées N2', String(meta.escalades)],
+        ['Taux SLA', `${meta.tauxSla}%`],
+        ['Hors SLA actifs', String(meta.horsSla)],
+        ['Délai moyen', meta.delaiMoyen ? `${meta.delaiMoyen} jours` : 'N/A'],
+        ['Satisfaction', meta.moyNote ? `${meta.moyNote}/5` : 'N/A'],
+        ['Score NPS', meta.nps !== null && meta.nps !== undefined ? (meta.nps > 0 ? `+${meta.nps}` : String(meta.nps)) : 'N/A'],
+        ['Avis collectés', String(meta.notesCount)],
+      ],
+      margin: { left: margin, right: margin },
+      headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+      bodyStyles: { fontSize: 9 },
+      columnStyles: { 0: { cellWidth: 80 }, 1: { halign: 'right' } },
+      alternateRowStyles: { fillColor: [237, 242, 247] },
+      theme: 'striped',
+    })
+    y = doc.lastAutoTable.finalY + 10
+
+    // Performance par service
+    if (analytics.byService?.length > 0) {
+      if (y > pageH - 50) { doc.addPage(); y = 15 }
+      doc.setFontSize(11); doc.setTextColor(26, 54, 93); doc.setFont('helvetica', 'bold')
+      doc.text('Performance par Service', margin, y); y += 3
+      autoTable(doc, {
+        startY: y,
+        head: [['Service', 'Volume', 'SLA %', 'Traitement %']],
+        body: analytics.byService.map(s => [s.service, String(s.total), `${s.tauxSla}%`, `${s.tauxTraite}%`]),
+        margin: { left: margin, right: margin },
+        headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        alternateRowStyles: { fillColor: [237, 242, 247] },
+        theme: 'striped',
+      })
+      y = doc.lastAutoTable.finalY + 10
+    }
+
+    // Top Agents
+    if (analytics.byAgent?.length > 0) {
+      if (y > pageH - 50) { doc.addPage(); y = 15 }
+      doc.setFontSize(11); doc.setTextColor(26, 54, 93); doc.setFont('helvetica', 'bold')
+      doc.text('Performance des Agents N1', margin, y); y += 3
+      autoTable(doc, {
+        startY: y,
+        head: [['#', 'Agent', 'Demandes N1', 'Taux Traitement']],
+        body: analytics.byAgent.map((a, i) => [String(i + 1), a.agent, String(a.total), `${a.taux}%`]),
+        margin: { left: margin, right: margin },
+        headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        alternateRowStyles: { fillColor: [237, 242, 247] },
+        theme: 'striped',
+      })
+      y = doc.lastAutoTable.finalY + 10
+    }
+
+    // Types de demandes
+    if (analytics.byType?.length > 0) {
+      if (y > pageH - 50) { doc.addPage(); y = 15 }
+      doc.setFontSize(11); doc.setTextColor(26, 54, 93); doc.setFont('helvetica', 'bold')
+      doc.text('Types de Demandes', margin, y); y += 3
+      const totType = analytics.byType.reduce((s, t) => s + t.nb, 0)
+      autoTable(doc, {
+        startY: y,
+        head: [['Type de demande', 'Nb', '%']],
+        body: analytics.byType.map(t => [t.type, String(t.nb), `${totType > 0 ? Math.round(t.nb / totType * 100) : 0}%`]),
+        margin: { left: margin, right: margin },
+        headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        alternateRowStyles: { fillColor: [237, 242, 247] },
+        theme: 'striped',
+      })
+      y = doc.lastAutoTable.finalY + 10
+    }
+
+    // Canaux de contact
+    if (analytics.byCanal?.length > 0) {
+      if (y > pageH - 50) { doc.addPage(); y = 15 }
+      doc.setFontSize(11); doc.setTextColor(26, 54, 93); doc.setFont('helvetica', 'bold')
+      doc.text('Canaux de Contact', margin, y); y += 3
+      const totCanal = analytics.byCanal.reduce((s, c) => s + c.nb, 0)
+      autoTable(doc, {
+        startY: y,
+        head: [['Canal', 'Nb', '%']],
+        body: analytics.byCanal.map(c => [c.canal, String(c.nb), `${totCanal > 0 ? Math.round(c.nb / totCanal * 100) : 0}%`]),
+        margin: { left: margin, right: margin },
+        headStyles: { fillColor: [26, 54, 93], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        alternateRowStyles: { fillColor: [237, 242, 247] },
+        theme: 'striped',
+      })
+      y = doc.lastAutoTable.finalY + 10
+    }
+
+    // Rapport narratif sur une nouvelle page
+    doc.addPage(); y = 15
+    doc.setFontSize(13); doc.setTextColor(26, 54, 93); doc.setFont('helvetica', 'bold')
+    doc.text('Rapport Narratif', margin, y); y += 8
+
+    rapport.split('\n').forEach(line => {
+      if (y > pageH - 20) { doc.addPage(); y = 15 }
+      if (line.startsWith('## ')) {
+        y += 3; doc.setFontSize(12); doc.setTextColor(26, 54, 93); doc.setFont('helvetica', 'bold')
+        doc.text(line.slice(3), margin, y); y += 6; doc.setFont('helvetica', 'normal')
+      } else if (line.startsWith('### ')) {
+        doc.setFontSize(10); doc.setTextColor(43, 108, 176); doc.setFont('helvetica', 'bold')
+        doc.text(line.slice(4), margin, y); y += 5; doc.setFont('helvetica', 'normal')
+      } else if (line.trim() === '') {
+        y += 3
+      } else {
+        doc.setFontSize(9); doc.setTextColor(45, 55, 72); doc.setFont('helvetica', 'normal')
+        doc.splitTextToSize(line.replace(/\*\*/g, ''), maxWidth).forEach(wl => {
+          if (y > pageH - 20) { doc.addPage(); y = 15 }
+          doc.text(wl, margin, y); y += 4.5
+        })
+      }
+    })
+
+    // Pied de page
+    const totalPages = doc.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setFontSize(7.5); doc.setTextColor(160, 174, 192); doc.setFont('helvetica', 'normal')
+      const userName = localStorage.getItem('userName') || ''
+      doc.text(`CRRAE-UMOA — Document confidentiel — Exporté par ${userName} — Page ${i}/${totalPages}`, margin, pageH - 8)
+      doc.text(dateStr, doc.internal.pageSize.getWidth() - margin - 22, pageH - 8)
+    }
+
+    doc.save(`Rapport_CRRAE_CoDir_${dateStr}.pdf`)
+  }
+
+  const exporterPPTX = () => {
+    if (!rapport || !meta || !analytics) return
+    const pptx = new pptxgen()
+    pptx.layout = 'LAYOUT_WIDE'
+    const dateStr = new Date().toLocaleDateString('fr-FR').replace(/\//g, '-')
+    const hStyle = { bold: true, fill: { color: '1a365d' }, color: 'FFFFFF' }
+    const head = (...labels) => labels.map(text => ({ text, options: hStyle }))
+    const exportUser = localStorage.getItem('userName') || ''
+    const footer = slide => slide.addText(`CRRAE-UMOA — Confidentiel — Exporté par ${exportUser} — ${dateStr}`, {
+      x: 0.4, y: 5.15, w: 12.5, h: 0.3, color: 'a0aec0', fontSize: 9, align: 'center'
+    })
+
+    // Slide 1 : Titre
+    const s1 = pptx.addSlide()
+    s1.background = { color: '1a365d' }
+    s1.addText('CRRAE-UMOA', { x: 0.5, y: 0.9, w: 12.3, h: 0.5, color: 'a0c4ff', fontSize: 14 })
+    s1.addText('Rapport Service Client', { x: 0.5, y: 1.5, w: 12.3, h: 1, color: 'FFFFFF', fontSize: 34, bold: true })
+    s1.addText('Comité de Direction', { x: 0.5, y: 2.65, w: 12.3, h: 0.5, color: 'a0c4ff', fontSize: 18 })
+    s1.addText(`Période : ${meta.periode}`, { x: 0.5, y: 3.4, w: 12.3, h: 0.4, color: 'FFFFFF', fontSize: 14 })
+    s1.addText(`Généré le ${new Date(meta.genereLe).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`, {
+      x: 0.5, y: 3.9, w: 12.3, h: 0.4, color: 'a0c4ff', fontSize: 12
+    })
+
+    // Slide 2 : KPIs
+    const s2 = pptx.addSlide()
+    s2.addText('Indicateurs Clés de Performance', { x: 0.4, y: 0.2, w: 12.5, h: 0.55, color: '1a365d', fontSize: 22, bold: true })
+    s2.addTable([
+      head('Indicateur', 'Valeur'),
+      ['Total demandes', String(meta.totalDemandes)],
+      ['Traitées / Clôturées', `${meta.traites} (${meta.tauxTraite}%)`],
+      ['En cours', String(meta.enCours)],
+      ['En attente', String(meta.enAttente)],
+      ['Escaladées N2', String(meta.escalades)],
+      ['Taux SLA', `${meta.tauxSla}%`],
+      ['Hors SLA actifs', String(meta.horsSla)],
+      ['Délai moyen', meta.delaiMoyen ? `${meta.delaiMoyen} jours` : 'N/A'],
+      ['Satisfaction', meta.moyNote ? `${meta.moyNote}/5` : 'N/A'],
+      ['Score NPS', meta.nps !== null && meta.nps !== undefined ? (meta.nps > 0 ? `+${meta.nps}` : String(meta.nps)) : 'N/A'],
+      ['Avis collectés', String(meta.notesCount)],
+    ], { x: 0.4, y: 0.9, w: 7, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+    footer(s2)
+
+    // Slide 3 : Performance par service
+    if (analytics.byService?.length > 0) {
+      const s3 = pptx.addSlide()
+      s3.addText('Performance par Service', { x: 0.4, y: 0.2, w: 12.5, h: 0.55, color: '1a365d', fontSize: 22, bold: true })
+      s3.addTable([
+        head('Service', 'Volume', 'SLA %', 'Traitement %'),
+        ...analytics.byService.map(s => [s.service, String(s.total), `${s.tauxSla}%`, `${s.tauxTraite}%`])
+      ], { x: 0.4, y: 0.9, w: 10, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+      footer(s3)
+    }
+
+    // Slide 4 : Top Agents
+    if (analytics.byAgent?.length > 0) {
+      const s4 = pptx.addSlide()
+      s4.addText('Performance des Agents N1', { x: 0.4, y: 0.2, w: 12.5, h: 0.55, color: '1a365d', fontSize: 22, bold: true })
+      s4.addTable([
+        head('#', 'Agent', 'Demandes N1', 'Taux Traitement'),
+        ...analytics.byAgent.map((a, i) => [String(i + 1), a.agent, String(a.total), `${a.taux}%`])
+      ], { x: 0.4, y: 0.9, w: 10, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+      footer(s4)
+    }
+
+    // Slide 5 : Types de demandes
+    if (analytics.byType?.length > 0) {
+      const s5 = pptx.addSlide()
+      s5.addText('Types de Demandes', { x: 0.4, y: 0.2, w: 12.5, h: 0.55, color: '1a365d', fontSize: 22, bold: true })
+      const totType = analytics.byType.reduce((s, t) => s + t.nb, 0)
+      s5.addTable([
+        head('Type de Demande', 'Nombre', 'Part'),
+        ...analytics.byType.map(t => [t.type, String(t.nb), `${totType > 0 ? Math.round(t.nb / totType * 100) : 0}%`])
+      ], { x: 0.4, y: 0.9, w: 10, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+      footer(s5)
+    }
+
+    // Slide 6 : Canaux de contact
+    if (analytics.byCanal?.length > 0) {
+      const s6 = pptx.addSlide()
+      s6.addText('Canaux de Contact', { x: 0.4, y: 0.2, w: 12.5, h: 0.55, color: '1a365d', fontSize: 22, bold: true })
+      const totCanal = analytics.byCanal.reduce((s, c) => s + c.nb, 0)
+      s6.addTable([
+        head('Canal', 'Nombre', 'Part'),
+        ...analytics.byCanal.map(c => [c.canal, String(c.nb), `${totCanal > 0 ? Math.round(c.nb / totCanal * 100) : 0}%`])
+      ], { x: 0.4, y: 0.9, w: 6, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+      footer(s6)
+    }
+
+    // Slides rapport narratif : une slide par section ##
+    const sections = []
+    let cur = { title: 'Rapport Narratif', lines: [] }
+    rapport.split('\n').forEach(line => {
+      if (line.startsWith('## ')) {
+        if (cur.lines.length > 0 || sections.length === 0) sections.push(cur)
+        cur = { title: line.slice(3), lines: [] }
+      } else {
+        cur.lines.push(line)
+      }
+    })
+    sections.push(cur)
+
+    sections.forEach(section => {
+      const s = pptx.addSlide()
+      s.addText(section.title, { x: 0.4, y: 0.2, w: 12.5, h: 0.55, color: '1a365d', fontSize: 20, bold: true })
+      const blocks = []
+      section.lines.forEach(line => {
+        if (line.startsWith('### ')) {
+          blocks.push({ text: line.slice(4) + '\n', options: { bold: true, color: '2b6cb0', fontSize: 13 } })
+        } else if (line.match(/^[-•*]\s/)) {
+          blocks.push({ text: '• ' + line.slice(2).replace(/\*\*/g, '') + '\n', options: { color: '2d3748', fontSize: 11, indentLevel: 1 } })
+        } else if (line.trim()) {
+          blocks.push({ text: line.replace(/\*\*/g, '') + '\n', options: { color: '2d3748', fontSize: 11 } })
+        } else {
+          blocks.push({ text: '\n', options: { fontSize: 6 } })
+        }
+      })
+      if (blocks.length > 0) {
+        s.addText(blocks, { x: 0.4, y: 0.9, w: 12.5, h: 4.3, valign: 'top', wrap: true })
+      }
+      footer(s)
+    })
+
+    pptx.writeFile({ fileName: `Rapport_CRRAE_CoDir_${dateStr}.pptx` })
+  }
+
+  const renderMarkdown = text => {
+    const renderInline = str => str.split(/\*\*(.*?)\*\*/g).map((p, i) => i % 2 === 1 ? <strong key={i}>{p}</strong> : p)
+    const lines = text.split('\n')
+    const out = []; let buf = []
+    const flush = () => { if (buf.length) { out.push(<ul key={`ul${out.length}`} style={{margin:'0.2rem 0 0.5rem 1.2rem',padding:0}}>{buf}</ul>); buf = [] } }
+    lines.forEach((line, i) => {
+      if (line.startsWith('## ')) {
+        flush()
+        out.push(<h2 key={i} style={{color:'#1a365d',fontSize:'1.05rem',fontWeight:'700',marginTop:'1.4rem',marginBottom:'0.4rem',paddingBottom:'0.3rem',borderBottom:'2px solid #2b6cb0'}}>{renderInline(line.slice(3))}</h2>)
+      } else if (line.startsWith('### ')) {
+        flush()
+        out.push(<h3 key={i} style={{color:'#2b6cb0',fontSize:'0.92rem',fontWeight:'700',marginTop:'0.9rem',marginBottom:'0.25rem'}}>{renderInline(line.slice(4))}</h3>)
+      } else if (line.match(/^[-•*]\s/)) {
+        buf.push(<li key={i} style={{color:'#2d3748',fontSize:'0.87rem',marginBottom:'0.2rem',lineHeight:'1.55'}}>{renderInline(line.slice(2))}</li>)
+      } else if (line.trim() === '') {
+        flush(); out.push(<div key={i} style={{height:'0.35rem'}} />)
+      } else {
+        flush(); out.push(<p key={i} style={{color:'#2d3748',fontSize:'0.87rem',lineHeight:'1.65',margin:'0.15rem 0'}}>{renderInline(line)}</p>)
+      }
+    })
+    flush(); return out
+  }
+
+  // Gauge SVG pour taux
+  const Gauge = ({ value, max = 100, color, label }) => {
+    const r = 38; const cx = 50; const cy = 50
+    const circ = 2 * Math.PI * r
+    const filled = (value / max) * circ * 0.75
+    const offset = circ * 0.25
+    return (
+      <div style={{textAlign:'center'}}>
+        <svg width="100" height="70" viewBox="0 0 100 80">
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#edf2f7" strokeWidth="9"
+            strokeDasharray={`${circ * 0.75} ${circ}`} strokeDashoffset={-offset} strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth="9"
+            strokeDasharray={`${filled} ${circ}`} strokeDashoffset={-offset} strokeLinecap="round"
+            style={{transition:'stroke-dasharray 0.8s ease'}} />
+          <text x={cx} y={cy + 5} textAnchor="middle" fill={color} fontSize="14" fontWeight="700">{value}%</text>
+        </svg>
+        <div style={{fontSize:'0.75rem', color:'#718096', marginTop:'-0.5rem'}}>{label}</div>
+      </div>
+    )
+  }
+
+  const CHART_COLORS = ['#2b6cb0','#276749','#b7791f','#6b46c1','#c53030','#2d8a6e','#d97706','#7c3aed']
+
+  const periodeOptions = [
+    {val:'semaine',label:'Cette semaine'},{val:'mois',label:'Ce mois'},
+    {val:'trimestre',label:'Ce trimestre'},{val:'annee',label:'Cette année'},
+    {val:'custom',label:'Personnalisée'},
+  ]
+  const typeOptions = [
+    {val:'executif', label:'Résumé exécutif', desc:'Synthèse 1 page — ouverture de réunion'},
+    {val:'complet',  label:'Rapport complet',  desc:'Toutes les dimensions'},
+    {val:'tendances',label:'Analyse tendances',desc:'Évolutions et recommandations stratégiques'},
+  ]
+
+  const hasResult = rapport && meta && analytics && !loading
+
+  return (
+    <div>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>🤖 Agent Data Storytelling</h2>
+        <span style={{fontSize:'0.82rem', color:'#718096', background:'#edf2f7', borderRadius:'999px', padding:'0.3rem 0.75rem'}}>
+          Analyse · Visualisation · Rapport Comité de Direction
+        </span>
+      </div>
+
+      {/* Config */}
+      <div style={{background:'white', borderRadius:'14px', padding:'1.5rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', marginBottom:'1rem'}}>
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem', marginBottom:'1.25rem'}}>
+          <div>
+            <div style={{fontWeight:'600', color:'#1a365d', fontSize:'0.88rem', marginBottom:'0.6rem'}}>📅 Période d'analyse</div>
+            <div style={{display:'flex', flexWrap:'wrap', gap:'0.4rem'}}>
+              {periodeOptions.map(p => (
+                <button key={p.val} onClick={() => setPeriode(p.val)}
+                  style={{padding:'0.4rem 0.85rem', borderRadius:'6px', border:'none', cursor:'pointer', fontSize:'0.82rem',
+                    background: periode===p.val ? '#2b6cb0':'#edf2f7', color: periode===p.val ? 'white':'#4a5568', fontWeight: periode===p.val ? '600':'400'}}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {periode === 'custom' && (
+              <div style={{display:'flex', gap:'0.5rem', marginTop:'0.6rem', alignItems:'center'}}>
+                <input type="date" value={debut} onChange={e=>setDebut(e.target.value)}
+                  style={{flex:1, border:'1px solid #e2e8f0', borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.85rem'}} />
+                <span style={{color:'#718096'}}>→</span>
+                <input type="date" value={fin} onChange={e=>setFin(e.target.value)}
+                  style={{flex:1, border:'1px solid #e2e8f0', borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.85rem'}} />
+              </div>
+            )}
+          </div>
+          <div>
+            <div style={{fontWeight:'600', color:'#1a365d', fontSize:'0.88rem', marginBottom:'0.6rem'}}>📋 Type de rapport</div>
+            <div style={{display:'grid', gap:'0.4rem'}}>
+              {typeOptions.map(t => (
+                <button key={t.val} onClick={() => setType(t.val)}
+                  style={{padding:'0.5rem 0.85rem', borderRadius:'8px', border:`2px solid ${type===t.val?'#2b6cb0':'#e2e8f0'}`,
+                    cursor:'pointer', textAlign:'left', background: type===t.val ? '#ebf8ff':'white'}}>
+                  <div style={{fontWeight:'600', color: type===t.val ? '#2b6cb0':'#2d3748', fontSize:'0.85rem'}}>{t.label}</div>
+                  <div style={{fontSize:'0.75rem', color:'#718096'}}>{t.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <button onClick={generer} disabled={loading || (periode==='custom' && (!debut||!fin))}
+          style={{...styles.button, width:'auto', padding:'0.75rem 2rem', fontSize:'0.95rem',
+            background: loading ? '#718096':'#1a365d', opacity: (periode==='custom'&&(!debut||!fin)) ? 0.5:1,
+            cursor: loading ? 'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'0.5rem'}}>
+          {loading ? <><span style={{animation:'spin 1s linear infinite', display:'inline-block'}}>⏳</span> Analyse en cours...</> : '🚀 Générer l\'analyse'}
+        </button>
+      </div>
+
+      {erreur && (
+        <div style={{background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'10px', padding:'1rem', color:'#c53030', marginBottom:'1rem'}}>
+          ⚠️ {erreur}
+        </div>
+      )}
+
+      {loading && (
+        <div style={{background:'white', borderRadius:'14px', padding:'3.5rem', textAlign:'center', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+          <div style={{fontSize:'2.5rem', marginBottom:'1rem', animation:'pulse 1.5s ease-in-out infinite'}}>🤖</div>
+          <div style={{fontWeight:'700', color:'#1a365d', marginBottom:'0.5rem'}}>Analyse et génération du rapport en cours…</div>
+          <div style={{color:'#718096', fontSize:'0.88rem'}}>L'agent calcule les KPIs, prépare les visualisations et rédige le rapport</div>
+        </div>
+      )}
+
+      {hasResult && (
+        <>
+          {/* Header */}
+          <div style={{background:'linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%)', borderRadius:'14px', padding:'1.5rem 2rem', color:'white', marginBottom:'1rem'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'1rem'}}>
+              <div>
+                <div style={{fontSize:'0.7rem', opacity:0.7, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'0.3rem'}}>
+                  CRRAE-UMOA · Service Client · Comité de Direction
+                </div>
+                <div style={{fontWeight:'700', fontSize:'1.3rem', marginBottom:'0.2rem'}}>Rapport — {meta.periode}</div>
+                <div style={{fontSize:'0.8rem', opacity:0.8}}>
+                  Généré le {new Date(meta.genereLe).toLocaleString('fr-FR', {day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+                </div>
+              </div>
+              <div style={{display:'flex', gap:'0.6rem', flexWrap:'wrap'}}>
+                {[
+                  [meta.totalDemandes,'Demandes','#63b3ed'],
+                  [`${meta.tauxTraite}%`,'Traitement','#68d391'],
+                  [`${meta.tauxSla}%`,'SLA', meta.tauxSla >= 80 ? '#68d391':'#fc8181'],
+                  [meta.moyNote ? `${meta.moyNote}/5`:'—','Satisfaction','#fbd38d'],
+                  [meta.delaiMoyen ? `${meta.delaiMoyen}j`:'—','Délai moy.','#b794f4'],
+                ].map(([val,lbl,col]) => (
+                  <div key={lbl} style={{textAlign:'center', background:'rgba(255,255,255,0.12)', borderRadius:'10px', padding:'0.5rem 0.85rem', minWidth:'72px'}}>
+                    <div style={{fontWeight:'700', fontSize:'1.2rem', color:col}}>{val}</div>
+                    <div style={{fontSize:'0.67rem', opacity:0.85}}>{lbl}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Onglets */}
+          <div style={{display:'flex', gap:'0', marginBottom:'1rem', background:'white', borderRadius:'10px', padding:'0.3rem', boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
+            {[
+              ['visualisations','📊 Visualisations'],
+              ['rapport','📝 Rapport narratif'],
+            ].map(([k,lbl]) => (
+              <button key={k} onClick={() => setOnglet(k)}
+                style={{flex:1, padding:'0.6rem', border:'none', cursor:'pointer', borderRadius:'7px', fontSize:'0.88rem', fontWeight: onglet===k ? '700':'400',
+                  background: onglet===k ? '#1a365d':'transparent', color: onglet===k ? 'white':'#4a5568', transition:'all 0.15s'}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+
+          {/* Barre actions */}
+          <div style={{display:'flex', gap:'0.5rem', marginBottom:'1rem', flexWrap:'wrap'}}>
+            <button onClick={exporterPDF}  style={{...styles.button,width:'auto',padding:'0.45rem 1rem',fontSize:'0.82rem',background:'#276749'}}>📄 Export PDF</button>
+            <button onClick={exporterPPTX} style={{...styles.button,width:'auto',padding:'0.45rem 1rem',fontSize:'0.82rem',background:'#b7791f'}}>📊 Export PowerPoint</button>
+            <button onClick={copier}       style={{...styles.button,width:'auto',padding:'0.45rem 1rem',fontSize:'0.82rem',background:'#2b6cb0'}}>📋 Copier le rapport</button>
+            <button onClick={generer}      style={{...styles.button,width:'auto',padding:'0.45rem 1rem',fontSize:'0.82rem',background:'#4a5568'}}>🔄 Régénérer</button>
+          </div>
+
+          {/* ─── ONGLET VISUALISATIONS ─── */}
+          {onglet === 'visualisations' && (
+            <div style={{display:'grid', gap:'1rem'}}>
+
+              {/* Ligne 1 : Jauges SLA + Traitement + Satisfaction */}
+              <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                <h3 style={{color:'#1a365d', margin:'0 0 1rem', fontSize:'0.95rem', fontWeight:'700'}}>⚡ Indicateurs de performance</h3>
+                <div style={{display:'flex', justifyContent:'space-around', alignItems:'center', flexWrap:'wrap', gap:'1rem'}}>
+                  <Gauge value={meta.tauxTraite} color={meta.tauxTraite >= 80 ? '#276749':'#c53030'} label="Taux traitement" />
+                  <Gauge value={meta.tauxSla}    color={meta.tauxSla    >= 80 ? '#276749':'#c53030'} label="Respect SLA" />
+                  {meta.moyNote && <Gauge value={Math.round(parseFloat(meta.moyNote)/5*100)} color="#b7791f" label={`Satisfaction ${meta.moyNote}/5`} />}
+                  {meta.nps !== null && meta.nps !== undefined && (
+                    <div style={{textAlign:'center'}}>
+                      <div style={{fontSize:'2.2rem', fontWeight:'700', color: meta.nps >= 0 ? '#276749':'#c53030'}}>{meta.nps > 0 ? '+':''}{meta.nps}</div>
+                      <div style={{fontSize:'0.75rem', color:'#718096'}}>Score NPS</div>
+                    </div>
+                  )}
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:'2.2rem', fontWeight:'700', color:'#6b46c1'}}>{meta.escalades}</div>
+                    <div style={{fontSize:'0.75rem', color:'#718096'}}>Escalades N2</div>
+                  </div>
+                  <div style={{textAlign:'center'}}>
+                    <div style={{fontSize:'2.2rem', fontWeight:'700', color:'#c53030'}}>{meta.horsSla}</div>
+                    <div style={{fontSize:'0.75rem', color:'#718096'}}>Hors SLA actifs</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem'}}>
+
+                {/* Statuts */}
+                {analytics.byStatut?.length > 0 && (
+                  <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                    <h3 style={{color:'#1a365d', margin:'0 0 0.75rem', fontSize:'0.95rem', fontWeight:'700'}}>📋 Répartition par statut</h3>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie data={analytics.byStatut} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({name,percent}) => `${(percent*100).toFixed(0)}%`} labelLine={false}>
+                          {analytics.byStatut.map((s, i) => <Cell key={i} fill={s.color || CHART_COLORS[i]} />)}
+                        </Pie>
+                        <Tooltip formatter={(v,n) => [v, n]} />
+                        <Legend wrapperStyle={{fontSize:'0.78rem'}} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Satisfaction */}
+                {analytics.satisfaction?.length > 0 && (
+                  <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                    <h3 style={{color:'#1a365d', margin:'0 0 0.75rem', fontSize:'0.95rem', fontWeight:'700'}}>⭐ Satisfaction client ({meta.notesCount} avis)</h3>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie data={analytics.satisfaction} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={({name,percent}) => `${(percent*100).toFixed(0)}%`} labelLine={false}>
+                          {analytics.satisfaction.map((s, i) => <Cell key={i} fill={s.color} />)}
+                        </Pie>
+                        <Tooltip />
+                        <Legend wrapperStyle={{fontSize:'0.78rem'}} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Performance par service */}
+              {analytics.byService?.length > 0 && (
+                <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                  <h3 style={{color:'#1a365d', margin:'0 0 0.75rem', fontSize:'0.95rem', fontWeight:'700'}}>🏢 Performance par service</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={analytics.byService} margin={{top:5,right:20,left:0,bottom:5}}>
+                      <XAxis dataKey="service" tick={{fontSize:11}} />
+                      <YAxis yAxisId="left" tick={{fontSize:10}} />
+                      <YAxis yAxisId="right" orientation="right" unit="%" domain={[0,100]} tick={{fontSize:10}} />
+                      <Tooltip formatter={(v,n) => n.includes('%') ? `${v}%` : v} />
+                      <Legend wrapperStyle={{fontSize:'0.78rem'}} />
+                      <Bar yAxisId="left"  dataKey="total"     name="Volume"     fill="#2b6cb0" radius={[4,4,0,0]} />
+                      <Bar yAxisId="right" dataKey="tauxSla"   name="SLA %"      fill="#276749" radius={[4,4,0,0]} />
+                      <Bar yAxisId="right" dataKey="tauxTraite" name="Traitement %" fill="#b7791f" radius={[4,4,0,0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem'}}>
+
+                {/* Top agents */}
+                {analytics.byAgent?.length > 0 && (
+                  <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                    <h3 style={{color:'#1a365d', margin:'0 0 0.75rem', fontSize:'0.95rem', fontWeight:'700'}}>👤 Volume par agent (N1)</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={analytics.byAgent} layout="vertical" margin={{top:0,right:40,left:60,bottom:0}}>
+                        <XAxis type="number" tick={{fontSize:10}} />
+                        <YAxis type="category" dataKey="agent" tick={{fontSize:10}} width={60} />
+                        <Tooltip formatter={(v,n) => n==='taux' ? `${v}%` : v} />
+                        <Legend wrapperStyle={{fontSize:'0.78rem'}} />
+                        <Bar dataKey="total" name="Demandes N1" fill="#2b6cb0" radius={[0,4,4,0]}>
+                          {analytics.byAgent.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Types de demandes */}
+                {analytics.byType?.length > 0 && (
+                  <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                    <h3 style={{color:'#1a365d', margin:'0 0 0.75rem', fontSize:'0.95rem', fontWeight:'700'}}>📂 Types de demandes</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={analytics.byType} layout="vertical" margin={{top:0,right:20,left:80,bottom:0}}>
+                        <XAxis type="number" tick={{fontSize:10}} />
+                        <YAxis type="category" dataKey="type" tick={{fontSize:9}} width={80} />
+                        <Tooltip />
+                        <Bar dataKey="nb" name="Nb demandes" radius={[0,4,4,0]}>
+                          {analytics.byType.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
+
+              {/* Canaux */}
+              {analytics.byCanal?.length > 0 && (
+                <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                  <h3 style={{color:'#1a365d', margin:'0 0 0.75rem', fontSize:'0.95rem', fontWeight:'700'}}>📡 Canaux de contact</h3>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', alignItems:'center'}}>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie data={analytics.byCanal} dataKey="nb" nameKey="canal" cx="50%" cy="50%" outerRadius={80}
+                          label={({canal, percent}) => percent > 0.05 ? `${canal} ${(percent*100).toFixed(0)}%` : ''} labelLine={false}>
+                          {analytics.byCanal.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={(v,n) => [v, n]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{display:'grid', gap:'0.4rem'}}>
+                      {analytics.byCanal.map((c, i) => {
+                        const total = analytics.byCanal.reduce((s,x) => s+x.nb, 0)
+                        const pct = total > 0 ? Math.round(c.nb/total*100) : 0
+                        return (
+                          <div key={c.canal} style={{display:'flex', alignItems:'center', gap:'0.5rem'}}>
+                            <div style={{width:'10px', height:'10px', borderRadius:'50%', background:CHART_COLORS[i%CHART_COLORS.length], flexShrink:0}} />
+                            <div style={{flex:1, fontSize:'0.82rem', color:'#2d3748'}}>{c.canal}</div>
+                            <div style={{flex:2, background:'#edf2f7', borderRadius:'99px', height:'7px', overflow:'hidden'}}>
+                              <div style={{width:`${pct}%`, height:'100%', background:CHART_COLORS[i%CHART_COLORS.length], borderRadius:'99px'}} />
+                            </div>
+                            <div style={{width:'30px', textAlign:'right', fontSize:'0.78rem', color:'#718096'}}>{c.nb}</div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── ONGLET RAPPORT NARRATIF ─── */}
+          {onglet === 'rapport' && (
+            <div style={{background:'white', borderRadius:'14px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', padding:'2rem'}}>
+              {renderMarkdown(rapport)}
+            </div>
+          )}
+        </>
+      )}
+
+      <style>{`
+        @keyframes spin  { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+      `}</style>
+    </div>
+  )
+}
+
+// Mon espace — vue personnalisée par agent
+function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte, onDemandesChange }) {
+  const userName = localStorage.getItem('userName') || ''
+  const userRole = localStorage.getItem('userRole') || 'agent'
+
+  // Extraire le prénom (token non entièrement en majuscules)
+  const prenom = userName.split(' ').find(w => w.length > 0 && w[0] === w[0].toUpperCase() && w !== w.toUpperCase()) || userName.split(' ')[0] || userName
+
+  const heure = new Date().getHours()
+  const salutation = heure < 12 ? 'Bonjour' : heure < 18 ? 'Bon après-midi' : 'Bonsoir'
+  const roleLabel = { admin: 'Administrateur', manager: 'Manager', agent: 'Agent N1' }[userRole] || userRole
+
+  const today = new Date()
+  const dateLabel = today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+  const CLOS = ['Traité', 'Clôturé']
+  const todayStr = today.toDateString()
+
+  // Mes demandes (N1 ou N2)
+  const mesDemandes = demandesInitiales.filter(d =>
+    (d.agentN1 && d.agentN1.toLowerCase() === userName.toLowerCase()) ||
+    (d.agentN2 && d.agentN2.toLowerCase() === userName.toLowerCase())
+  )
+
+  // KPIs du jour
+  const recuesAujourdhui = mesDemandes.filter(d => {
+    const ref = d.dateReception || d.createdAt
+    return ref && new Date(ref).toDateString() === todayStr
+  })
+  const traiteesAujourdhui = mesDemandes.filter(d =>
+    CLOS.includes(d.statut) && d.dateTraitement && new Date(d.dateTraitement).toDateString() === todayStr
+  )
+  const enCoursMes = mesDemandes.filter(d => !CLOS.includes(d.statut))
+  const enAttenteMes = mesDemandes.filter(d => d.statut === 'En attente')
+
+  // Tâches à faire : demandes ouvertes triées par priorité puis date
+  const prioriteOrdre = { Urgent: 0, 'Élevé': 1, Moyen: 2, Faible: 3 }
+  const tachesAFaire = [...enCoursMes]
+    .sort((a, b) => {
+      const pa = prioriteOrdre[a.priorite] ?? 2
+      const pb = prioriteOrdre[b.priorite] ?? 2
+      if (pa !== pb) return pa - pb
+      return new Date(a.dateReception || a.createdAt) - new Date(b.dateReception || b.createdAt)
+    })
+    .slice(0, 8)
+
+  // À surveiller : urgent + hors SLA + escaladées + approche échéance
+  const DELAIS_SERVICE = { DPM: 3, DPR: 5, DDSI: 6, PATRIMOINE: 7, DCR: 5, DFC: 5, DRUC: 5, REGISSEUR: 5, Autre: 5 }
+  const nowTs = Date.now()
+  const slaInfo = d => {
+    const delai = DELAIS_SERVICE[d.service] ?? 5
+    const jours = d.dateReception ? Math.ceil((nowTs - new Date(d.dateReception).getTime()) / 86400000) : 0
+    const pct = delai > 0 ? Math.min(100, Math.round(jours / delai * 100)) : 0
+    return { delai, jours, pct, restants: Math.max(0, delai - jours) }
+  }
+  const urgentes = mesDemandes.filter(d => !CLOS.includes(d.statut) && d.priorite === 'Urgent')
+  const horsSla  = mesDemandes.filter(d => !CLOS.includes(d.statut) && d.respectDelai === 'NON')
+  const escaladees = mesDemandes.filter(d => ['Escaladé','En cours N2'].includes(d.statut))
+  const procheEcheance = mesDemandes.filter(d => {
+    if (CLOS.includes(d.statut) || !d.dateReception) return false
+    const { pct } = slaInfo(d)
+    return pct >= 75 && pct < 100
+  })
+  const aSurveiller = [...new Map([...urgentes, ...horsSla, ...escaladees, ...procheEcheance].map(d => [d.id, d])).values()]
+
+  // Activités récentes — mes demandes les plus récemment mises à jour
+  const activitesRecentes = [...mesDemandes]
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+    .slice(0, 6)
+
+  // Activités du jour — demandes modifiées aujourd'hui
+  const activitesDuJour = mesDemandes.filter(d => {
+    const ref = d.updatedAt || d.createdAt
+    return ref && new Date(ref).toDateString() === todayStr
+  }).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+
+  const statutColor = s => ({
+    'En cours': '#2b6cb0', 'En attente': '#b7791f', 'Escaladé': '#6b46c1',
+    'En cours N2': '#6b46c1', 'Traité': '#276749', 'Clôturé': '#276749', 'Renvoyé N1': '#4a5568',
+  })[s] || '#718096'
+
+  const prioriteBadge = p => {
+    const cfg = { Urgent: ['#fff5f5','#c53030'], 'Élevé': ['#fffbeb','#b7791f'], Moyen: ['#ebf8ff','#2b6cb0'], Faible: ['#f0fff4','#276749'] }
+    const [bg, col] = cfg[p] || ['#edf2f7','#4a5568']
+    return <span style={{background:bg, color:col, borderRadius:'999px', padding:'0.1rem 0.5rem', fontSize:'0.72rem', fontWeight:'700'}}>{p || 'Moyen'}</span>
+  }
+
+  const fmtDate = v => v ? new Date(v).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' }) : '—'
+  const fmtDateTime = v => v ? new Date(v).toLocaleString('fr-FR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—'
+
+  return (
+    <div>
+      {/* Bandeau d'accueil */}
+      <div style={{background:'linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%)', borderRadius:'16px', padding:'1.5rem 2rem', marginBottom:'1.25rem', color:'white', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'1rem'}}>
+        <div>
+          <div style={{fontSize:'1.5rem', fontWeight:'700', marginBottom:'0.25rem'}}>
+            {salutation}, {prenom} 👋
+          </div>
+          <div style={{fontSize:'0.9rem', opacity:0.8, textTransform:'capitalize'}}>{dateLabel}</div>
+          <div style={{marginTop:'0.5rem', display:'inline-block', background:'rgba(255,255,255,0.18)', borderRadius:'999px', padding:'0.2rem 0.75rem', fontSize:'0.78rem', fontWeight:'600'}}>
+            {roleLabel}
+          </div>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(4, auto)', gap:'0.75rem'}}>
+          {[
+            ['Reçues aujourd\'hui', recuesAujourdhui.length, '#63b3ed'],
+            ['Traitées aujourd\'hui', traiteesAujourdhui.length, '#68d391'],
+            ['En cours', enCoursMes.length, '#fbd38d'],
+            ['À surveiller', aSurveiller.length, '#fc8181'],
+          ].map(([label, val, col]) => (
+            <div key={label} style={{textAlign:'center', background:'rgba(255,255,255,0.12)', borderRadius:'12px', padding:'0.6rem 1rem', minWidth:'90px'}}>
+              <div style={{fontSize:'1.6rem', fontWeight:'700', color:col}}>{val}</div>
+              <div style={{fontSize:'0.7rem', opacity:0.85, marginTop:'0.1rem'}}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem'}}>
+
+        {/* Tâches à faire */}
+        <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.85rem'}}>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>✅ Tâches à faire</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>{enCoursMes.length} en cours</span>
+          </div>
+          {tachesAFaire.length === 0 ? (
+            <div style={{color:'#68d391', textAlign:'center', padding:'2rem 0', fontSize:'0.9rem'}}>
+              🎉 Toutes vos tâches sont à jour !
+            </div>
+          ) : (
+            <div style={{display:'grid', gap:'0.5rem'}}>
+              {tachesAFaire.map(d => (
+                <div key={d.id} style={{border:'1px solid #e2e8f0', borderLeft:`3px solid ${d.priorite==='Urgent'?'#c53030':d.priorite==='Élevé'?'#b7791f':'#2b6cb0'}`, borderRadius:'8px', padding:'0.6rem 0.75rem', display:'flex', alignItems:'center', gap:'0.6rem', flexWrap:'wrap'}}>
+                  <span style={{fontWeight:'700', color:'#2b6cb0', fontSize:'0.8rem', flexShrink:0}}>{d.numDemande}</span>
+                  <span style={{flex:1, color:'#2d3748', fontSize:'0.82rem', minWidth:'80px'}}>{d.nomPrenom}</span>
+                  {prioriteBadge(d.priorite)}
+                  <span style={{fontSize:'0.75rem', color:'#718096', flexShrink:0}}>Reçu {fmtDate(d.dateReception)}</span>
+                </div>
+              ))}
+              {enCoursMes.length > 8 && (
+                <div style={{textAlign:'center', color:'#2b6cb0', fontSize:'0.8rem', paddingTop:'0.25rem'}}>
+                  + {enCoursMes.length - 8} autres demandes en cours
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* À surveiller */}
+        <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.85rem'}}>
+            <h3 style={{color:'#c53030', margin:0, fontSize:'1rem'}}>🔥 À surveiller</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>{aSurveiller.length} alerte{aSurveiller.length !== 1 ? 's' : ''}</span>
+          </div>
+          {aSurveiller.length === 0 ? (
+            <div style={{color:'#68d391', textAlign:'center', padding:'2rem 0', fontSize:'0.9rem'}}>
+              Aucune alerte pour le moment
+            </div>
+          ) : (
+            <div style={{display:'grid', gap:'0.5rem'}}>
+              {aSurveiller.slice(0, 8).map(d => {
+                const tags = []
+                if (d.priorite === 'Urgent') tags.push({ label: 'Urgent', bg:'#fff5f5', col:'#c53030' })
+                if (d.respectDelai === 'NON') tags.push({ label: 'Hors SLA', bg:'#fffbeb', col:'#b7791f' })
+                if (['Escaladé','En cours N2'].includes(d.statut)) tags.push({ label: 'Escaladé', bg:'#faf5ff', col:'#6b46c1' })
+                const { pct, restants, delai } = slaInfo(d)
+                const approche = pct >= 75 && pct < 100
+                const barColor = pct >= 100 ? '#c53030' : pct >= 90 ? '#e53e3e' : '#b7791f'
+                return (
+                  <div key={d.id} style={{border:`1px solid ${approche ? '#fbd38d' : '#fed7d7'}`, borderLeft:`3px solid ${approche ? '#b7791f' : '#c53030'}`, borderRadius:'8px', padding:'0.55rem 0.75rem', gap:'0.4rem', display:'flex', flexDirection:'column'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:'0.5rem', flexWrap:'wrap'}}>
+                      <span style={{fontWeight:'700', color: approche ? '#b7791f' : '#c53030', fontSize:'0.8rem', flexShrink:0}}>{d.numDemande}</span>
+                      <span style={{flex:1, color:'#2d3748', fontSize:'0.82rem', minWidth:'80px'}}>{d.nomPrenom}</span>
+                      {tags.map(t => (
+                        <span key={t.label} style={{background:t.bg, color:t.col, borderRadius:'999px', padding:'0.1rem 0.45rem', fontSize:'0.7rem', fontWeight:'700'}}>{t.label}</span>
+                      ))}
+                      {approche && (
+                        <span style={{background:'#fffbeb', color:'#b7791f', borderRadius:'999px', padding:'0.1rem 0.45rem', fontSize:'0.7rem', fontWeight:'700'}}>
+                          ⏰ {restants}j restant{restants > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                    {d.dateReception && (
+                      <div style={{display:'flex', alignItems:'center', gap:'0.5rem'}}>
+                        <div style={{flex:1, background:'#e2e8f0', borderRadius:'99px', height:'5px', overflow:'hidden'}}>
+                          <div style={{width:`${pct}%`, height:'100%', background: barColor, borderRadius:'99px', transition:'width 0.3s'}} />
+                        </div>
+                        <span style={{fontSize:'0.7rem', color: pct >= 100 ? '#c53030' : '#718096', fontWeight: pct >= 75 ? '700' : '400', flexShrink:0}}>
+                          {pct}% / {delai}j
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem'}}>
+
+        {/* Activités du jour */}
+        <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.85rem'}}>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>📅 Activités du jour</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>{activitesDuJour.length} mise{activitesDuJour.length !== 1 ? 's' : ''} à jour</span>
+          </div>
+          {activitesDuJour.length === 0 ? (
+            <div style={{color:'#718096', textAlign:'center', padding:'2rem 0', fontSize:'0.9rem'}}>
+              Aucune activité aujourd'hui
+            </div>
+          ) : (
+            <div style={{display:'grid', gap:'0.5rem'}}>
+              {activitesDuJour.map(d => (
+                <div key={d.id} style={{display:'flex', alignItems:'center', gap:'0.6rem', padding:'0.5rem 0', borderBottom:'1px solid #f7fafc'}}>
+                  <span style={{fontWeight:'700', color:'#2b6cb0', fontSize:'0.8rem', flexShrink:0}}>{d.numDemande}</span>
+                  <span style={{flex:1, color:'#2d3748', fontSize:'0.82rem'}}>{d.nomPrenom}</span>
+                  <span style={{background: statutColor(d.statut) + '20', color: statutColor(d.statut), borderRadius:'999px', padding:'0.1rem 0.5rem', fontSize:'0.72rem', fontWeight:'600', flexShrink:0}}>{d.statut}</span>
+                  <span style={{fontSize:'0.72rem', color:'#a0aec0', flexShrink:0}}>{fmtDateTime(d.updatedAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Activités récentes */}
+        <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.85rem'}}>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem'}}>🕒 Activités récentes</h3>
+            <span style={{fontSize:'0.8rem', color:'#718096'}}>{mesDemandes.length} total</span>
+          </div>
+          {activitesRecentes.length === 0 ? (
+            <div style={{color:'#718096', textAlign:'center', padding:'2rem 0', fontSize:'0.9rem'}}>
+              Aucune activité
+            </div>
+          ) : (
+            <div style={{display:'grid', gap:'0.5rem'}}>
+              {activitesRecentes.map(d => (
+                <div key={d.id} style={{display:'flex', alignItems:'center', gap:'0.6rem', padding:'0.5rem 0', borderBottom:'1px solid #f7fafc'}}>
+                  <span style={{fontWeight:'700', color:'#2b6cb0', fontSize:'0.8rem', flexShrink:0}}>{d.numDemande}</span>
+                  <span style={{flex:1, color:'#2d3748', fontSize:'0.82rem'}}>{d.nomPrenom}</span>
+                  <span style={{background: statutColor(d.statut) + '20', color: statutColor(d.statut), borderRadius:'999px', padding:'0.1rem 0.5rem', fontSize:'0.72rem', fontWeight:'600', flexShrink:0}}>{d.statut}</span>
+                  <span style={{fontSize:'0.72rem', color:'#a0aec0', flexShrink:0}}>
+                    {new Date(d.updatedAt || d.createdAt).toLocaleDateString('fr-FR', { day:'2-digit', month:'2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* En attente de réponse */}
+      {enAttenteMes.length > 0 && (
+        <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'0.85rem'}}>
+            <h3 style={{color:'#b7791f', margin:0, fontSize:'1rem'}}>⏳ En attente de réponse</h3>
+            <span style={{background:'#fffbeb', color:'#b7791f', borderRadius:'999px', padding:'0.2rem 0.6rem', fontSize:'0.8rem', fontWeight:'700'}}>{enAttenteMes.length}</span>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'0.5rem'}}>
+            {enAttenteMes.map(d => (
+              <div key={d.id} style={{border:'1px solid #fef3c7', borderLeft:'3px solid #b7791f', borderRadius:'8px', padding:'0.6rem 0.75rem', display:'flex', alignItems:'center', gap:'0.6rem'}}>
+                <span style={{fontWeight:'700', color:'#b7791f', fontSize:'0.8rem'}}>{d.numDemande}</span>
+                <span style={{flex:1, color:'#2d3748', fontSize:'0.82rem'}}>{d.nomPrenom}</span>
+                <span style={{fontSize:'0.75rem', color:'#718096'}}>Reçu {fmtDate(d.dateReception)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Liste complète des demandes de l'agent */}
+      <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+        <div style={{display:'flex', alignItems:'center', gap:'0.6rem', marginBottom:'1rem', paddingBottom:'0.75rem', borderBottom:'1px solid #edf2f7'}}>
+          <span style={{fontSize:'1.1rem'}}>📋</span>
+          <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem', fontWeight:'700'}}>Mes demandes</h3>
+          <span style={{marginLeft:'auto', background:'#2b6cb0', color:'white', borderRadius:'999px', padding:'0.15rem 0.65rem', fontSize:'0.8rem', fontWeight:'700'}}>
+            {mesDemandes.length}
+          </span>
+        </div>
+        <Demandes
+          controlee={true}
+          onOpenCommentaires={onOpenCommentaires}
+          onAssigner={onAssigner}
+          ouvrirNouvelleDemande={ouvrirNouvelleDemande}
+          onNouvelleDemandeOuverte={onNouvelleDemandeOuverte}
+          demandesInitiales={mesDemandes}
+          onDemandesChange={onDemandesChange}
+        />
+      </div>
+    </div>
+  )
+}
+
 // Layout
 function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, demandes = [] }) {
   const navigate = useNavigate()
@@ -5607,12 +6965,17 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
   const isAdmin = userRole === 'admin'
   const isManagerOrAdmin = userRole === 'admin' || userRole === 'manager'
 
+  const userName = localStorage.getItem('userName') || ''
   const critiques = demandes.filter(d =>
     ['En cours', 'En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
   ).length
 
   const enCours = demandes.filter(d => d.statut === 'En cours').length
   const escaladees = demandes.filter(d => d.statut === 'Escaladé').length
+  const mesDemandesCount = demandes.filter(d =>
+    (d.agentN1 && d.agentN1.toLowerCase() === userName.toLowerCase()) ||
+    (d.agentN2 && d.agentN2.toLowerCase() === userName.toLowerCase())
+  ).length
 
   return (
     <div style={styles.layout}>
@@ -5655,6 +7018,10 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         <div style={{fontSize:'0.72rem', color:'rgba(255,255,255,0.55)', textTransform:'uppercase', margin:'0.5rem 0 0.35rem 0.35rem', letterSpacing:'0.05em'}}>
           Exploitation
         </div>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/accueil">
+          <span style={styles.sidebarIcon}>🏠</span>Mon espace
+          {mesDemandesCount > 0 && <span style={{...styles.sidebarBadge, background:'#2b6cb0'}}>{mesDemandesCount}</span>}
+        </NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/dashboard"><span style={styles.sidebarIcon}>📊</span>Dashboard</NavLink>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/demandes">
           <span style={styles.sidebarIcon}>📋</span>Demandes
@@ -5683,6 +7050,7 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
           Pilotage
         </div>
         <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/rapports"><span style={styles.sidebarIcon}>📈</span>Rapports</NavLink>
+        <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/agent-rapport"><span style={styles.sidebarIcon}>🤖</span>Agent Rapport IA</NavLink>
 
         <div style={{height:'1px', background:'rgba(255,255,255,0.12)', margin:'0.9rem 0'}} />
 
@@ -5691,6 +7059,9 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         </div>
         {isAdmin && (
           <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/users"><span style={styles.sidebarIcon}>👤</span>Utilisateurs</NavLink>
+        )}
+        {isManagerOrAdmin && (
+          <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/journal"><span style={styles.sidebarIcon}>🛡️</span>Journal sécurité</NavLink>
         )}
 
         <button style={styles.logoutBtn} onClick={onLogout}>🚪 Déconnexion</button>
@@ -5755,7 +7126,7 @@ export default function App() {
 
   useEffect(() => {
     if (auth) {
-      const delaisMax = { DPM:3, DPR:5, DSI:6, PATRIMOINE:7, DCR:5, DFC:5, REGISSEUR:5, Autre:5 }
+      const delaisMax = { DPM:3, DPR:5, DDSI:6, PATRIMOINE:7, DCR:5, DFC:5, REGISSEUR:5, Autre:5 }
       API.get('/demandes').then(r => {
         const retard = r.data.filter(d => {
           if (!['En cours', 'En attente'].includes(d.statut)) return false
@@ -5797,9 +7168,20 @@ export default function App() {
         {demandeActive && <PanneauCommentaires demande={demandeActive} onClose={() => setDemandeActive(null)} />}
         {demandeAssignation && <ModalAssignation demande={demandeAssignation} onClose={() => setDemandeAssignation(null)} onAssigned={(d) => { setDemandeAssignation(null) }} />}
         <Routes>
+          <Route path="/accueil" element={
+            <MonEspace
+              demandesInitiales={demandesApp}
+              onOpenCommentaires={setDemandeActive}
+              onAssigner={setDemandeAssignation}
+              ouvrirNouvelleDemande={ouvrirNouvelleDemande}
+              onNouvelleDemandeOuverte={() => setOuvrirNouvelleDemande(false)}
+              onDemandesChange={setDemandesApp}
+            />
+          } />
           <Route path="/dashboard" element={<Dashboard alertes={alertes} demandes={demandesApp} />} />
           <Route path="/critiques" element={<FileCritique />} />
           <Route path="/encours" element={<DemandesEnCours />} />
+          <Route path="/mes-demandes" element={<Navigate to="/accueil" />} />
           <Route
             path="/demandes"
             element={
@@ -5816,9 +7198,11 @@ export default function App() {
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/deals" element={<Deals />} />
           <Route path="/campagnes" element={(['admin','manager'].includes(localStorage.getItem('userRole'))) ? <Campagnes /> : <Navigate to="/dashboard" />} />
-          <Route path="/rapports" element={<Rapports />} />
+          <Route path="/rapports" element={<Rapports demandes={demandesApp} />} />
+          <Route path="/agent-rapport" element={<AgentRapport />} />
           <Route path="/users" element={localStorage.getItem('userRole') === 'admin' ? <Users /> : <Navigate to="/dashboard" />} />
-          <Route path="*" element={<Navigate to="/dashboard" />} />
+          <Route path="/journal" element={['admin','manager'].includes(localStorage.getItem('userRole')) ? <JournalAudit /> : <Navigate to="/accueil" />} />
+          <Route path="*" element={<Navigate to="/accueil" />} />
         </Routes>
       </Layout>
     </BrowserRouter>
