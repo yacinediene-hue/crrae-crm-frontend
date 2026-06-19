@@ -4310,7 +4310,16 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               setForm({...form, dateTraitement: val, statut: val ? 'Traité' : 'En cours'})
             }} /></div>
             <select style={inp} value={form.canalCommunication} onChange={e=>setForm({...form,canalCommunication:e.target.value})}>
-              <option value="WhatsApp">Retour : WhatsApp</option><option value="Email">Retour : Email</option><option value="Appel">Retour : Appel</option>
+              <option value="WhatsApp">Retour : WhatsApp</option>
+              <option value="Email">Retour : Email</option>
+              <option value="Appel">Retour : Appel</option>
+              <option value="SMS">Retour : SMS</option>
+              <option value="Site web">Retour : Site web</option>
+              <option value="Guichet">Retour : Guichet</option>
+              <option value="Physique">Retour : Physique</option>
+              <option value="LinkedIn">Retour : LinkedIn</option>
+              <option value="Facebook">Retour : Facebook</option>
+              <option value="Autre">Retour : Autre</option>
             </select>
             <select style={inp} value={form.noteSatisfaction} onChange={e=>setForm({...form,noteSatisfaction:e.target.value})}>
               <option value="">Note satisfaction</option>
