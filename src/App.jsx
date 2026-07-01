@@ -3315,7 +3315,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       API.get('/demandes').then(r => {
         setDemandes(r.data)
         onDemandesChange?.(r.data)
-      }).catch(() => {})
+      }).catch((e) => {
+        console.error('[Demandes] GET /demandes →', e?.response?.status, e?.response?.data?.message || e?.message)
+      })
     }
   }, [demandesInitiales])
 
@@ -7390,7 +7392,9 @@ export default function App() {
         })
         setAlertes(retard)
         setDemandesApp(r.data)
-      }).catch(() => {})
+      }).catch((e) => {
+        console.error('[App] GET /demandes →', e?.response?.status, e?.response?.data?.message || e?.message)
+      })
     }
   }, [auth])
 
