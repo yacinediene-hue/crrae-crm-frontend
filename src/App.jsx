@@ -3428,7 +3428,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const ENQUETE_URL = 'https://thriving-cassata-92f38e.netlify.app'
 
   const [demandeEscalade, setDemandeEscalade] = useState(null)
-  const [escaladeForm, setEscaladeForm] = useState({ agentN2: '', service: '', motif: '' })
+  const [escaladeForm, setEscaladeForm] = useState({ agentN2: '', service: '', motif: '', motifAutre: false })
   const [escaladeLoading, setEscaladeLoading] = useState(false)
   const [renvoyerModal, setRenvoyerModal] = useState(null)
   const [renvoyerMotif, setRenvoyerMotif] = useState('')
@@ -3456,7 +3456,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       const res = await API.post(`/demandes/${demandeEscalade.id}/escalader`, escaladeForm)
       syncDemandes(demandes.map(d => d.id === demandeEscalade.id ? res.data : d))
       setDemandeEscalade(null)
-      setEscaladeForm({ agentN2: '', service: '', motif: '' })
+      setEscaladeForm({ agentN2: '', service: '', motif: '', motifAutre: false })
     } catch (err) {
       alert("Erreur lors de l'escalade : " + (err?.response?.data?.message || err.message))
     } finally {
@@ -4333,7 +4333,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 type="button"
                 onClick={() => {
                   const d = demandes.find(x => x.id === editId)
-                  if (d) { setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: form.service||'', motif: '' }) }
+                  if (d) { setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: form.service||'', motif: '', motifAutre: false }) }
                 }}
                 style={{...styles.button, background:'#b7791f', width:'auto', padding:'0.625rem 1.25rem', whiteSpace:'nowrap'}}
               >
@@ -4495,7 +4495,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                     {d.niveauTraitement !== 2 && !['Traité','Clôturé','Escaladé','En cours N2'].includes(d.statut) && (
                       <button
                         title="Envoyer au Back Office (N2)"
-                        onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: d.service||'', motif: '' }) }}
+                        onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: d.service||'', motif: '', motifAutre: false }) }}
                         style={{background:'#fffbeb',color:'#b7791f',border:'1px solid #f6e05e',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.78rem',fontWeight:'600',whiteSpace:'nowrap'}}
                       >
                         🔺 N2
@@ -4574,13 +4574,47 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>
                 Motif d'escalade <span style={{color:'#718096',fontWeight:'400'}}>(obligatoire)</span>
               </label>
-              <textarea
+              <select
                 required
-                style={{...styles.input,height:'80px',resize:'vertical',width:'100%',marginBottom:'1.25rem'}}
-                placeholder="Décrivez ce qui nécessite l'intervention du Back Office…"
-                value={escaladeForm.motif}
-                onChange={e => setEscaladeForm({...escaladeForm, motif: e.target.value})}
-              />
+                style={{...styles.input,marginBottom:'0.6rem'}}
+                value={escaladeForm.motifAutre ? 'Autre' : escaladeForm.motif}
+                onChange={e => setEscaladeForm({...escaladeForm, motif: e.target.value === 'Autre' ? '' : e.target.value, motifAutre: e.target.value === 'Autre'})}
+              >
+                <option value="">-- Sélectionner un motif --</option>
+                {[
+                  'Dossier complexe nécessitant une expertise',
+                  'Incident technique bloquant',
+                  'Validation hiérarchique requise',
+                  'Information non disponible',
+                  "Demande d'une autorité ou d'un partenaire stratégique",
+                  'Délai de traitement dépassé',
+                  'Réclamation client sensible',
+                  'Client insatisfait après traitement',
+                  'Dossier incomplet nécessitant arbitrage',
+                  'Anomalie ou incohérence dans le dossier',
+                  'Erreur de données à corriger',
+                  'Cas hors procédure standard',
+                  'Demande urgente à fort impact',
+                  "Intervention d'un autre service nécessaire",
+                  'Blocage administratif',
+                  'Blocage financier',
+                  'Décision exceptionnelle requise',
+                  'Risque de contentieux ou de litige',
+                  'Demande répétée sans solution',
+                  'Escalade à la demande du client',
+                  'Autre',
+                ].map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              {escaladeForm.motifAutre && (
+                <textarea
+                  required
+                  style={{...styles.input,height:'70px',resize:'vertical',width:'100%',marginBottom:'1.25rem'}}
+                  placeholder="Précisez le motif…"
+                  value={escaladeForm.motif}
+                  onChange={e => setEscaladeForm({...escaladeForm, motif: e.target.value})}
+                />
+              )}
+              {!escaladeForm.motifAutre && <div style={{marginBottom:'1.25rem'}} />}
 
               <div style={{display:'flex',gap:'0.75rem',justifyContent:'flex-end'}}>
                 <button type="button" onClick={() => setDemandeEscalade(null)}
