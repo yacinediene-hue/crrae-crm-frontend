@@ -3428,7 +3428,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const ENQUETE_URL = 'https://thriving-cassata-92f38e.netlify.app'
 
   const [demandeEscalade, setDemandeEscalade] = useState(null)
-  const [escaladeForm, setEscaladeForm] = useState({ agentN2: '', service: '', motif: '', motifAutre: false })
+  const [escaladeForm, setEscaladeForm] = useState({ agentN2: '', service: '', motif: '', motifAutre: false, dateEscalade: new Date().toISOString().split('T')[0] })
   const [escaladeLoading, setEscaladeLoading] = useState(false)
   const [renvoyerModal, setRenvoyerModal] = useState(null)
   const [renvoyerMotif, setRenvoyerMotif] = useState('')
@@ -3456,7 +3456,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       const res = await API.post(`/demandes/${demandeEscalade.id}/escalader`, escaladeForm)
       syncDemandes(demandes.map(d => d.id === demandeEscalade.id ? res.data : d))
       setDemandeEscalade(null)
-      setEscaladeForm({ agentN2: '', service: '', motif: '', motifAutre: false })
+      setEscaladeForm({ agentN2: '', service: '', motif: '', motifAutre: false, dateEscalade: new Date().toISOString().split('T')[0] })
     } catch (err) {
       alert("Erreur lors de l'escalade : " + (err?.response?.data?.message || err.message))
     } finally {
@@ -4333,7 +4333,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 type="button"
                 onClick={() => {
                   const d = demandes.find(x => x.id === editId)
-                  if (d) { setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: form.service||'', motif: '', motifAutre: false }) }
+                  if (d) { setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: form.service||'', motif: '', motifAutre: false, dateEscalade: new Date().toISOString().split('T')[0] }) }
                 }}
                 style={{...styles.button, background:'#b7791f', width:'auto', padding:'0.625rem 1.25rem', whiteSpace:'nowrap'}}
               >
@@ -4495,7 +4495,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                     {d.niveauTraitement !== 2 && !['Traité','Clôturé','Escaladé','En cours N2'].includes(d.statut) && (
                       <button
                         title="Envoyer au Back Office (N2)"
-                        onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: d.service||'', motif: '', motifAutre: false }) }}
+                        onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: d.service||'', motif: '', motifAutre: false, dateEscalade: new Date().toISOString().split('T')[0] }) }}
                         style={{background:'#fffbeb',color:'#b7791f',border:'1px solid #f6e05e',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.78rem',fontWeight:'600',whiteSpace:'nowrap'}}
                       >
                         🔺 N2
@@ -4570,6 +4570,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 <option value="">-- Sélectionner un service --</option>
                 {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s => <option key={s}>{s}</option>)}
               </select>
+
+              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>Date d'escalade</label>
+              <input
+                type="date"
+                style={{...styles.input,marginBottom:'1rem'}}
+                value={escaladeForm.dateEscalade}
+                onChange={e => setEscaladeForm({...escaladeForm, dateEscalade: e.target.value})}
+              />
 
               <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>
                 Motif d'escalade <span style={{color:'#718096',fontWeight:'400'}}>(obligatoire)</span>
@@ -4693,6 +4701,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               ['Service', ticketOuvert.service],
               ['Agent N1', ticketOuvert.agentN1],
               ['Agent N2', ticketOuvert.agentN2],
+              ...(ticketOuvert.dateEscalade ? [['Date escalade', new Date(ticketOuvert.dateEscalade).toLocaleDateString('fr-FR')]] : []),
               ['Statut', ticketOuvert.statut],
               ['Priorité', ticketOuvert.priorite],
               ['Date réception', ticketOuvert.dateReception ? new Date(ticketOuvert.dateReception).toLocaleDateString('fr-FR') : '—'],
