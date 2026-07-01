@@ -3220,6 +3220,8 @@ function PanneauCommentaires({ demande, onClose }) {
 function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNouvelleDemandeOuverte, demandesInitiales = [], onDemandesChange, controlee = false }) {
   const location = useLocation()
   const [demandes, setDemandes] = useState([])
+  const [isLoading, setIsLoading] = useState(!controlee)
+  const [fetchError, setFetchError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStatut, setFilterStatut] = useState('')
@@ -3308,16 +3310,30 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     }
   }, [location.search])
 
+  const rechargerDemandes = () => {
+    setIsLoading(true)
+    setFetchError(null)
+    API.get('/demandes').then(r => {
+      console.log('[Demandes] GET /demandes OK →', r.data.length, 'demandes')
+      setDemandes(r.data)
+      onDemandesChange?.(r.data)
+      setIsLoading(false)
+    }).catch((e) => {
+      console.error('[Demandes] GET /demandes →', e?.response?.status, e?.response?.data?.message || e?.message)
+      setFetchError(`Erreur ${e?.response?.status || ''}: ${e?.response?.data?.message || e?.message || 'Impossible de charger les demandes'}`)
+      setIsLoading(false)
+    })
+  }
+
   useEffect(() => {
     if (demandesInitiales.length > 0) {
       setDemandes(demandesInitiales)
+      setIsLoading(false)
+      setFetchError(null)
     } else if (!controlee) {
-      API.get('/demandes').then(r => {
-        setDemandes(r.data)
-        onDemandesChange?.(r.data)
-      }).catch((e) => {
-        console.error('[Demandes] GET /demandes →', e?.response?.status, e?.response?.data?.message || e?.message)
-      })
+      rechargerDemandes()
+    } else {
+      setIsLoading(false)
     }
   }, [demandesInitiales])
 
@@ -3914,6 +3930,15 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           </div>
 
           <div style={{display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
+            <button
+              title="Rafraîchir la liste"
+              style={{...styles.button, width:'auto', padding:'0.75rem 1rem', background:'#4a5568'}}
+              onClick={rechargerDemandes}
+              disabled={isLoading}
+            >
+              {isLoading ? '⏳' : '🔄'}
+            </button>
+
             {canExport && (
               <button
                 style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#276749'}}
@@ -4189,8 +4214,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
         )}
 
         {/* Résumé résultats */}
-        <div style={{marginTop:'0.6rem',fontSize:'0.82rem',color:'#718096'}}>
-          {filtered.length} résultat{filtered.length > 1 ? 's' : ''} sur {demandes.length} demandes
+        <div style={{marginTop:'0.6rem',fontSize:'0.82rem',color: fetchError ? '#c53030' : '#718096'}}>
+          {isLoading ? 'Chargement en cours…' : fetchError ? fetchError : `${filtered.length} résultat${filtered.length > 1 ? 's' : ''} sur ${demandes.length} demandes`}
         </div>
       </div>
 
@@ -4469,8 +4494,19 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               </tr>
             </thead>
             <tbody>
-              {filtered.length===0 ? <tr><td colSpan={15}><div className="empty-state"><span className="empty-state-icon">📋</span>Aucune demande trouvée</div></td></tr>
-              : filtered.map(d=>(
+              {isLoading ? (
+                <tr><td colSpan={15}><div className="empty-state"><span className="empty-state-icon">⏳</span>Chargement des demandes…</div></td></tr>
+              ) : fetchError ? (
+                <tr><td colSpan={15}><div className="empty-state" style={{color:'#c53030'}}>
+                  <span className="empty-state-icon">⚠️</span>
+                  {fetchError}
+                  <button onClick={rechargerDemandes} style={{display:'block',margin:'0.75rem auto 0',background:'#2b6cb0',color:'white',border:'none',borderRadius:'8px',padding:'0.5rem 1.25rem',cursor:'pointer',fontSize:'0.85rem'}}>
+                    🔄 Réessayer
+                  </button>
+                </div></td></tr>
+              ) : filtered.length===0 ? (
+                <tr><td colSpan={15}><div className="empty-state"><span className="empty-state-icon">📋</span>Aucune demande trouvée</div></td></tr>
+              ) : filtered.map(d=>(
                 <tr
                   key={d.id}
                   style={{
@@ -7384,6 +7420,7 @@ export default function App() {
     if (auth) {
       const delaisMax = { DPM:3, DPR:5, DDSI:6, PATRIMOINE:7, DCR:5, DFC:5, REGISSEUR:5, Autre:5 }
       API.get('/demandes').then(r => {
+        console.log('[App] GET /demandes OK →', r.data.length, 'demandes')
         const retard = r.data.filter(d => {
           if (!['En cours', 'En attente'].includes(d.statut)) return false
           if (!d.dateReception) return false
@@ -7393,7 +7430,7 @@ export default function App() {
         setAlertes(retard)
         setDemandesApp(r.data)
       }).catch((e) => {
-        console.error('[App] GET /demandes →', e?.response?.status, e?.response?.data?.message || e?.message)
+        console.error('[App] GET /demandes ERREUR →', e?.response?.status, e?.response?.data?.message || e?.message)
       })
     }
   }, [auth])
