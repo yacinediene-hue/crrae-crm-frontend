@@ -4233,10 +4233,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           )}
 
           <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>📨 Demande</h3>
-          <div style={col2}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0 1rem'}}>
             <select style={inp} value={form.objetDemande} onChange={e=>setForm({...form,objetDemande:e.target.value})}>
               <option value="">-- Type de demande --</option>
               {OBJETS_DEMANDE.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
+              <option value="">-- Service --</option>
+              {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s=><option key={s}>{s}</option>)}
             </select>
             <select style={inp} value={form.canal} onChange={e=>setForm({...form,canal:e.target.value})}>
               <option value="">Canal</option>
@@ -4283,12 +4287,6 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           </h3>
           <div style={col2}>
             <input style={inp} placeholder="Agent N1 (Front Office)" value={form.agentN1} onChange={e=>setForm({...form,agentN1:e.target.value})} />
-            {form.niveauTraitement===2 ? (
-              <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
-                <option value="">-- Service --</option>
-                {["DPM","DPR","DDSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Division Développement","Autre"].map(s=><option key={s}>{s}</option>)}
-              </select>
-            ) : <div />}
             {form.niveauTraitement===2 && (
               <input style={inp} placeholder="Agent N2 (Back Office)" value={form.agentN2} onChange={e=>setForm({...form,agentN2:e.target.value})} />
             )}
