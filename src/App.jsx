@@ -3074,7 +3074,12 @@ function PanneauCommentaires({ demande, onClose }) {
   useEffect(() => {
     if (demande) {
       API.get(`/commentaires/demande/${demande.id}`)
-        .then(r => setCommentaires(r.data))
+        .then(r => {
+          setCommentaires(r.data)
+          const u = localStorage.getItem('userName') || ''
+          localStorage.setItem(`notes_vues_${u}_${demande.id}`, String(r.data.length))
+          window.dispatchEvent(new CustomEvent('notes-vues-updated'))
+        })
         .catch(() => {})
     }
   }, [demande])
@@ -3097,7 +3102,12 @@ function PanneauCommentaires({ demande, onClose }) {
         contenu: texte.trim(),
       })
       console.log('AJOUT NOTE OK', res.data)
-      setCommentaires((prev) => [res.data, ...prev])
+      setCommentaires((prev) => {
+        const next = [res.data, ...prev]
+        const u = localStorage.getItem('userName') || ''
+        localStorage.setItem(`notes_vues_${u}_${demande.id}`, String(next.length))
+        return next
+      })
       setTexte('')
     } catch (err) {
       console.error('ERREUR AJOUT NOTE', err)
@@ -3108,7 +3118,13 @@ function PanneauCommentaires({ demande, onClose }) {
   const handleDelete = async (id) => {
     try {
       await API.delete(`/commentaires/${id}`)
-      setCommentaires(commentaires.filter(c => c.id !== id))
+      setCommentaires(prev => {
+        const next = prev.filter(c => c.id !== id)
+        const u = localStorage.getItem('userName') || ''
+        localStorage.setItem(`notes_vues_${u}_${demande.id}`, String(next.length))
+        window.dispatchEvent(new CustomEvent('notes-vues-updated'))
+        return next
+      })
     } catch {}
   }
 
@@ -3218,6 +3234,17 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [showFiltres, setShowFiltres] = useState(false)
   const [filtresColonnes, setFiltresColonnes] = useState({})
   const [colonneActive, setColonneActive] = useState(null)
+  const [, setBadgeTick] = useState(0)
+  useEffect(() => {
+    const h = () => setBadgeTick(v => v + 1)
+    window.addEventListener('notes-vues-updated', h)
+    return () => window.removeEventListener('notes-vues-updated', h)
+  }, [])
+  const getNotesBadge = (demandeId, total) => {
+    const u = localStorage.getItem('userName') || ''
+    const vues = parseInt(localStorage.getItem(`notes_vues_${u}_${demandeId}`) || '0', 10)
+    return Math.max(0, (total || 0) - vues)
+  }
 
   // Met à jour l'état local ET remonte au parent (App) pour le Dashboard
   const syncDemandes = (updated) => {
@@ -4471,9 +4498,10 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                     <button
                       title="Notes et timeline"
                       onClick={()=> onOpenCommentaires(d)}
-                      style={{background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                      style={{position:'relative',background:'#fffbeb',color:'#b7791f',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
                     >
                       💬
+                      {(() => { const c = getNotesBadge(d.id, d._count?.commentaires); return c > 0 ? <span style={{position:'absolute',top:'-6px',right:'-6px',background:'#c53030',color:'white',fontSize:'0.6rem',fontWeight:'700',borderRadius:'50%',minWidth:'15px',height:'15px',display:'flex',alignItems:'center',justifyContent:'center',padding:'0 2px',lineHeight:'1',pointerEvents:'none'}}>{c}</span> : null })()}
                     </button>
 
                     <button
