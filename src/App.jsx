@@ -6892,6 +6892,19 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
   })
   const aSurveiller = [...new Map([...urgentes, ...horsSla, ...escaladees, ...procheEcheance].map(d => [d.id, d])).values()]
 
+  // Dossiers prioritaires à afficher en haut de page
+  const enCoursTraitement = mesDemandes
+    .filter(d => d.statut === 'En cours')
+    .sort((a, b) => {
+      const pa = prioriteOrdre[a.priorite] ?? 2
+      const pb = prioriteOrdre[b.priorite] ?? 2
+      if (pa !== pb) return pa - pb
+      return new Date(a.dateReception || a.createdAt) - new Date(b.dateReception || b.createdAt)
+    })
+  const escaladeesActives = mesDemandes
+    .filter(d => ['Escaladé', 'En cours N2'].includes(d.statut))
+    .sort((a, b) => new Date(a.dateReception || a.createdAt) - new Date(b.dateReception || b.createdAt))
+
   // Activités récentes — mes demandes les plus récemment mises à jour
   const activitesRecentes = [...mesDemandes]
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
@@ -6944,6 +6957,81 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
           ))}
         </div>
       </div>
+
+      {/* Section prioritaire — En cours & Escaladées */}
+      {(enCoursTraitement.length > 0 || escaladeesActives.length > 0) && (
+        <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', marginBottom:'1rem', border:'1px solid #e2e8f0'}}>
+          <div style={{display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'1rem', paddingBottom:'0.75rem', borderBottom:'1px solid #edf2f7'}}>
+            <span style={{fontSize:'1.1rem'}}>🎯</span>
+            <h3 style={{color:'#1a365d', margin:0, fontSize:'1rem', fontWeight:'700'}}>Dossiers nécessitant votre action</h3>
+            <span style={{marginLeft:'auto', background:'#c53030', color:'white', borderRadius:'999px', padding:'0.15rem 0.7rem', fontSize:'0.8rem', fontWeight:'700'}}>
+              {enCoursTraitement.length + escaladeesActives.length}
+            </span>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem'}}>
+
+            {/* En cours de traitement */}
+            <div>
+              <div style={{display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'0.65rem'}}>
+                <span style={{width:'10px', height:'10px', borderRadius:'50%', background:'#2b6cb0', display:'inline-block', flexShrink:0}} />
+                <span style={{fontWeight:'700', color:'#2b6cb0', fontSize:'0.88rem'}}>En cours de traitement</span>
+                <span style={{marginLeft:'auto', background:'#ebf8ff', color:'#2b6cb0', borderRadius:'999px', padding:'0.1rem 0.55rem', fontSize:'0.75rem', fontWeight:'700'}}>{enCoursTraitement.length}</span>
+              </div>
+              {enCoursTraitement.length === 0 ? (
+                <div style={{color:'#68d391', textAlign:'center', padding:'1.5rem 0', fontSize:'0.85rem'}}>Aucune demande en cours</div>
+              ) : (
+                <div style={{display:'grid', gap:'0.4rem', maxHeight:'300px', overflowY:'auto', paddingRight:'2px'}}>
+                  {enCoursTraitement.map(d => (
+                    <div key={d.id} style={{border:'1px solid #bee3f8', borderLeft:`3px solid ${d.priorite==='Urgent'?'#c53030':d.priorite==='Élevé'?'#b7791f':'#2b6cb0'}`, borderRadius:'8px', padding:'0.55rem 0.75rem', background:'#f7faff'}}>
+                      <div style={{display:'flex', alignItems:'center', gap:'0.5rem', flexWrap:'wrap'}}>
+                        <span style={{fontWeight:'700', color:'#2b6cb0', fontSize:'0.8rem', flexShrink:0}}>{d.numDemande}</span>
+                        <span style={{flex:1, color:'#2d3748', fontSize:'0.82rem', minWidth:'80px'}}>{d.nomPrenom}</span>
+                        {prioriteBadge(d.priorite)}
+                      </div>
+                      <div style={{display:'flex', gap:'0.4rem', marginTop:'0.3rem', fontSize:'0.72rem', color:'#718096', flexWrap:'wrap'}}>
+                        {d.service && <span>{d.service}</span>}
+                        {d.service && d.dateReception && <span>·</span>}
+                        <span>Reçu le {fmtDate(d.dateReception)}</span>
+                        {d.objetDemande && <><span>·</span><span style={{color:'#4a5568'}}>{d.objetDemande}</span></>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Escaladées */}
+            <div>
+              <div style={{display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'0.65rem'}}>
+                <span style={{width:'10px', height:'10px', borderRadius:'50%', background:'#6b46c1', display:'inline-block', flexShrink:0}} />
+                <span style={{fontWeight:'700', color:'#6b46c1', fontSize:'0.88rem'}}>Escaladées</span>
+                <span style={{marginLeft:'auto', background:'#faf5ff', color:'#6b46c1', borderRadius:'999px', padding:'0.1rem 0.55rem', fontSize:'0.75rem', fontWeight:'700'}}>{escaladeesActives.length}</span>
+              </div>
+              {escaladeesActives.length === 0 ? (
+                <div style={{color:'#68d391', textAlign:'center', padding:'1.5rem 0', fontSize:'0.85rem'}}>Aucune demande escaladée</div>
+              ) : (
+                <div style={{display:'grid', gap:'0.4rem', maxHeight:'300px', overflowY:'auto', paddingRight:'2px'}}>
+                  {escaladeesActives.map(d => (
+                    <div key={d.id} style={{border:'1px solid #e9d8fd', borderLeft:'3px solid #6b46c1', borderRadius:'8px', padding:'0.55rem 0.75rem', background:'#faf5ff'}}>
+                      <div style={{display:'flex', alignItems:'center', gap:'0.5rem', flexWrap:'wrap'}}>
+                        <span style={{fontWeight:'700', color:'#6b46c1', fontSize:'0.8rem', flexShrink:0}}>{d.numDemande}</span>
+                        <span style={{flex:1, color:'#2d3748', fontSize:'0.82rem', minWidth:'80px'}}>{d.nomPrenom}</span>
+                        <span style={{background:'#faf5ff', color:'#6b46c1', border:'1px solid #e9d8fd', borderRadius:'999px', padding:'0.1rem 0.45rem', fontSize:'0.7rem', fontWeight:'700'}}>{d.statut}</span>
+                      </div>
+                      <div style={{display:'flex', gap:'0.4rem', marginTop:'0.3rem', fontSize:'0.72rem', color:'#718096', flexWrap:'wrap'}}>
+                        {d.agentN2 && <><span>N2 : <strong style={{color:'#553c9a'}}>{d.agentN2}</strong></span><span>·</span></>}
+                        <span>Reçu le {fmtDate(d.dateReception)}</span>
+                        {d.commentaireEscalade && <><span>·</span><span style={{color:'#4a5568'}}>{d.commentaireEscalade}</span></>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
 
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem'}}>
 
