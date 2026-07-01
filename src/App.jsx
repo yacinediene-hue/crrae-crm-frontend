@@ -1614,27 +1614,29 @@ function Contacts() {
             Importer Excel
             <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
           </label>
-          <button
-            style={{ ...styles.button, background: '#276749', width:'auto', padding:'0.625rem 1rem' }}
-            onClick={() => {
-              const data = contactsFiltres.map(c => ({
-                'Nom':          c.name || '',
-                'Email':        c.email || '',
-                'Téléphone':    c.phone || '',
-                'Entreprise':   c.company || '',
-                'Profil':       c.profilClient || '',
-                'Statut':       c.status || '',
-                'Assigné à':    c.assignedTo || '',
-                'Créé le':      c.createdAt ? new Date(c.createdAt).toLocaleDateString('fr-FR') : '',
-              }))
-              const ws = XLSX.utils.json_to_sheet(data)
-              const wb = XLSX.utils.book_new()
-              XLSX.utils.book_append_sheet(wb, ws, 'Contacts')
-              XLSX.writeFile(wb, `Contacts_CRRAE_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`)
-            }}
-          >
-            📥 Exporter Excel
-          </button>
+          {localStorage.getItem('userName') === 'Yacine DIENE' && (
+            <button
+              style={{ ...styles.button, background: '#276749', width:'auto', padding:'0.625rem 1rem' }}
+              onClick={() => {
+                const data = contactsFiltres.map(c => ({
+                  'Nom':          c.name || '',
+                  'Email':        c.email || '',
+                  'Téléphone':    c.phone || '',
+                  'Entreprise':   c.company || '',
+                  'Profil':       c.profilClient || '',
+                  'Statut':       c.status || '',
+                  'Assigné à':    c.assignedTo || '',
+                  'Créé le':      c.createdAt ? new Date(c.createdAt).toLocaleDateString('fr-FR') : '',
+                }))
+                const ws = XLSX.utils.json_to_sheet(data)
+                const wb = XLSX.utils.book_new()
+                XLSX.utils.book_append_sheet(wb, ws, 'Contacts')
+                XLSX.writeFile(wb, `Contacts_CRRAE_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`)
+              }}
+            >
+              📥 Exporter Excel
+            </button>
+          )}
           <button
             style={{ ...styles.button, background: '#6b46c1' }}
             onClick={async () => {
@@ -3551,7 +3553,10 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     'Clôturé':     {background:'#f7fafc',color:'#718096'},
     'Renvoyé N1':  {background:'#fff5f5',color:'#c53030'},
   }[s] || {background:'#f7fafc',color:'#718096'})
+  const canExport = userName === 'Yacine DIENE'
+
   const exportExcel = () => {
+    if (!canExport) return
     const data = filtered.map(d => ({
       'N° Demande': d.numDemande || '',
       'Date réception': d.dateReception ? new Date(d.dateReception).toLocaleDateString('fr-FR') : '',
@@ -3907,12 +3912,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           </div>
 
           <div style={{display:'flex', gap:'0.75rem', flexWrap:'wrap'}}>
-            <button
-              style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#276749'}}
-              onClick={exportExcel}
-            >
-              📥 Exporter Excel
-            </button>
+            {canExport && (
+              <button
+                style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#276749'}}
+                onClick={exportExcel}
+              >
+                📥 Exporter Excel
+              </button>
+            )}
 
             <label style={{...styles.button, width:'auto', padding:'0.75rem 1.25rem', background:'#6b46c1', cursor:'pointer', display:'inline-block', textAlign:'center'}}>
               📤 Importer Excel
