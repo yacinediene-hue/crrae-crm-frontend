@@ -3506,12 +3506,40 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Supprimer cette demande ?')) return
+    if (!window.confirm('Supprimer définitivement cette demande ?')) return
     try {
       await API.delete(`/demandes/${id}`)
       syncDemandes(demandes.filter(d => d.id !== id))
     } catch { alert("Erreur suppression") }
   }
+
+  const handleDemanderSuppression = async (id) => {
+    if (!window.confirm('Demander la suppression de cette demande à un administrateur ?')) return
+    try {
+      await API.post(`/demandes/${id}/demander-suppression`)
+      const u = localStorage.getItem('userName') || ''
+      syncDemandes(demandes.map(d => d.id === id ? { ...d, suppressionDemandee: true, suppressionDemandeePar: u } : d))
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Erreur lors de la demande de suppression')
+    }
+  }
+
+  const handleAnnulerSuppression = async (id) => {
+    if (!window.confirm('Refuser et annuler cette demande de suppression ?')) return
+    try {
+      await API.post(`/demandes/${id}/annuler-suppression`)
+      syncDemandes(demandes.map(d => d.id === id ? { ...d, suppressionDemandee: false, suppressionDemandeePar: null } : d))
+    } catch { alert('Erreur lors du refus') }
+  }
+
+  const handleApprouverSuppression = async (id) => {
+    if (!window.confirm('Approuver et supprimer définitivement cette demande ?')) return
+    try {
+      await API.delete(`/demandes/${id}`)
+      syncDemandes(demandes.filter(d => d.id !== id))
+    } catch { alert('Erreur suppression') }
+  }
+
   const f = (v) => v || '—'
   const sColor = (s) => ({
     'Traité':      {background:'#f0fff4',color:'#276749'},
@@ -4372,6 +4400,19 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           </div>
         </>
       )}
+      {(userRole === 'admin' || userRole === 'manager') && demandes.filter(d => d.suppressionDemandee).length > 0 && (
+        <div style={{display:'flex',alignItems:'center',gap:'0.75rem',background:'#fffbeb',border:'1px solid #f6e05e',borderRadius:'10px',padding:'0.75rem 1rem',marginBottom:'0.75rem'}}>
+          <span style={{fontSize:'1.2rem'}}>⚠️</span>
+          <div>
+            <strong style={{color:'#744210',fontSize:'0.88rem'}}>
+              {demandes.filter(d => d.suppressionDemandee).length} demande{demandes.filter(d => d.suppressionDemandee).length > 1 ? 's' : ''} en attente de validation de suppression
+            </strong>
+            <div style={{color:'#975a16',fontSize:'0.78rem',marginTop:'0.1rem'}}>
+              Utilisez les boutons <strong>✅ Valider supp.</strong> / <strong>❌ Refuser</strong> sur chaque ligne concernée.
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{
         background:'white',
         borderRadius:'14px',
@@ -4487,13 +4528,52 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       ✏️
                     </button>
 
-                    <button
-                      title="Supprimer"
-                      onClick={()=>handleDelete(d.id)}
-                      style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
-                    >
-                      🗑️
-                    </button>
+                    {(userRole === 'admin' || userRole === 'manager') ? (
+                      <>
+                        <button
+                          title="Supprimer définitivement"
+                          onClick={()=>handleDelete(d.id)}
+                          style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'8px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
+                        >
+                          🗑️
+                        </button>
+                        {d.suppressionDemandee && (
+                          <>
+                            <button
+                              title={`Approuver la suppression demandée par ${d.suppressionDemandeePar || 'un agent'}`}
+                              onClick={()=>handleApprouverSuppression(d.id)}
+                              style={{background:'#fed7d7',color:'#c53030',border:'1px solid #fc8181',borderRadius:'6px',padding:'0.28rem 0.5rem',cursor:'pointer',marginRight:'0.25rem',fontSize:'0.72rem',fontWeight:'700'}}
+                            >
+                              ✅ Valider supp.
+                            </button>
+                            <button
+                              title="Refuser la suppression"
+                              onClick={()=>handleAnnulerSuppression(d.id)}
+                              style={{background:'#f0fff4',color:'#276749',border:'1px solid #9ae6b4',borderRadius:'6px',padding:'0.28rem 0.5rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.72rem',fontWeight:'700'}}
+                            >
+                              ❌ Refuser
+                            </button>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      d.suppressionDemandee ? (
+                        <span
+                          title={`Suppression demandée — en attente de validation admin`}
+                          style={{display:'inline-flex',alignItems:'center',background:'#fffbeb',color:'#b7791f',border:'1px solid #f6e05e',borderRadius:'6px',padding:'0.28rem 0.5rem',fontSize:'0.72rem',fontWeight:'600',marginRight:'0.35rem'}}
+                        >
+                          ⏳ Supp. en attente
+                        </span>
+                      ) : (
+                        <button
+                          title="Demander la suppression à un administrateur"
+                          onClick={()=>handleDemanderSuppression(d.id)}
+                          style={{background:'#fff5f5',color:'#c53030',border:'1px dashed #fc8181',borderRadius:'6px',padding:'0.28rem 0.5rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.72rem',fontWeight:'600'}}
+                        >
+                          🗑️ Demander
+                        </button>
+                      )
+                    )}
 
                     <button
                       title="Notes et timeline"
