@@ -3571,7 +3571,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     'Clôturé':     {background:'#f7fafc',color:'#718096'},
     'Renvoyé N1':  {background:'#fff5f5',color:'#c53030'},
   }[s] || {background:'#f7fafc',color:'#718096'})
-  const canExport = userRole === 'admin' || localStorage.getItem('userName') === 'Yacine DIENE'
+  const canExport = localStorage.getItem('userRole') === 'admin' || localStorage.getItem('userName') === 'Yacine DIENE'
 
   const exportExcel = () => {
     if (!canExport) return
