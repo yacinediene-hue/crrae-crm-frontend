@@ -1614,7 +1614,7 @@ function Contacts() {
             Importer Excel
             <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
           </label>
-          {localStorage.getItem('userName') === 'Yacine DIENE' && (
+          {(localStorage.getItem('userRole') === 'admin' || localStorage.getItem('userName') === 'Yacine DIENE') && (
             <button
               style={{ ...styles.button, background: '#276749', width:'auto', padding:'0.625rem 1rem' }}
               onClick={() => {
@@ -3571,7 +3571,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     'Clôturé':     {background:'#f7fafc',color:'#718096'},
     'Renvoyé N1':  {background:'#fff5f5',color:'#c53030'},
   }[s] || {background:'#f7fafc',color:'#718096'})
-  const canExport = localStorage.getItem('userName') === 'Yacine DIENE'
+  const canExport = userRole === 'admin' || localStorage.getItem('userName') === 'Yacine DIENE'
 
   const exportExcel = () => {
     if (!canExport) return
