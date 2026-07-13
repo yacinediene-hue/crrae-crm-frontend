@@ -246,8 +246,8 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   const [periodeDebut, setPeriodeDebut] = useState('')
   const [periodeFin, setPeriodeFin] = useState('')
 
-  const STATUTS_CLOS   = ['Traité', 'Clôturé']
-  const STATUTS_ACTIFS = ['En cours', 'En attente', 'En retard', 'Escaladé', 'En cours N2', 'Renvoyé N1']
+  const STATUTS_CLOS   = ['Clôturée']
+  const STATUTS_ACTIFS = ['Nouveau', 'En cours', 'En attente client', 'Transmis au Back Office 2']
 
   const demandesFiltrees = demandes.filter((d) => {
     const ref = d.dateReception || d.createdAt
@@ -314,7 +314,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
       const s = d.service || 'Non défini'
       if (!acc[s]) acc[s] = { total: 0, traite: 0 }
       acc[s].total++
-      if (['Traité','Clôturé'].includes(d.statut)) acc[s].traite++
+      if (d.statut === 'Clôturée') acc[s].traite++
       return acc
     }, {})
   ).map(([name, v]) => ({ name, total: v.total, traite: v.traite }))
@@ -1102,7 +1102,7 @@ function FileCritique() {
 
   // Critiques : urgents OU hors SLA OU réclamation — tous statuts non clôturés
   const critiques = demandes.filter(d => {
-    if (d.statut === 'Clôturé') return false
+    if (d.statut === 'Clôturée') return false
     return (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
@@ -1278,25 +1278,22 @@ function DemandesEnCours() {
     }
   }, [ticketOuvert])
 
-  const STATUTS_CLOS = ['Traité', 'Clôturé']
+  const STATUTS_CLOS = ['Clôturée']
   const sColor = (s) => ({
-    'En cours':    {background:'#fffbeb',color:'#b7791f'},
-    'En attente':  {background:'#ebf8ff',color:'#2b6cb0'},
-    'Escaladé':    {background:'#faf5ff',color:'#6b46c1'},
-    'En cours N2': {background:'#f0e6ff',color:'#553c9a'},
-    'Renvoyé N1':  {background:'#fff5f5',color:'#c53030'},
+    'Nouveau':                   {background:'#f0fff4',color:'#276749'},
+    'En cours':                  {background:'#fffbeb',color:'#b7791f'},
+    'En attente client':         {background:'#ebf8ff',color:'#2b6cb0'},
+    'Transmis au Back Office 2': {background:'#faf5ff',color:'#6b46c1'},
+    'Clôturée':                  {background:'#f7fafc',color:'#718096'},
   }[s] || {background:'#f7fafc',color:'#718096'})
 
   const q = search.toLowerCase()
   const enCours = demandes
-    .filter(d => {
-      const s = (d.statut || '').trim().toLowerCase()
-      return s !== 'traité' && s !== 'clôturé' && s !== 'traitée' && s !== 'traite'
-    })
+    .filter(d => d.statut !== 'Clôturée')
     .filter(d => !q || (d.nomPrenom||'').toLowerCase().includes(q) || (d.numDemande||'').toLowerCase().includes(q) || (d.matricule||'').toLowerCase().includes(q) || (d.telephone||'').includes(q))
     .sort((a, b) => new Date(b.dateReception || b.createdAt) - new Date(a.dateReception || a.createdAt))
 
-  const parStatut = ['En cours','En attente','En retard','Escaladé','En cours N2','Renvoyé N1'].map(s => ({
+  const parStatut = ['Nouveau','En cours','En attente client','Transmis au Back Office 2'].map(s => ({
     s, n: demandes.filter(d => d.statut === s).length
   })).filter(x => x.n > 0)
 
@@ -2994,8 +2991,8 @@ function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomPro
             <div style={{fontSize:'0.7rem', color:'#718096'}}>demandes</div>
           </div>
           <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
-            <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#276749'}}>{demandes.filter(d=>d.statut==='Traité').length}</div>
-            <div style={{fontSize:'0.7rem', color:'#718096'}}>traitées</div>
+            <div style={{fontSize:'1.3rem', fontWeight:'bold', color:'#276749'}}>{demandes.filter(d=>d.statut==='Clôturée').length}</div>
+            <div style={{fontSize:'0.7rem', color:'#718096'}}>clôturées</div>
           </div>
           {moyNote && (
             <div style={{background:'white', borderRadius:'8px', padding:'0.5rem 0.75rem'}}>
@@ -3026,7 +3023,7 @@ function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomPro
                 <span style={{color:'#2b6cb0', fontWeight:'600'}}>{d.numDemande}</span>
                 <span style={{color:'#4a5568'}}>{d.objetDemande}</span>
                 <span style={{color:'#718096'}}>{d.dateReception ? new Date(d.dateReception).toLocaleDateString('fr-FR') : ''}</span>
-                <span style={{background: d.statut==='Traité'?'#f0fff4':'#fffbeb', color: d.statut==='Traité'?'#276749':'#b7791f', padding:'0.1rem 0.4rem', borderRadius:'20px'}}>{d.statut}</span>
+                <span style={{background: d.statut==='Clôturée'?'#f7fafc':d.statut==='En cours'?'#fffbeb':'#ebf8ff', color: d.statut==='Clôturée'?'#718096':d.statut==='En cours'?'#b7791f':'#2b6cb0', padding:'0.1rem 0.4rem', borderRadius:'20px'}}>{d.statut}</span>
               </div>
             ))}
           </div>
@@ -3040,8 +3037,8 @@ function FicheClient({ telephone, matricule, email: emailProp, nomPrenom: nomPro
             <span style={{background:'#fffbeb', color:'#b7791f', padding:'0.25rem 0.6rem', borderRadius:'20px', fontSize:'0.75rem'}}>
               En cours : {demandes.filter(d => d.statut === 'En cours').length}
             </span>
-            <span style={{background:'#f0fff4', color:'#276749', padding:'0.25rem 0.6rem', borderRadius:'20px', fontSize:'0.75rem'}}>
-              Traitée(s) : {demandes.filter(d => d.statut === 'Traité').length}
+            <span style={{background:'#f7fafc', color:'#718096', padding:'0.25rem 0.6rem', borderRadius:'20px', fontSize:'0.75rem'}}>
+              Clôturée(s) : {demandes.filter(d => d.statut === 'Clôturée').length}
             </span>
           </div>
         </div>
@@ -3261,7 +3258,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     objetDemande: '', commentaire: '',
     agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '', niveauTraitement: 1,
     dateReception: new Date().toISOString().split('T')[0],
-    dateTraitement: '', statut: 'En cours', actionMenee: '',
+    dateTraitement: '', statut: 'Nouveau', actionMenee: '',
     canalCommunication: 'WhatsApp', noteSatisfaction: '',
   }
   const [form, setForm] = useState(emptyForm)
@@ -3411,8 +3408,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           detail: `Statut: ${form.statut} — ${form.actionMenee || 'Mise à jour'}`,
         }).catch(() => {})
 
-        // Enquête automatique quand statut passe à Traité
-        if (ancienneDemande && ancienneDemande.statut !== 'Traité' && res.data.statut === 'Traité' && !res.data.enqueteEnvoyee) {
+        // Enquête automatique quand statut passe à Clôturée
+        if (ancienneDemande && ancienneDemande.statut !== 'Clôturée' && res.data.statut === 'Clôturée' && !res.data.enqueteEnvoyee) {
           // Email → envoi via API send-survey
           // WhatsApp/Appel → géré par polling whatsapp-instance.js (pas d'action ici)
           if (res.data.canal === 'EMAIL' && res.data.email) {
@@ -3512,7 +3509,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   }
 
   const peutEnvoyerEnquete = (d) =>
-    ['Traité', 'Clôturé'].includes(d.statut) && !d.enqueteEnvoyee
+    d.statut === 'Clôturée' && !d.enqueteEnvoyee
 
   const envoyerEnquete = async (d, auto = false) => {
     if (!auto && !window.confirm("Envoyer l'enquête de satisfaction par email ?")) return
@@ -3562,14 +3559,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
   const f = (v) => v || '—'
   const sColor = (s) => ({
-    'Traité':      {background:'#f0fff4',color:'#276749'},
-    'En cours':    {background:'#fffbeb',color:'#b7791f'},
-    'En attente':  {background:'#ebf8ff',color:'#2b6cb0'},
-    'En retard':   {background:'#fff5f5',color:'#c53030'},
-    'Escaladé':    {background:'#faf5ff',color:'#6b46c1'},
-    'En cours N2': {background:'#f0e6ff',color:'#553c9a'},
-    'Clôturé':     {background:'#f7fafc',color:'#718096'},
-    'Renvoyé N1':  {background:'#fff5f5',color:'#c53030'},
+    'Nouveau':                   {background:'#f0fff4',color:'#276749'},
+    'En cours':                  {background:'#fffbeb',color:'#b7791f'},
+    'En attente client':         {background:'#ebf8ff',color:'#2b6cb0'},
+    'Transmis au Back Office 2': {background:'#faf5ff',color:'#6b46c1'},
+    'Clôturée':                  {background:'#f7fafc',color:'#718096'},
   }[s] || {background:'#f7fafc',color:'#718096'})
   const canExport = localStorage.getItem('userRole') === 'admin' || localStorage.getItem('userName') === 'Yacine DIENE'
 
@@ -3730,7 +3724,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const isFullAccess = userRole === 'admin' || userRole === 'manager' || isN2
 
   const critiques = demandes.filter(d =>
-    ['En cours', 'En attente'].includes(d.statut) && (
+    ['En cours', 'En attente client', 'Nouveau'].includes(d.statut) && (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
       d.objetDemande === 'Réclamation'
@@ -3738,7 +3732,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   )
 
   const horsSLA = demandes.filter(d => {
-    if (!d.dateReception || !['En cours', 'En attente'].includes(d.statut)) return false
+    if (!d.dateReception || !['En cours', 'En attente client', 'Nouveau'].includes(d.statut)) return false
 
     const jours = Math.floor(
       (new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24)
@@ -3761,7 +3755,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       (d.telephone||'').includes(q) ||
       (d.matricule||'').toLowerCase().includes(q)
     )) return false
-    if (filterEnTraitement && ['Traité','Clôturé'].includes(d.statut)) return false
+    if (filterEnTraitement && d.statut === 'Clôturée') return false
     if (filterHorsSla && d.respectDelai !== 'NON') return false
     if (!filterEnTraitement && !filterHorsSla && filterStatut && d.statut !== filterStatut) return false
     if (filterCanal && d.canal !== filterCanal) return false
@@ -3795,7 +3789,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       return <span style={{background:'#fff5f5', color:'#c53030', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>🚨 SLA dépassé</span>
     }
 
-    if (d.statut !== 'Traité' && d.dateReception) {
+    if (d.statut !== 'Clôturée' && d.dateReception) {
       const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24))
       const delaisService = { DPM: 3, DPR: 5, DDSI: 6, PATRIMOINE: 7, DCR: 5, DFC: 5, DRUC: 5, REGISSEUR: 5, Autre: 5 }
       const delaiMax = delaisService[d.service] ?? 3
@@ -4114,8 +4108,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, minmax(0, 1fr))', gap:'0.9rem', marginBottom:'1rem'}}>
         {[
           {label:'Total',val:filtered.length,bg:'#ebf8ff',col:'#2b6cb0', icon:'📌'},
-          {label:'Traitées',val:filtered.filter(d=>['Traité','Clôturé'].includes(d.statut)).length,bg:'#f0fff4',col:'#276749', icon:'✅'},
-          {label:'Non résolues',val:filtered.filter(d=>!['Traité','Clôturé'].includes(d.statut)).length,bg:'#fffbeb',col:'#b7791f', icon:'⏳'},
+          {label:'Clôturées',val:filtered.filter(d=>d.statut==='Clôturée').length,bg:'#f0fff4',col:'#276749', icon:'✅'},
+          {label:'Non résolues',val:filtered.filter(d=>d.statut!=='Clôturée').length,bg:'#fffbeb',col:'#b7791f', icon:'⏳'},
           {label:'Délai OK',val:filtered.filter(d=>d.respectDelai==='OUI').length,bg:'#faf5ff',col:'#6b46c1', icon:'📊'}
         ].map(s => (
           <div key={s.label} style={{
@@ -4145,14 +4139,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           />
           <select style={{...styles.input,marginBottom:0,width:'160px'}} value={filterStatut} onChange={e=>setFilterStatut(e.target.value)}>
             <option value="">Tous statuts</option>
+            <option>Nouveau</option>
             <option>En cours</option>
-            <option>En attente</option>
-            <option>En retard</option>
-            <option>Escaladé</option>
-            <option>En cours N2</option>
-            <option>Renvoyé N1</option>
-            <option>Traité</option>
-            <option>Clôturé</option>
+            <option>En attente client</option>
+            <option>Transmis au Back Office 2</option>
+            <option>Clôturée</option>
           </select>
           <button
             onClick={() => setShowFiltres(f => !f)}
@@ -4380,21 +4371,18 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               <input style={inp} placeholder="Agent N2 (Back Office)" value={form.agentN2} onChange={e=>setForm({...form,agentN2:e.target.value})} />
             )}
             <select style={inp} value={form.statut} onChange={e=>setForm({...form,statut:e.target.value})}>
+              <option>Nouveau</option>
               <option>En cours</option>
-              <option>En attente</option>
-              <option>En retard</option>
-              <option>Escaladé</option>
-              <option>En cours N2</option>
-              <option>Renvoyé N1</option>
-              <option>Traité</option>
-              <option>Clôturé</option>
+              <option>En attente client</option>
+              <option>Transmis au Back Office 2</option>
+              <option>Clôturée</option>
             </select>
             <div><label style={{fontSize:'0.8rem',color:'#718096',display:'block',marginBottom:'0.25rem'}}>Date réception</label>
             <input style={inp} type="date" value={form.dateReception} onChange={e=>setForm({...form,dateReception:e.target.value})} /></div>
             <div><label style={{fontSize:'0.8rem',color:'#718096',display:'block',marginBottom:'0.25rem'}}>Date traitement</label>
             <input style={inp} type="date" value={form.dateTraitement} onChange={e=>{
               const val = e.target.value
-              setForm({...form, dateTraitement: val, statut: val ? 'Traité' : 'En cours'})
+              setForm({...form, dateTraitement: val, statut: val ? 'Clôturée' : 'En cours'})
             }} /></div>
             <select style={inp} value={form.canalCommunication} onChange={e=>setForm({...form,canalCommunication:e.target.value})}>
               <option value="WhatsApp">Retour : WhatsApp</option>
@@ -4417,7 +4405,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
           <div style={{display:'flex',gap:'0.75rem',marginTop:'0.25rem'}}>
             <button style={styles.button} type="submit">{editId ? '💾 Modifier' : '💾 Enregistrer'}</button>
-            {editId && form.niveauTraitement !== 2 && !['Traité','Clôturé','Escaladé','En cours N2'].includes(form.statut) && (
+            {editId && !['Clôturée','Transmis au Back Office 2'].includes(form.statut) && (
               <button
                 type="button"
                 onClick={() => {
@@ -4645,7 +4633,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       🪪
                     </button>
 
-                    {d.niveauTraitement !== 2 && !['Traité','Clôturé','Escaladé','En cours N2'].includes(d.statut) && (
+                    {!['Clôturée','Transmis au Back Office 2'].includes(d.statut) && (
                       <button
                         title="Envoyer au Back Office (N2)"
                         onClick={e => { e.stopPropagation(); setDemandeEscalade(d); setEscaladeForm({ agentN2: '', service: d.service||'', motif: '', motifAutre: false, dateEscalade: new Date().toISOString().split('T')[0] }) }}
@@ -4654,22 +4642,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                         🔺 N2
                       </button>
                     )}
-                    {d.statut === 'Escaladé' && isFullAccess && (
+                    {d.statut === 'Transmis au Back Office 2' && isFullAccess && (
                       <button
-                        title="Prendre en charge (N2)"
+                        title="Prendre en charge (Back Office 2)"
                         onClick={e => { e.stopPropagation(); handlePrendreEnCharge(d) }}
                         style={{background:'#f0e6ff',color:'#553c9a',border:'none',borderRadius:'6px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem',fontWeight:'600'}}
                       >
-                        ▶ N2
-                      </button>
-                    )}
-                    {d.statut === 'En cours N2' && isFullAccess && (
-                      <button
-                        title="Renvoyer au Front Office (N1)"
-                        onClick={e => { e.stopPropagation(); setRenvoyerModal(d); setRenvoyerMotif('') }}
-                        style={{background:'#fff5f5',color:'#c53030',border:'none',borderRadius:'6px',padding:'0.35rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.8rem'}}
-                      >
-                        ↩ N1
+                        ▶ BO2
                       </button>
                     )}
 
@@ -5341,8 +5320,8 @@ function Rapports({ demandes: demandesProp = [] }) {
   const [periode, setPeriode] = useState('tout')
 
   // Constantes locales alignées sur le Dashboard
-  const CLOS   = ['Traité', 'Clôturé']
-  const ACTIFS = ['En cours', 'En attente', 'Escaladé', 'En cours N2', 'Renvoyé N1']
+  const CLOS   = ['Clôturée']
+  const ACTIFS = ['Nouveau', 'En cours', 'En attente client', 'Transmis au Back Office 2']
 
   const now = new Date()
   const filtered = demandes.filter(d => {
@@ -5361,7 +5340,7 @@ function Rapports({ demandes: demandesProp = [] }) {
   const traitees    = filtered.filter(d => CLOS.includes(d.statut)).length
   const nonResolues = filtered.filter(d => !CLOS.includes(d.statut)).length
   const enCours     = filtered.filter(d => d.statut === 'En cours').length
-  const enAttente   = filtered.filter(d => d.statut === 'En attente').length
+  const enAttente   = filtered.filter(d => d.statut === 'En attente client').length
   const horsSla     = filtered.filter(d => !CLOS.includes(d.statut) && d.respectDelai === 'NON').length
   const escaladeN2  = filtered.filter(d => d.niveauTraitement === 2).length
   const tauxTraite  = total > 0 ? Math.round(traitees / total * 100) : 0
@@ -5672,14 +5651,14 @@ function Rapports({ demandes: demandesProp = [] }) {
       {demandesCritiques.length > 0 && (
         <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem',borderLeft:'5px solid #c53030'}}>
           <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'0.6rem'}}>🚨 Points de vigilance</div>
-          {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.priorite==='Urgent').length > 0 && (
+          {filtered.filter(d=>ACTIFS.includes(d.statut)&&d.priorite==='Urgent').length > 0 && (
             <div style={{color:'#c53030',marginBottom:'0.35rem'}}>
-              {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.priorite==='Urgent').length} demande(s) urgente(s) non traitée(s)
+              {filtered.filter(d=>ACTIFS.includes(d.statut)&&d.priorite==='Urgent').length} demande(s) urgente(s) non traitée(s)
             </div>
           )}
-          {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.respectDelai==='NON').length > 0 && (
+          {filtered.filter(d=>ACTIFS.includes(d.statut)&&d.respectDelai==='NON').length > 0 && (
             <div style={{color:'#b7791f'}}>
-              {filtered.filter(d=>['En cours','En attente'].includes(d.statut)&&d.respectDelai==='NON').length} demande(s) hors SLA en cours
+              {filtered.filter(d=>ACTIFS.includes(d.statut)&&d.respectDelai==='NON').length} demande(s) hors SLA en cours
             </div>
           )}
         </div>
@@ -6009,7 +5988,7 @@ function RechercheGlobale({ onClose }) {
                   </div>
                   <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
                     <span style={{background:'#ebf8ff',color:'#2b6cb0',padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.75rem'}}>{d.objetDemande}</span>
-                    <span style={{background: d.statut==='Traité'?'#f0fff4':'#fffbeb',color: d.statut==='Traité'?'#276749':'#b7791f',padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.75rem'}}>{d.statut}</span>
+                    <span style={{background: d.statut==='Clôturée'?'#f7fafc':d.statut==='En cours'?'#fffbeb':'#ebf8ff',color: d.statut==='Clôturée'?'#718096':d.statut==='En cours'?'#b7791f':'#2b6cb0',padding:'0.15rem 0.5rem',borderRadius:'20px',fontSize:'0.75rem'}}>{d.statut}</span>
                     <button onClick={e=>{e.stopPropagation();ouvrirDemande(d)}} style={{background:'none',border:'1px solid #e2e8f0',borderRadius:'4px',padding:'0.1rem 0.4rem',cursor:'pointer',fontSize:'0.72rem',color:'#718096'}}>Ouvrir →</button>
                   </div>
                 </div>
@@ -6066,8 +6045,8 @@ function RechercheGlobale({ onClose }) {
                           {d.dateReception && <span style={{color:'#a0aec0',fontSize:'0.75rem'}}>{new Date(d.dateReception).toLocaleDateString('fr-FR')}</span>}
                           <span style={{
                             padding:'0.1rem 0.4rem',borderRadius:'20px',fontSize:'0.72rem',fontWeight:'600',
-                            background:['Traité','Clôturé'].includes(d.statut)?'#f0fff4':'#fffbeb',
-                            color:['Traité','Clôturé'].includes(d.statut)?'#276749':'#b7791f'
+                            background:d.statut==='Clôturée'?'#f7fafc':d.statut==='En cours'?'#fffbeb':'#ebf8ff',
+                            color:d.statut==='Clôturée'?'#718096':d.statut==='En cours'?'#b7791f':'#2b6cb0'
                           }}>{d.statut}</span>
                         </div>
                       </div>
@@ -6257,8 +6236,8 @@ function AgentRapport() {
         ['Total demandes', String(meta.totalDemandes)],
         ['Traitées / Clôturées', `${meta.traites} (${meta.tauxTraite}%)`],
         ['En cours', String(meta.enCours)],
-        ['En attente', String(meta.enAttente)],
-        ['Escaladées N2', String(meta.escalades)],
+        ['En attente client', String(meta.enAttente)],
+        ['Transmis au Back Office 2', String(meta.escalades)],
         ['Taux SLA', `${meta.tauxSla}%`],
         ['Hors SLA actifs', String(meta.horsSla)],
         ['Délai moyen', meta.delaiMoyen ? `${meta.delaiMoyen} jours` : 'N/A'],
@@ -6711,7 +6690,7 @@ function AgentRapport() {
                   )}
                   <div style={{textAlign:'center'}}>
                     <div style={{fontSize:'2.2rem', fontWeight:'700', color:'#6b46c1'}}>{meta.escalades}</div>
-                    <div style={{fontSize:'0.75rem', color:'#718096'}}>Escalades N2</div>
+                    <div style={{fontSize:'0.75rem', color:'#718096'}}>Transmis au BO2</div>
                   </div>
                   <div style={{textAlign:'center'}}>
                     <div style={{fontSize:'2.2rem', fontWeight:'700', color:'#c53030'}}>{meta.horsSla}</div>
@@ -6880,7 +6859,7 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
   const today = new Date()
   const dateLabel = today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
-  const CLOS = ['Traité', 'Clôturé']
+  const CLOS = ['Clôturée']
   const todayStr = today.toDateString()
 
   // Mes demandes (N1 ou N2)
@@ -6898,7 +6877,7 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
     CLOS.includes(d.statut) && d.dateTraitement && new Date(d.dateTraitement).toDateString() === todayStr
   )
   const enCoursMes = mesDemandes.filter(d => !CLOS.includes(d.statut))
-  const enAttenteMes = mesDemandes.filter(d => d.statut === 'En attente')
+  const enAttenteMes = mesDemandes.filter(d => d.statut === 'En attente client')
 
   // Tâches à faire : demandes ouvertes triées par priorité puis date
   const prioriteOrdre = { Urgent: 0, 'Élevé': 1, Moyen: 2, Faible: 3 }
@@ -6922,7 +6901,7 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
   }
   const urgentes = mesDemandes.filter(d => !CLOS.includes(d.statut) && d.priorite === 'Urgent')
   const horsSla  = mesDemandes.filter(d => !CLOS.includes(d.statut) && d.respectDelai === 'NON')
-  const escaladees = mesDemandes.filter(d => ['Escaladé','En cours N2'].includes(d.statut))
+  const escaladees = mesDemandes.filter(d => d.statut === 'Transmis au Back Office 2')
   const procheEcheance = mesDemandes.filter(d => {
     if (CLOS.includes(d.statut) || !d.dateReception) return false
     const { pct } = slaInfo(d)
@@ -6940,7 +6919,7 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
       return new Date(a.dateReception || a.createdAt) - new Date(b.dateReception || b.createdAt)
     })
   const escaladeesActives = mesDemandes
-    .filter(d => ['Escaladé', 'En cours N2'].includes(d.statut))
+    .filter(d => d.statut === 'Transmis au Back Office 2')
     .sort((a, b) => new Date(a.dateReception || a.createdAt) - new Date(b.dateReception || b.createdAt))
 
   // Activités récentes — mes demandes les plus récemment mises à jour
@@ -6955,8 +6934,8 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
   }).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
 
   const statutColor = s => ({
-    'En cours': '#2b6cb0', 'En attente': '#b7791f', 'Escaladé': '#6b46c1',
-    'En cours N2': '#6b46c1', 'Traité': '#276749', 'Clôturé': '#276749', 'Renvoyé N1': '#4a5568',
+    'Nouveau': '#276749', 'En cours': '#b7791f', 'En attente client': '#2b6cb0',
+    'Transmis au Back Office 2': '#6b46c1', 'Clôturée': '#718096',
   })[s] || '#718096'
 
   const prioriteBadge = p => {
@@ -7118,7 +7097,7 @@ function MonEspace({ demandesInitiales = [], onOpenCommentaires, onAssigner, ouv
                 const tags = []
                 if (d.priorite === 'Urgent') tags.push({ label: 'Urgent', bg:'#fff5f5', col:'#c53030' })
                 if (d.respectDelai === 'NON') tags.push({ label: 'Hors SLA', bg:'#fffbeb', col:'#b7791f' })
-                if (['Escaladé','En cours N2'].includes(d.statut)) tags.push({ label: 'Escaladé', bg:'#faf5ff', col:'#6b46c1' })
+                if (d.statut === 'Transmis au Back Office 2') tags.push({ label: 'Transmis BO2', bg:'#faf5ff', col:'#6b46c1' })
                 const { pct, restants, delai } = slaInfo(d)
                 const approche = pct >= 75 && pct < 100
                 const barColor = pct >= 100 ? '#c53030' : pct >= 90 ? '#e53e3e' : '#b7791f'
@@ -7259,11 +7238,11 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
 
   const userName = localStorage.getItem('userName') || ''
   const critiques = demandes.filter(d =>
-    ['En cours', 'En attente'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
+    ['En cours', 'En attente client', 'Nouveau'].includes(d.statut) && (d.priorite === 'Urgent' || d.respectDelai === 'NON')
   ).length
 
   const enCours = demandes.filter(d => d.statut === 'En cours').length
-  const escaladees = demandes.filter(d => d.statut === 'Escaladé').length
+  const escaladees = demandes.filter(d => d.statut === 'Transmis au Back Office 2').length
   const mesDemandesCount = demandes.filter(d =>
     (d.agentN1 && d.agentN1.toLowerCase() === userName.toLowerCase()) ||
     (d.agentN2 && d.agentN2.toLowerCase() === userName.toLowerCase())
@@ -7422,7 +7401,7 @@ export default function App() {
       API.get('/demandes').then(r => {
         console.log('[App] GET /demandes OK →', r.data.length, 'demandes')
         const retard = r.data.filter(d => {
-          if (!['En cours', 'En attente'].includes(d.statut)) return false
+          if (!['En cours', 'En attente client', 'Nouveau'].includes(d.statut)) return false
           if (!d.dateReception) return false
           const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000*60*60*24))
           return jours > (delaisMax[d.service] || 3)
