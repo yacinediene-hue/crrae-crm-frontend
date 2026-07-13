@@ -3408,14 +3408,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           detail: `Statut: ${form.statut} — ${form.actionMenee || 'Mise à jour'}`,
         }).catch(() => {})
 
-        // Enquête automatique quand statut passe à Clôturée
-        if (ancienneDemande && ancienneDemande.statut !== 'Clôturée' && res.data.statut === 'Clôturée' && !res.data.enqueteEnvoyee) {
-          // Email → envoi via API send-survey
-          // WhatsApp/Appel → géré par polling whatsapp-instance.js (pas d'action ici)
-          if (res.data.canal === 'EMAIL' && res.data.email) {
-            envoyerEnquete(res.data, true)
-          }
-        }
+        // Enquête automatique suspendue
 
         setEditId(null)
       } else {
@@ -3508,8 +3501,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     }
   }
 
-  const peutEnvoyerEnquete = (d) =>
-    d.statut === 'Clôturée' && !d.enqueteEnvoyee
+  const peutEnvoyerEnquete = (_d) => false // envoi d'enquête suspendu
 
   const envoyerEnquete = async (d, auto = false) => {
     if (!auto && !window.confirm("Envoyer l'enquête de satisfaction par email ?")) return
