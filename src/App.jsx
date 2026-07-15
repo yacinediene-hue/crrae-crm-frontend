@@ -3234,6 +3234,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const [filterObjet, setFilterObjet] = useState('')
   const [filterDateDebut, setFilterDateDebut] = useState('')
   const [filterDateFin, setFilterDateFin] = useState('')
+  const [filterTypeDate, setFilterTypeDate] = useState('dateReception')
   const [showFiltres, setShowFiltres] = useState(false)
   const [filtresColonnes, setFiltresColonnes] = useState({})
   const [colonneActive, setColonneActive] = useState(null)
@@ -3758,8 +3759,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     if (filterService && d.service !== filterService) return false
     if (filterTypeClient && d.typeClient !== filterTypeClient) return false
     if (filterObjet && d.objetDemande !== filterObjet) return false
-    if (filterDateDebut && d.dateReception && new Date(d.dateReception) < new Date(filterDateDebut)) return false
-    if (filterDateFin && d.dateReception && new Date(d.dateReception) > new Date(filterDateFin + 'T23:59:59')) return false
+    if (filterDateDebut || filterDateFin) {
+      const dateRef = filterTypeDate === 'dateTraitement' ? d.dateTraitement : d.dateReception
+      if (!dateRef) return false
+      if (filterDateDebut && new Date(dateRef) < new Date(filterDateDebut)) return false
+      if (filterDateFin && new Date(dateRef) > new Date(filterDateFin + 'T23:59:59')) return false
+    }
     // Filtres colonnes
     if (filtresColonnes.typeClient && d.typeClient !== filtresColonnes.typeClient) return false
     if (filtresColonnes.pays && d.pays !== filtresColonnes.pays) return false
@@ -4163,7 +4168,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </span>
           )}
           {(filterCanal||filterService||filterTypeClient||filterObjet||filterDateDebut||filterDateFin||filterStatut||search||filterEnTraitement||filterHorsSla) && (
-            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setFiltresColonnes('');window.history.replaceState({},'','/demandes') }}
+            <button onClick={() => { setSearch('');setFilterStatut('');setFilterCanal('');setFilterService('');setFilterTypeClient('');setFilterObjet('');setFilterDateDebut('');setFilterDateFin('');setFilterTypeDate('dateReception');setFiltresColonnes('');window.history.replaceState({},'','/demandes') }}
               style={{padding:'0.6rem 0.9rem',borderRadius:'8px',border:'1px solid #fed7d7',background:'#fff5f5',color:'#c53030',cursor:'pointer',fontSize:'0.85rem',whiteSpace:'nowrap'}}>
               ✕ Réinitialiser
             </button>
@@ -4189,13 +4194,26 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               <option value="">Tous objets</option>
               {OBJETS_DEMANDE.map(o=><option key={o}>{o}</option>)}
             </select>
-            <div>
-              <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>Date début</label>
-              <input type="date" style={{...styles.input,marginBottom:0}} value={filterDateDebut} onChange={e=>setFilterDateDebut(e.target.value)} />
-            </div>
-            <div>
-              <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>Date fin</label>
-              <input type="date" style={{...styles.input,marginBottom:0}} value={filterDateFin} onChange={e=>setFilterDateFin(e.target.value)} />
+            <div style={{gridColumn:'1/-1',display:'flex',gap:'0.6rem',alignItems:'flex-end',flexWrap:'wrap'}}>
+              <div>
+                <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>Critère de date</label>
+                <select style={{...styles.input,marginBottom:0,fontWeight:'600',color:'#2b6cb0'}} value={filterTypeDate} onChange={e=>{setFilterTypeDate(e.target.value);setFilterDateDebut('');setFilterDateFin('')}}>
+                  <option value="dateReception">Date de création (réception)</option>
+                  <option value="dateTraitement">Date de traitement (clôture)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>
+                  {filterTypeDate === 'dateTraitement' ? 'Traitée à partir du' : 'Reçue à partir du'}
+                </label>
+                <input type="date" style={{...styles.input,marginBottom:0}} value={filterDateDebut} onChange={e=>setFilterDateDebut(e.target.value)} />
+              </div>
+              <div>
+                <label style={{fontSize:'0.75rem',color:'#718096',display:'block',marginBottom:'0.2rem'}}>
+                  {filterTypeDate === 'dateTraitement' ? 'Traitée jusqu\'au' : 'Reçue jusqu\'au'}
+                </label>
+                <input type="date" style={{...styles.input,marginBottom:0}} value={filterDateFin} onChange={e=>setFilterDateFin(e.target.value)} />
+              </div>
             </div>
           </div>
         )}
@@ -5314,6 +5332,7 @@ function Users() {
 function Rapports({ demandes: demandesProp = [] }) {
   const demandes = demandesProp
   const [periode, setPeriode] = useState('tout')
+  const [typeDate, setTypeDate] = useState('dateReception')
 
   // Constantes locales alignées sur le Dashboard
   const CLOS   = ['Clôturée', 'Traité', 'Clôturé']
@@ -5321,9 +5340,11 @@ function Rapports({ demandes: demandesProp = [] }) {
 
   const now = new Date()
   const filtered = demandes.filter(d => {
-    // Utilise dateReception en priorité, sinon createdAt (cohérent avec Dashboard)
-    const ref = d.dateReception || d.createdAt
-    if (!ref) return true
+    if (periode === 'tout') return true
+    const ref = typeDate === 'dateTraitement'
+      ? d.dateTraitement
+      : (d.dateReception || d.createdAt)
+    if (!ref) return false
     const date = new Date(ref)
     if (periode === 'semaine') return (now - date) / (1000*60*60*24) <= 7
     if (periode === 'mois') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
@@ -5411,6 +5432,7 @@ function Rapports({ demandes: demandesProp = [] }) {
   const activiteRecente = [...filtered].sort((a,b) => new Date(b.updatedAt)-new Date(a.updatedAt)).slice(0,5)
 
   const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
+  const typeDateLabel = typeDate === 'dateTraitement' ? 'par date de traitement' : 'par date de création'
   const dateExport = new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')
 
   const exportPDF = () => {
@@ -5424,7 +5446,7 @@ function Rapports({ demandes: demandesProp = [] }) {
     y += 7
     doc.setFontSize(10)
     doc.setTextColor(113, 128, 150)
-    doc.text(`Période : ${periodeLabel} — Généré le ${new Date().toLocaleString('fr-FR')}`, 14, y)
+    doc.text(`Période : ${periodeLabel} (${typeDateLabel}) — Généré le ${new Date().toLocaleString('fr-FR')}`, 14, y)
     y += 6
 
     const addTable = (title, head, body) => {
@@ -5484,7 +5506,7 @@ function Rapports({ demandes: demandesProp = [] }) {
 
     const titleSlide = pptx.addSlide()
     titleSlide.addText('Rapport CRRAE-CRM', { x: 0.5, y: 1.8, w: 12.3, h: 1, fontSize: 36, bold: true, color: '1a365d' })
-    titleSlide.addText(`Période : ${periodeLabel}`, { x: 0.5, y: 2.8, fontSize: 18, color: '4a5568' })
+    titleSlide.addText(`Période : ${periodeLabel} — ${typeDateLabel}`, { x: 0.5, y: 2.8, fontSize: 18, color: '4a5568' })
     titleSlide.addText(`Généré le ${new Date().toLocaleString('fr-FR')}`, { x: 0.5, y: 3.3, fontSize: 14, color: '718096' })
 
     const kpiSlide = pptx.addSlide()
@@ -5604,6 +5626,14 @@ function Rapports({ demandes: demandesProp = [] }) {
               {p.label}
             </button>
           ))}
+          <select
+            value={typeDate}
+            onChange={e => setTypeDate(e.target.value)}
+            style={{padding:'0.5rem 0.75rem',borderRadius:'6px',border:'1px solid #e2e8f0',background:'white',fontSize:'0.85rem',cursor:'pointer',color: typeDate==='dateTraitement' ? '#276749' : '#4a5568', fontWeight: typeDate==='dateTraitement' ? '600' : '400'}}
+          >
+            <option value="dateReception">Par date de création</option>
+            <option value="dateTraitement">Par date de traitement</option>
+          </select>
           <button
             style={{...styles.button, background:'#276749', width:'auto', padding:'0.5rem 1rem', fontSize:'0.85rem'}}
             onClick={exportPDF}
@@ -5619,9 +5649,16 @@ function Rapports({ demandes: demandesProp = [] }) {
         </div>
       </div>
 
+      {typeDate === 'dateTraitement' && periode !== 'tout' && (
+        <div style={{background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:'10px',padding:'0.6rem 1rem',marginBottom:'0.75rem',fontSize:'0.85rem',color:'#276749',display:'flex',alignItems:'center',gap:'0.5rem'}}>
+          <span style={{fontWeight:'700'}}>📅 Filtre actif : date de traitement</span>
+          — Affiche toutes les demandes clôturées sur la période, quelle que soit leur date de création.
+        </div>
+      )}
+
       {/* Ligne 1 — Volume et traitement (Traitées + Non résolues = Total) */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,minmax(0,1fr))',gap:'0.9rem',marginBottom:'0.9rem'}}>
-        {card('📥','Total demandes', total, '#2b6cb0')}
+        {card('📥','Total demandes', total, '#2b6cb0', typeDate==='dateTraitement'&&periode!=='tout'?'Reçues à n\'importe quelle date, traitées sur la période':'')}
         {card('✅','Traitées / Clôturées', traitees, '#276749', `${tauxTraite}% — Traité + Clôturé`)}
         {card('⏳','Non résolues', nonResolues, '#b7791f', `${total > 0 ? Math.round(nonResolues/total*100) : 0}% — tous statuts actifs`)}
         {card('⏱️','Délai moyen', delaiMoyen === '—' ? '—' : `${delaiMoyen}j`, '#2b6cb0', 'Jours ouvrables moyen')}
