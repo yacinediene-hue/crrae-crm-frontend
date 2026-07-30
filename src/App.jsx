@@ -3801,8 +3801,9 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       if (!isClos && now > limite) {
         return <span style={{background:'#fff5f5', color:'#c53030', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>🚨 SLA dépassé</span>
       }
-      if (!isClos && d.typeDemande?.delaiMaxJours) {
-        const totalMs = d.typeDemande.delaiMaxJours * 86400000
+      const tdInfo = typesDemande.find(t => t.id === d.typeDemandeId)
+    if (!isClos && tdInfo?.delaiMaxJours) {
+        const totalMs = tdInfo.delaiMaxJours * 86400000
         const restantMs = limite.getTime() - now.getTime()
         if (restantMs > 0 && restantMs / totalMs <= 0.20) {
           return <span style={{background:'#fffbeb', color:'#b7791f', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>⚠️ SLA proche</span>
@@ -5988,23 +5989,22 @@ function Rapports({ demandes: demandesProp = [] }) {
       {/* SLA CMR — suivi par type de demande réglementaire */}
       {(() => {
         const now = new Date()
-        const avecSla = filtered.filter(d => d.dateLimite && d.typeDemande?.delaiMaxJours)
+        const avecSla = filtered.filter(d => d.dateLimite)
         if (avecSla.length === 0) return null
 
         const horsSla  = avecSla.filter(d => !CLOS.includes(d.statut) && new Date(d.dateLimite) < now)
         const aRisque  = avecSla.filter(d => {
           if (CLOS.includes(d.statut) || new Date(d.dateLimite) < now) return false
-          const totalMs = d.typeDemande.delaiMaxJours * 86400000
+          if (!d.typeDemandeId) return false
           const restant = new Date(d.dateLimite).getTime() - now.getTime()
-          return restant / totalMs <= 0.20
+          return restant > 0 && restant < 86400000 // moins de 1 jour restant
         })
-        const respectes = avecSla.filter(d => CLOS.includes(d.statut) && new Date(d.dateLimite) >= new Date(d.dateTraitement || now))
         const taux = avecSla.length > 0 ? Math.round((avecSla.length - horsSla.length) / avecSla.length * 100) : 100
 
         const parType = Object.entries(
           avecSla.reduce((acc, d) => {
-            const k = d.typeDemande?.libelle || d.objetDemande || '—'
-            if (!acc[k]) acc[k] = { total: 0, horsSla: 0, clos: 0, delaiMax: d.typeDemande?.delaiMaxJours }
+            const k = d.objetDemande || '—'
+            if (!acc[k]) acc[k] = { total: 0, horsSla: 0, clos: 0 }
             acc[k].total++
             if (!CLOS.includes(d.statut) && new Date(d.dateLimite) < now) acc[k].horsSla++
             if (CLOS.includes(d.statut)) acc[k].clos++
@@ -6031,7 +6031,6 @@ function Rapports({ demandes: demandesProp = [] }) {
             <table style={{...styles.table,boxShadow:'none',borderRadius:0,width:'100%'}}>
               <thead><tr>
                 <th style={styles.th}>Type de demande</th>
-                <th style={{...styles.th,textAlign:'center'}}>Délai max</th>
                 <th style={{...styles.th,textAlign:'center'}}>Total</th>
                 <th style={{...styles.th,textAlign:'center'}}>Hors délai</th>
                 <th style={{...styles.th,textAlign:'center'}}>Clôturées</th>
@@ -6043,7 +6042,6 @@ function Rapports({ demandes: demandesProp = [] }) {
                   return (
                     <tr key={libelle} style={styles.tr}>
                       <td style={{...styles.td,fontSize:'0.82rem'}}>{libelle}</td>
-                      <td style={{...styles.td,textAlign:'center'}}><span style={{...styles.badge,background:'#ebf8ff',color:'#2b6cb0'}}>{s.delaiMax}j</span></td>
                       <td style={{...styles.td,textAlign:'center'}}>{s.total}</td>
                       <td style={{...styles.td,textAlign:'center'}}><span style={{...styles.badge,background:s.horsSla>0?'#fff5f5':'#f0fff4',color:s.horsSla>0?'#c53030':'#276749'}}>{s.horsSla}</span></td>
                       <td style={{...styles.td,textAlign:'center'}}>{s.clos}</td>
