@@ -3244,6 +3244,11 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     window.addEventListener('notes-vues-updated', h)
     return () => window.removeEventListener('notes-vues-updated', h)
   }, [])
+
+  const [typesDemande, setTypesDemande] = useState([])
+  useEffect(() => {
+    API.get('/type-demandes?actifOnly=true').then(r => setTypesDemande(r.data)).catch(() => {})
+  }, [])
   const getNotesBadge = (demandeId, total) => {
     const u = localStorage.getItem('userName') || ''
     const vues = parseInt(localStorage.getItem(`notes_vues_${u}_${demandeId}`) || '0', 10)
@@ -3258,7 +3263,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const emptyForm = {
     nomPrenom: '', matricule: '', adherent: '', typeClient: '', profilClient: '', pays: '',
     heureAppel: new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'}), canal: 'WHATSAPP', telephone: '', email: '',
-    objetDemande: '', commentaire: '',
+    objetDemande: '', typeDemandeId: '', commentaire: '',
     agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '', niveauTraitement: 1,
     dateReception: new Date().toISOString().split('T')[0],
     dateTraitement: '', statut: 'Nouveau', actionMenee: '',
@@ -3451,7 +3456,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       adherent: d.adherent || '', typeClient: d.typeClient || '', profilClient: d.profilClient || '',
       pays: d.pays || '', heureAppel: d.heureAppel || '',
       canal: d.canal || '', telephone: d.telephone || '',
-      email: d.email || '', objetDemande: d.objetDemande || 'Information',
+      email: d.email || '', objetDemande: d.objetDemande || 'Information', typeDemandeId: d.typeDemandeId || '',
       commentaire: d.commentaire || '', agentN1: d.agentN1 || '',
       service: d.service || '', agentN2: d.agentN2 || '',
       dateReception: d.dateReception ? new Date(d.dateReception).toISOString().split('T')[0] : '',
@@ -3786,20 +3791,38 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const col2 = {display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 1rem'}
 
   const getSlaBadge = (d) => {
+    const CLOS_SLA = ['Clôturée', 'Traité', 'Clôturé']
+    const isClos = CLOS_SLA.includes(d.statut)
+
+    // CMR dateLimite path
+    if (d.dateLimite) {
+      const now = new Date()
+      const limite = new Date(d.dateLimite)
+      if (!isClos && now > limite) {
+        return <span style={{background:'#fff5f5', color:'#c53030', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>🚨 SLA dépassé</span>
+      }
+      if (!isClos && d.typeDemande?.delaiMaxJours) {
+        const totalMs = d.typeDemande.delaiMaxJours * 86400000
+        const restantMs = limite.getTime() - now.getTime()
+        if (restantMs > 0 && restantMs / totalMs <= 0.20) {
+          return <span style={{background:'#fffbeb', color:'#b7791f', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>⚠️ SLA proche</span>
+        }
+      }
+      return null
+    }
+
+    // Fallback service-based path
     if (d.respectDelai === 'NON') {
       return <span style={{background:'#fff5f5', color:'#c53030', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>🚨 SLA dépassé</span>
     }
-
-    if (!['Clôturée','Traité','Clôturé'].includes(d.statut) && d.dateReception) {
+    if (!isClos && d.dateReception) {
       const jours = Math.ceil((new Date() - new Date(d.dateReception)) / (1000 * 60 * 60 * 24))
       const delaisService = { DPM: 3, DPR: 5, DDSI: 6, PATRIMOINE: 7, DCR: 5, DFC: 5, DRUC: 5, REGISSEUR: 5, Autre: 5 }
       const delaiMax = delaisService[d.service] ?? 3
-
       if (jours === delaiMax || jours === delaiMax - 1) {
         return <span style={{background:'#fffbeb', color:'#b7791f', padding:'0.15rem 0.45rem', borderRadius:'20px', fontSize:'0.72rem', marginLeft:'0.4rem'}}>⚠️ SLA proche</span>
       }
     }
-
     return null
   }
 
@@ -4328,9 +4351,14 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
           <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>📨 Demande</h3>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0 1rem'}}>
-            <select style={inp} value={form.objetDemande} onChange={e=>setForm({...form,objetDemande:e.target.value})}>
+            <select style={inp} value={form.typeDemandeId || ''} onChange={e => {
+              const td = typesDemande.find(t => t.id === e.target.value)
+              setForm({...form, typeDemandeId: e.target.value, objetDemande: td ? td.libelle : form.objetDemande})
+            }}>
               <option value="">-- Type de demande --</option>
-              {OBJETS_DEMANDE.map(o => <option key={o} value={o}>{o}</option>)}
+              {typesDemande.length > 0
+                ? typesDemande.map(t => <option key={t.id} value={t.id}>{t.libelle}</option>)
+                : OBJETS_DEMANDE.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
             <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
               <option value="">-- Service --</option>
@@ -5329,6 +5357,162 @@ function Users() {
 }
 
 
+function TypesDemandeAdmin() {
+  const [types, setTypes] = useState([])
+  const [historique, setHistorique] = useState([])
+  const [historiqueId, setHistoriqueId] = useState(null)
+  const [formVisible, setFormVisible] = useState(false)
+  const [editType, setEditType] = useState(null)
+  const [form, setForm] = useState({ slug: '', libelle: '', delaiMaxJours: '', actif: true, notes: '' })
+  const [saving, setSaving] = useState(false)
+
+  const charger = () => API.get('/type-demandes').then(r => setTypes(r.data)).catch(() => {})
+  useEffect(() => { charger() }, [])
+
+  const ouvrir = (t = null) => {
+    setEditType(t)
+    setForm(t ? { slug: t.slug, libelle: t.libelle, delaiMaxJours: t.delaiMaxJours ?? '', actif: t.actif, notes: t.notes || '' } : { slug: '', libelle: '', delaiMaxJours: '', actif: true, notes: '' })
+    setFormVisible(true)
+  }
+
+  const sauvegarder = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      const payload = { ...form, delaiMaxJours: form.delaiMaxJours !== '' ? parseInt(form.delaiMaxJours, 10) : null }
+      if (editType) await API.patch(`/type-demandes/${editType.id}`, payload)
+      else await API.post('/type-demandes', payload)
+      await charger()
+      setFormVisible(false)
+    } catch (err) { alert(err?.response?.data?.message || err?.message || 'Erreur') }
+    finally { setSaving(false) }
+  }
+
+  const supprimer = async (t) => {
+    if (!window.confirm(`Supprimer "${t.libelle}" ? Cette action est irréversible.`)) return
+    try {
+      await API.delete(`/type-demandes/${t.id}`)
+      await charger()
+    } catch (err) { alert(err?.response?.data?.message || err?.message || 'Erreur') }
+  }
+
+  const voirHistorique = async (t) => {
+    try {
+      const r = await API.get(`/type-demandes/${t.id}/historique`)
+      setHistorique(r.data)
+      setHistoriqueId(t.id)
+    } catch { alert('Erreur chargement historique') }
+  }
+
+  const inp = { ...styles.input, marginBottom: '0.75rem' }
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+        <h2 style={styles.pageTitle}>📋 Types de demande CMR</h2>
+        <button style={{ ...styles.button, width: 'auto', padding: '0.5rem 1.25rem' }} onClick={() => ouvrir()}>+ Nouveau type</button>
+      </div>
+
+      {formVisible && (
+        <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', marginBottom: '1.25rem', border: '1px solid #bee3f8' }}>
+          <h3 style={{ margin: '0 0 1rem', color: '#1a365d' }}>{editType ? '✏️ Modifier' : '➕ Nouveau type'}</h3>
+          <form onSubmit={sauvegarder}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 1rem' }}>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#4a5568', display: 'block', marginBottom: '0.25rem' }}>Libellé *</label>
+                <input style={inp} required value={form.libelle} onChange={e => setForm({ ...form, libelle: e.target.value })} placeholder="Ex: Demande d'attestation d'affiliation" />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#4a5568', display: 'block', marginBottom: '0.25rem' }}>Slug (identifiant unique) *</label>
+                <input style={inp} required value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} placeholder="ex: attestation-affiliation" />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#4a5568', display: 'block', marginBottom: '0.25rem' }}>Délai max (jours calendaires)</label>
+                <input type="number" min="1" style={inp} value={form.delaiMaxJours} onChange={e => setForm({ ...form, delaiMaxJours: e.target.value })} placeholder="Laisser vide = sans délai réglementaire" />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.8rem', color: '#4a5568', display: 'block', marginBottom: '0.25rem' }}>Notes internes</label>
+                <input style={inp} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Remarques facultatives" />
+              </div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.actif} onChange={e => setForm({ ...form, actif: e.target.checked })} />
+              <span style={{ fontSize: '0.9rem' }}>Actif (visible dans le formulaire de saisie)</span>
+            </label>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button type="submit" style={{ ...styles.button, width: 'auto', padding: '0.5rem 1.25rem' }} disabled={saving}>{saving ? 'Enregistrement...' : 'Enregistrer'}</button>
+              <button type="button" style={{ ...styles.button, width: 'auto', padding: '0.5rem 1.25rem', background: '#718096' }} onClick={() => setFormVisible(false)}>Annuler</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {historiqueId && (
+        <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', marginBottom: '1.25rem', border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <strong style={{ color: '#1a365d' }}>🕒 Historique des modifications</strong>
+            <button style={{ background: 'transparent', border: 'none', fontSize: '1.2rem', cursor: 'pointer' }} onClick={() => setHistoriqueId(null)}>✕</button>
+          </div>
+          {historique.length === 0 ? <div style={{ color: '#718096' }}>Aucune modification enregistrée</div> : (
+            <table style={{ ...styles.table, boxShadow: 'none', borderRadius: 0 }}>
+              <thead><tr><th style={styles.th}>Date</th><th style={styles.th}>Auteur</th><th style={styles.th}>Champ</th><th style={styles.th}>Avant</th><th style={styles.th}>Après</th></tr></thead>
+              <tbody>
+                {historique.map(h => (
+                  <tr key={h.id} style={styles.tr}>
+                    <td style={{ ...styles.td, fontSize: '0.78rem' }}>{new Date(h.createdAt).toLocaleString('fr-FR')}</td>
+                    <td style={styles.td}>{h.auteur}</td>
+                    <td style={styles.td}><code>{h.champ}</code></td>
+                    <td style={{ ...styles.td, color: '#c53030' }}>{h.ancienneValeur ?? '—'}</td>
+                    <td style={{ ...styles.td, color: '#276749' }}>{h.nouvelleValeur ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        <table style={{ ...styles.table, boxShadow: 'none', borderRadius: 0, marginBottom: 0 }}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Libellé</th>
+              <th style={styles.th}>Slug</th>
+              <th style={{ ...styles.th, textAlign: 'center' }}>Délai max</th>
+              <th style={{ ...styles.th, textAlign: 'center' }}>Statut</th>
+              <th style={{ ...styles.th, textAlign: 'center' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {types.length === 0 && <tr><td colSpan={5} style={{ ...styles.td, color: '#718096', textAlign: 'center', padding: '2rem' }}>Chargement...</td></tr>}
+            {types.map(t => (
+              <tr key={t.id} style={styles.tr}>
+                <td style={{ ...styles.td, fontWeight: 500 }}>{t.libelle}</td>
+                <td style={{ ...styles.td, fontSize: '0.78rem', color: '#718096', fontFamily: 'monospace' }}>{t.slug}</td>
+                <td style={{ ...styles.td, textAlign: 'center' }}>
+                  {t.delaiMaxJours != null
+                    ? <span style={{ ...styles.badge, background: '#ebf8ff', color: '#2b6cb0' }}>{t.delaiMaxJours}j</span>
+                    : <span style={{ ...styles.badge, background: '#f7fafc', color: '#718096' }}>—</span>}
+                </td>
+                <td style={{ ...styles.td, textAlign: 'center' }}>
+                  <span style={{ ...styles.badge, background: t.actif ? '#f0fff4' : '#f7fafc', color: t.actif ? '#276749' : '#718096' }}>{t.actif ? 'Actif' : 'Inactif'}</span>
+                </td>
+                <td style={{ ...styles.td, textAlign: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'center' }}>
+                    <button style={{ ...styles.button, width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.78rem' }} onClick={() => ouvrir(t)}>✏️</button>
+                    <button style={{ ...styles.button, width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#718096' }} onClick={() => voirHistorique(t)}>🕒</button>
+                    <button style={{ ...styles.button, width: 'auto', padding: '0.25rem 0.6rem', fontSize: '0.78rem', background: '#c53030' }} onClick={() => supprimer(t)}>🗑️</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function Rapports({ demandes: demandesProp = [] }) {
   const demandes = demandesProp
   const [periode, setPeriode] = useState('tout')
@@ -5800,6 +5984,78 @@ function Rapports({ demandes: demandesProp = [] }) {
           ))}
         </div>
       ))}
+
+      {/* SLA CMR — suivi par type de demande réglementaire */}
+      {(() => {
+        const now = new Date()
+        const avecSla = filtered.filter(d => d.dateLimite && d.typeDemande?.delaiMaxJours)
+        if (avecSla.length === 0) return null
+
+        const horsSla  = avecSla.filter(d => !CLOS.includes(d.statut) && new Date(d.dateLimite) < now)
+        const aRisque  = avecSla.filter(d => {
+          if (CLOS.includes(d.statut) || new Date(d.dateLimite) < now) return false
+          const totalMs = d.typeDemande.delaiMaxJours * 86400000
+          const restant = new Date(d.dateLimite).getTime() - now.getTime()
+          return restant / totalMs <= 0.20
+        })
+        const respectes = avecSla.filter(d => CLOS.includes(d.statut) && new Date(d.dateLimite) >= new Date(d.dateTraitement || now))
+        const taux = avecSla.length > 0 ? Math.round((avecSla.length - horsSla.length) / avecSla.length * 100) : 100
+
+        const parType = Object.entries(
+          avecSla.reduce((acc, d) => {
+            const k = d.typeDemande?.libelle || d.objetDemande || '—'
+            if (!acc[k]) acc[k] = { total: 0, horsSla: 0, clos: 0, delaiMax: d.typeDemande?.delaiMaxJours }
+            acc[k].total++
+            if (!CLOS.includes(d.statut) && new Date(d.dateLimite) < now) acc[k].horsSla++
+            if (CLOS.includes(d.statut)) acc[k].clos++
+            return acc
+          }, {})
+        ).sort((a, b) => b[1].total - a[1].total)
+
+        return (
+          <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem',marginTop:'1rem'}}>
+            <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'0.75rem',fontSize:'1rem'}}>📊 SLA CMR — Délais réglementaires</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'0.75rem',marginBottom:'1rem'}}>
+              {[
+                {label:'Avec délai CMR',val:avecSla.length,color:'#2b6cb0',bg:'#ebf8ff'},
+                {label:'Hors délai',val:horsSla.length,color:'#c53030',bg:'#fff5f5'},
+                {label:'À risque (≤20%)',val:aRisque.length,color:'#b7791f',bg:'#fffbeb'},
+                {label:'Taux de conformité',val:`${taux}%`,color:taux>=80?'#276749':'#c53030',bg:taux>=80?'#f0fff4':'#fff5f5'},
+              ].map(k => (
+                <div key={k.label} style={{background:k.bg,borderRadius:'10px',padding:'0.75rem 1rem',border:`1px solid ${k.color}30`}}>
+                  <div style={{fontSize:'0.72rem',color:'#718096',marginBottom:'0.25rem'}}>{k.label}</div>
+                  <div style={{fontSize:'1.4rem',fontWeight:'700',color:k.color}}>{k.val}</div>
+                </div>
+              ))}
+            </div>
+            <table style={{...styles.table,boxShadow:'none',borderRadius:0,width:'100%'}}>
+              <thead><tr>
+                <th style={styles.th}>Type de demande</th>
+                <th style={{...styles.th,textAlign:'center'}}>Délai max</th>
+                <th style={{...styles.th,textAlign:'center'}}>Total</th>
+                <th style={{...styles.th,textAlign:'center'}}>Hors délai</th>
+                <th style={{...styles.th,textAlign:'center'}}>Clôturées</th>
+                <th style={{...styles.th,textAlign:'center'}}>Conformité</th>
+              </tr></thead>
+              <tbody>
+                {parType.map(([libelle, s]) => {
+                  const conf = s.total > 0 ? Math.round((s.total - s.horsSla) / s.total * 100) : 100
+                  return (
+                    <tr key={libelle} style={styles.tr}>
+                      <td style={{...styles.td,fontSize:'0.82rem'}}>{libelle}</td>
+                      <td style={{...styles.td,textAlign:'center'}}><span style={{...styles.badge,background:'#ebf8ff',color:'#2b6cb0'}}>{s.delaiMax}j</span></td>
+                      <td style={{...styles.td,textAlign:'center'}}>{s.total}</td>
+                      <td style={{...styles.td,textAlign:'center'}}><span style={{...styles.badge,background:s.horsSla>0?'#fff5f5':'#f0fff4',color:s.horsSla>0?'#c53030':'#276749'}}>{s.horsSla}</span></td>
+                      <td style={{...styles.td,textAlign:'center'}}>{s.clos}</td>
+                      <td style={{...styles.td,textAlign:'center'}}><span style={{...styles.badge,background:conf>=80?'#f0fff4':'#fff5f5',color:conf>=80?'#276749':'#c53030'}}>{conf}%</span></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -7365,6 +7621,9 @@ function Layout({ onLogout, children, alertes, onRecherche, onNouvelleDemande, d
         {isAdmin && (
           <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/users"><span style={styles.sidebarIcon}>👤</span>Utilisateurs</NavLink>
         )}
+        {isAdmin && (
+          <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/types-demande"><span style={styles.sidebarIcon}>📋</span>Types de demande</NavLink>
+        )}
         {isManagerOrAdmin && (
           <NavLink style={({ isActive }) => ({ ...styles.navLink, background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent' })} to="/journal"><span style={styles.sidebarIcon}>🛡️</span>Journal sécurité</NavLink>
         )}
@@ -7509,6 +7768,7 @@ export default function App() {
           <Route path="/rapports" element={<Rapports demandes={demandesApp} />} />
           <Route path="/agent-rapport" element={<AgentRapport />} />
           <Route path="/users" element={localStorage.getItem('userRole') === 'admin' ? <Users /> : <Navigate to="/dashboard" />} />
+          <Route path="/types-demande" element={localStorage.getItem('userRole') === 'admin' ? <TypesDemandeAdmin /> : <Navigate to="/dashboard" />} />
           <Route path="/journal" element={['admin','manager'].includes(localStorage.getItem('userRole')) ? <JournalAudit /> : <Navigate to="/accueil" />} />
           <Route path="*" element={<Navigate to="/accueil" />} />
         </Routes>
