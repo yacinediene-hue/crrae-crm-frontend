@@ -5995,9 +5995,11 @@ function Rapports({ demandes: demandesProp = [] }) {
         const horsSla  = avecSla.filter(d => !CLOS.includes(d.statut) && new Date(d.dateLimite) < now)
         const aRisque  = avecSla.filter(d => {
           if (CLOS.includes(d.statut) || new Date(d.dateLimite) < now) return false
-          if (!d.typeDemandeId) return false
-          const restant = new Date(d.dateLimite).getTime() - now.getTime()
-          return restant > 0 && restant < 86400000 // moins de 1 jour restant
+          if (!d.dateReception || !d.dateLimite) return false
+          const totalMs  = new Date(d.dateLimite).getTime() - new Date(d.dateReception).getTime()
+          if (totalMs <= 0) return false
+          const restantMs = new Date(d.dateLimite).getTime() - now.getTime()
+          return restantMs > 0 && restantMs / totalMs <= 0.20
         })
         const taux = avecSla.length > 0 ? Math.round((avecSla.length - horsSla.length) / avecSla.length * 100) : 100
 
