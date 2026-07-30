@@ -4352,15 +4352,22 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
           <h3 style={{color:'#1a365d',margin:'0.25rem 0 1rem',fontSize:'1rem',borderBottom:'1px solid #e2e8f0',paddingBottom:'0.5rem'}}>📨 Demande</h3>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'0 1rem'}}>
-            <select style={inp} value={form.typeDemandeId || ''} onChange={e => {
-              const td = typesDemande.find(t => t.id === e.target.value)
-              setForm({...form, typeDemandeId: e.target.value, objetDemande: td ? td.libelle : form.objetDemande})
-            }}>
-              <option value="">-- Type de demande --</option>
-              {typesDemande.length > 0
-                ? typesDemande.map(t => <option key={t.id} value={t.id}>{t.libelle}</option>)
-                : OBJETS_DEMANDE.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
+            {typesDemande.length > 0 ? (
+              <select style={inp} value={form.typeDemandeId || ''} onChange={e => {
+                const td = typesDemande.find(t => t.id === e.target.value)
+                setForm({...form, typeDemandeId: e.target.value, objetDemande: td ? td.libelle : form.objetDemande})
+              }}>
+                <option value="">-- Type de demande --</option>
+                {typesDemande.map(t => <option key={t.id} value={t.id}>{t.libelle}</option>)}
+              </select>
+            ) : (
+              <select style={inp} value={form.objetDemande || ''} onChange={e =>
+                setForm({...form, objetDemande: e.target.value, typeDemandeId: ''})
+              }>
+                <option value="">-- Objet de la demande --</option>
+                {OBJETS_DEMANDE.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            )}
             <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
               <option value="">-- Service --</option>
               {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s=><option key={s}>{s}</option>)}
