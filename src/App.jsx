@@ -6121,7 +6121,18 @@ function Rapports({ demandes: demandesProp = [] }) {
       {(() => {
         const now = new Date()
         const avecSla = filtered.filter(d => d.dateLimite)
-        if (avecSla.length === 0) return null
+        if (avecSla.length === 0) return (
+          <div style={{background:'white',borderRadius:'14px',padding:'1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem',marginTop:'1rem'}}>
+            <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'0.5rem',fontSize:'1rem'}}>📊 SLA CMR — Délais réglementaires</div>
+            <div style={{color:'#718096',fontSize:'0.88rem',display:'flex',alignItems:'flex-start',gap:'0.75rem'}}>
+              <span style={{fontSize:'1.2rem'}}>ℹ️</span>
+              <div>
+                <div style={{marginBottom:'0.35rem'}}>Aucune demande avec un délai CMR sur cette période.</div>
+                <div>Les données SLA réglementaires apparaîtront ici dès que des demandes auront un <strong>type de demande</strong> sélectionné dans le formulaire, ou après application de la migration SLA sur les demandes existantes.</div>
+              </div>
+            </div>
+          </div>
+        )
 
         const horsSla  = avecSla.filter(d => !CLOS.includes(d.statut) && new Date(d.dateLimite) < now)
         const aRisque  = avecSla.filter(d => {
