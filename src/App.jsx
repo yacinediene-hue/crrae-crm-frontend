@@ -14,7 +14,7 @@ const INDICATIFS = {
 const AGENTS = ["KOFFI Stephane", "KACOU Michèle", "Fatty KOUAME"]
 // Agents Back Office (N2) — peuvent aussi traiter en N1
 const AGENTS_N2 = ['KACOU Michèle', 'Fatty KOUAME', 'COULIBALY Ismail', 'Yacine DIENE']
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import API from './api'
 import './App.css'
@@ -7294,9 +7294,9 @@ function AgentRapport() {
   const [chatMessages, setChatMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
-  const chatEndRef = React.useRef(null)
+  const chatEndRef = useRef(null)
 
-  React.useEffect(() => {
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
