@@ -5760,6 +5760,55 @@ function Rapports({ demandes: demandesProp = [] }) {
     ? Math.max(...servicesAvecDemandes.flatMap(s => canauxAvecDemandes.map(c => (canalParService[c]?.[s] || 0))))
     : 1
 
+  // Délai moyen de traitement par type + distribution
+  const demandesCloturees = filtered.filter(d => CLOS.includes(d.statut) && d.dateReception && d.dateTraitement)
+  const delaiParType = Object.entries(
+    demandesCloturees.reduce((acc, d) => {
+      const k = d.objetDemande || 'Non précisé'
+      const delai = Math.max(0, Math.round((new Date(d.dateTraitement) - new Date(d.dateReception)) / 86400000))
+      const slaDays = d.dateLimite && d.dateReception
+        ? Math.round((new Date(d.dateLimite) - new Date(d.dateReception)) / 86400000)
+        : null
+      if (!acc[k]) acc[k] = { sum: 0, count: 0, slaDays }
+      acc[k].sum += delai
+      acc[k].count++
+      return acc
+    }, {})
+  )
+    .map(([type, s]) => ({ type, count: s.count, delaiMoyen: Math.round(s.sum / s.count), slaDays: s.slaDays }))
+    .filter(t => t.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+
+  const BUCKETS_DELAI = [
+    { label: '≤ 1j', min: 0, max: 1 },
+    { label: '2-3j', min: 2, max: 3 },
+    { label: '4-7j', min: 4, max: 7 },
+    { label: '8-15j', min: 8, max: 15 },
+    { label: '16-30j', min: 16, max: 30 },
+    { label: '31-60j', min: 31, max: 60 },
+    { label: '> 60j', min: 61, max: Infinity },
+  ]
+  const distributionDelais = BUCKETS_DELAI.map(b => ({
+    label: b.label,
+    nb: demandesCloturees.filter(d => {
+      const j = Math.max(0, Math.round((new Date(d.dateTraitement) - new Date(d.dateReception)) / 86400000))
+      return j >= b.min && j <= b.max
+    }).length,
+  }))
+  const distMax = distributionDelais.length > 0 ? Math.max(...distributionDelais.map(b => b.nb), 1) : 1
+  const delaiMoyenGlobal = demandesCloturees.length > 0
+    ? Math.round(demandesCloturees.reduce((s, d) => s + Math.max(0, Math.round((new Date(d.dateTraitement) - new Date(d.dateReception)) / 86400000)), 0) / demandesCloturees.length)
+    : null
+  const delaiMedian = (() => {
+    if (demandesCloturees.length === 0) return null
+    const sorted = [...demandesCloturees]
+      .map(d => Math.max(0, Math.round((new Date(d.dateTraitement) - new Date(d.dateReception)) / 86400000)))
+      .sort((a, b) => a - b)
+    const m = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0 ? Math.round((sorted[m-1] + sorted[m]) / 2) : sorted[m]
+  })()
+
   const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
   const typeDateLabel = typeDate === 'dateTraitement' ? 'par date de traitement' : 'par date de création'
   const filtresActifs = [filterService && `Service : ${filterService}`, filterAgent && `Agent : ${filterAgent}`].filter(Boolean)
@@ -6267,6 +6316,88 @@ function Rapports({ demandes: demandesProp = [] }) {
               ) : (
                 <div style={{fontSize:'0.82rem',color:'#a0aec0',padding:'1rem 0'}}>Attribuez un service aux demandes pour voir la matrice.</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Délai moyen de traitement */}
+      {demandesCloturees.length > 0 && (
+        <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+          <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'1rem',fontSize:'1rem'}}>⏱️ Délai moyen de traitement</div>
+
+          {/* KPIs globaux */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'0.75rem',marginBottom:'1.25rem'}}>
+            {[
+              { label:'Dossiers clôturés analysés', val: demandesCloturees.length, color:'#2b6cb0', bg:'#ebf8ff' },
+              { label:'Délai moyen', val: delaiMoyenGlobal != null ? `${delaiMoyenGlobal}j` : '—', color: delaiMoyenGlobal != null && delaiMoyenGlobal > 7 ? '#c53030' : '#276749', bg: delaiMoyenGlobal != null && delaiMoyenGlobal > 7 ? '#fff5f5' : '#f0fff4' },
+              { label:'Délai médian', val: delaiMedian != null ? `${delaiMedian}j` : '—', color:'#744210', bg:'#fffbeb' },
+            ].map(k => (
+              <div key={k.label} style={{background:k.bg,borderRadius:'10px',padding:'0.75rem 1rem',border:`1px solid ${k.color}30`}}>
+                <div style={{fontSize:'0.72rem',color:'#718096',marginBottom:'0.25rem'}}>{k.label}</div>
+                <div style={{fontSize:'1.5rem',fontWeight:'700',color:k.color}}>{k.val}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem'}}>
+            {/* Délai moyen par type */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.5rem'}}>Délai moyen par type de demande</div>
+              <div style={{display:'flex',flexDirection:'column',gap:'0.4rem'}}>
+                {delaiParType.map(t => {
+                  const slaRef = t.slaDays || 7
+                  const pctActuel = Math.min(100, Math.round(t.delaiMoyen / Math.max(slaRef, t.delaiMoyen) * 100))
+                  const pctSla = t.slaDays ? Math.min(100, Math.round(t.slaDays / Math.max(slaRef, t.delaiMoyen) * 100)) : null
+                  const depasseSla = t.slaDays && t.delaiMoyen > t.slaDays
+                  const color = depasseSla ? '#c53030' : t.delaiMoyen > 5 ? '#b7791f' : '#276749'
+                  return (
+                    <div key={t.type}>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.78rem',marginBottom:'2px'}}>
+                        <span style={{color:'#2d3748',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'70%'}}>{t.type}</span>
+                        <div style={{display:'flex',gap:'0.5rem',whiteSpace:'nowrap'}}>
+                          {t.slaDays && <span style={{color:'#a0aec0',fontSize:'0.72rem'}}>SLA {t.slaDays}j</span>}
+                          <span style={{color,fontWeight:'700'}}>{t.delaiMoyen}j</span>
+                          <span style={{color:'#a0aec0'}}>({t.count})</span>
+                        </div>
+                      </div>
+                      <div style={{height:6,background:'#edf2f7',borderRadius:3,position:'relative'}}>
+                        {pctSla && (
+                          <div style={{position:'absolute',height:6,width:`${pctSla}%`,background:'#bee3f8',borderRadius:3}}/>
+                        )}
+                        <div style={{position:'absolute',height:6,width:`${pctActuel}%`,background:color,borderRadius:3,opacity:0.85}}/>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{fontSize:'0.7rem',color:'#a0aec0',marginTop:'0.5rem'}}>Barre bleue = SLA · barre colorée = délai réel (rouge si dépassé)</div>
+            </div>
+
+            {/* Distribution des délais */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.5rem'}}>Distribution des délais de traitement</div>
+              <div style={{display:'flex',flexDirection:'column',gap:'0.4rem'}}>
+                {distributionDelais.map(b => {
+                  const pct = distMax > 0 ? Math.round(b.nb / distMax * 100) : 0
+                  const color = b.label === '≤ 1j' || b.label === '2-3j' ? '#276749'
+                    : b.label === '4-7j' ? '#2b6cb0'
+                    : b.label === '8-15j' ? '#b7791f'
+                    : '#c53030'
+                  return (
+                    <div key={b.label} style={{display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                      <span style={{fontSize:'0.78rem',color:'#718096',width:'4rem',flexShrink:0,textAlign:'right'}}>{b.label}</span>
+                      <div style={{flex:1,height:20,background:'#edf2f7',borderRadius:4,overflow:'hidden'}}>
+                        <div style={{height:'100%',width:`${pct}%`,background:color,borderRadius:4,transition:'width 0.3s',display:'flex',alignItems:'center',paddingLeft:b.nb>0?'6px':0}}>
+                          {b.nb > 0 && <span style={{fontSize:'0.7rem',fontWeight:'700',color:'white'}}>{b.nb}</span>}
+                        </div>
+                      </div>
+                      {b.nb === 0 && <span style={{fontSize:'0.72rem',color:'#cbd5e0'}}>0</span>}
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{fontSize:'0.7rem',color:'#a0aec0',marginTop:'0.5rem'}}>Sur {demandesCloturees.length} dossier{demandesCloturees.length>1?'s':''} clôturé{demandesCloturees.length>1?'s':''} avec date de réception et de traitement</div>
             </div>
           </div>
         </div>
