@@ -7652,24 +7652,22 @@ function AgentRapport() {
   const renderMarkdown = text => {
     const renderInline = str => str.split(/\*\*(.*?)\*\*/g).map((p, i) => i % 2 === 1 ? <strong key={i}>{p}</strong> : p)
     const lines = text.split('\n')
-    const out = []; let buf = []
-    const flush = () => { if (buf.length) { out.push(<ul key={`ul${out.length}`} style={{margin:'0.2rem 0 0.5rem 1.2rem',padding:0}}>{buf}</ul>); buf = [] } }
+    const out = []
     lines.forEach((line, i) => {
       if (line.startsWith('## ')) {
-        flush()
-        out.push(<h2 key={i} style={{color:'#1a365d',fontSize:'1.05rem',fontWeight:'700',marginTop:'1.4rem',marginBottom:'0.4rem',paddingBottom:'0.3rem',borderBottom:'2px solid #2b6cb0'}}>{renderInline(line.slice(3))}</h2>)
+        out.push(<h2 key={i} style={{color:'#1a365d',fontSize:'1.05rem',fontWeight:'700',marginTop:'1.8rem',marginBottom:'0.6rem',paddingBottom:'0.35rem',borderBottom:'2px solid #2b6cb0'}}>{renderInline(line.slice(3))}</h2>)
       } else if (line.startsWith('### ')) {
-        flush()
-        out.push(<h3 key={i} style={{color:'#2b6cb0',fontSize:'0.92rem',fontWeight:'700',marginTop:'0.9rem',marginBottom:'0.25rem'}}>{renderInline(line.slice(4))}</h3>)
+        out.push(<h3 key={i} style={{color:'#2b6cb0',fontSize:'0.92rem',fontWeight:'700',marginTop:'1.1rem',marginBottom:'0.35rem'}}>{renderInline(line.slice(4))}</h3>)
       } else if (line.match(/^[-•*]\s/)) {
-        buf.push(<li key={i} style={{color:'#2d3748',fontSize:'0.87rem',marginBottom:'0.2rem',lineHeight:'1.55'}}>{renderInline(line.slice(2))}</li>)
+        // Listes résiduelles converties en paragraphes inline
+        out.push(<p key={i} style={{color:'#2d3748',fontSize:'0.92rem',lineHeight:'1.75',margin:'0.4rem 0',textIndent:'0'}}>{renderInline(line.replace(/^[-•*]\s/, ''))}</p>)
       } else if (line.trim() === '') {
-        flush(); out.push(<div key={i} style={{height:'0.35rem'}} />)
+        out.push(<div key={i} style={{height:'0.5rem'}} />)
       } else {
-        flush(); out.push(<p key={i} style={{color:'#2d3748',fontSize:'0.87rem',lineHeight:'1.65',margin:'0.15rem 0'}}>{renderInline(line)}</p>)
+        out.push(<p key={i} style={{color:'#2d3748',fontSize:'0.92rem',lineHeight:'1.8',margin:'0.4rem 0',textAlign:'justify'}}>{renderInline(line)}</p>)
       }
     })
-    flush(); return out
+    return out
   }
 
   // Gauge SVG pour taux
@@ -8116,8 +8114,16 @@ function AgentRapport() {
 
           {/* ─── ONGLET RAPPORT NARRATIF ─── */}
           {onglet === 'rapport' && (
-            <div style={{background:'white', borderRadius:'14px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', padding:'2rem'}}>
-              {renderMarkdown(rapport)}
+            <div style={{background:'white', borderRadius:'14px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', padding:'2.5rem 3rem'}}>
+              <div style={{maxWidth:'760px', margin:'0 auto'}}>
+                <div style={{fontSize:'0.75rem', color:'#a0aec0', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:'0.25rem'}}>CRRAE-UMOA · Service Client</div>
+                <div style={{fontWeight:'700', color:'#1a365d', fontSize:'1.3rem', marginBottom:'0.2rem'}}>{meta.periode}</div>
+                <div style={{fontSize:'0.82rem', color:'#718096', marginBottom:'2rem', paddingBottom:'1rem', borderBottom:'1px solid #e2e8f0'}}>
+                  Généré le {new Date(meta.genereLe).toLocaleString('fr-FR', {day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}
+                  {meta.scopeLabel ? ` · ${meta.scopeLabel}` : ''}
+                </div>
+                {renderMarkdown(rapport)}
+              </div>
             </div>
           )}
 
