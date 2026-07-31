@@ -5809,6 +5809,46 @@ function Rapports({ demandes: demandesProp = [] }) {
     return sorted.length % 2 === 0 ? Math.round((sorted[m-1] + sorted[m]) / 2) : sorted[m]
   })()
 
+  // Réclamations vs demandes simples
+  const catDemande = objet => {
+    if (!objet) return 'Non précisé'
+    const o = objet.toLowerCase()
+    if (o.includes('réclamation') || o === 'pension non payée') return 'Réclamation'
+    if (o.includes('information') || o.includes('informations')) return "Information"
+    if (o.includes('attestation') || o.includes('bulletin') || o.includes('certificat') || o.includes('relevé') || o.includes('simulation')) return 'Document'
+    if (o.includes('remboursement') || o.includes('prise en charge') || o.includes('entente') ||
+        o.includes('liquidation') || o.includes('domiciliation') || o.includes('adhésion') ||
+        o.includes('poursuite') || o.includes('assistance') || o.includes('évacuation') || o.includes('location')) return 'Prestation'
+    return 'Autre'
+  }
+  const CAT_ORDER   = ['Réclamation', 'Prestation', 'Document', 'Information', 'Autre', 'Non précisé']
+  const CAT_COLORS  = { 'Réclamation':'#c53030', 'Prestation':'#2b6cb0', 'Document':'#276749', 'Information':'#b7791f', 'Autre':'#718096', 'Non précisé':'#a0aec0' }
+  const CAT_BG      = { 'Réclamation':'#fff5f5', 'Prestation':'#ebf8ff', 'Document':'#f0fff4', 'Information':'#fffbeb', 'Autre':'#f7fafc', 'Non précisé':'#f7fafc' }
+  const CAT_LABELS  = { 'Réclamation':'Réclamations', 'Prestation':'Prestations', 'Document':'Documents', 'Information':'Informations', 'Autre':'Autres', 'Non précisé':'Non précisé' }
+
+  const statsParCat = CAT_ORDER.map(cat => {
+    const items  = filtered.filter(d => catDemande(d.objetDemande) === cat)
+    const clos   = items.filter(d => CLOS.includes(d.statut))
+    const horsSla = items.filter(isHorsSla)
+    const delaiMoyen = clos.filter(d => d.dateReception && d.dateTraitement).length > 0
+      ? Math.round(clos.filter(d => d.dateReception && d.dateTraitement)
+          .reduce((s, d) => s + Math.max(0, Math.round((new Date(d.dateTraitement) - new Date(d.dateReception)) / 86400000)), 0)
+          / clos.filter(d => d.dateReception && d.dateTraitement).length)
+      : null
+    return { cat, total: items.length, clos: clos.length, horsSla: horsSla.length, delaiMoyen,
+      taux: items.length > 0 ? Math.round((items.length - horsSla.length) / items.length * 100) : 100 }
+  }).filter(s => s.total > 0)
+
+  const totalReclamations = statsParCat.find(s => s.cat === 'Réclamation')?.total || 0
+  const tauxReclamations  = total > 0 ? Math.round(totalReclamations / total * 100) : 0
+  const tauxSlaReclam     = statsParCat.find(s => s.cat === 'Réclamation')?.taux ?? null
+
+  // Top types de réclamation
+  const topReclamations = Object.entries(
+    filtered.filter(d => catDemande(d.objetDemande) === 'Réclamation')
+      .reduce((acc, d) => { const k = d.objetDemande || 'Non précisé'; acc[k] = (acc[k] || 0) + 1; return acc }, {})
+  ).sort((a, b) => b[1] - a[1]).slice(0, 6)
+
   const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
   const typeDateLabel = typeDate === 'dateTraitement' ? 'par date de traitement' : 'par date de création'
   const filtresActifs = [filterService && `Service : ${filterService}`, filterAgent && `Agent : ${filterAgent}`].filter(Boolean)
@@ -6398,6 +6438,100 @@ function Rapports({ demandes: demandesProp = [] }) {
                 })}
               </div>
               <div style={{fontSize:'0.7rem',color:'#a0aec0',marginTop:'0.5rem'}}>Sur {demandesCloturees.length} dossier{demandesCloturees.length>1?'s':''} clôturé{demandesCloturees.length>1?'s':''} avec date de réception et de traitement</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Réclamations vs demandes */}
+      {statsParCat.length > 0 && (
+        <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+          <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'1rem',fontSize:'1rem'}}>📣 Réclamations vs demandes</div>
+
+          {/* KPIs réclamations */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'0.75rem',marginBottom:'1.25rem'}}>
+            {[
+              { label:'Réclamations reçues', val: totalReclamations, color:'#c53030', bg:'#fff5f5' },
+              { label:'Part des réclamations', val: `${tauxReclamations}%`, color: tauxReclamations > 20 ? '#c53030' : tauxReclamations > 10 ? '#b7791f' : '#276749', bg: tauxReclamations > 20 ? '#fff5f5' : tauxReclamations > 10 ? '#fffbeb' : '#f0fff4' },
+              { label:'Taux SLA réclamations', val: tauxSlaReclam != null ? `${tauxSlaReclam}%` : '—', color: tauxSlaReclam != null && tauxSlaReclam < 70 ? '#c53030' : tauxSlaReclam != null && tauxSlaReclam < 90 ? '#b7791f' : '#276749', bg: tauxSlaReclam != null && tauxSlaReclam < 70 ? '#fff5f5' : '#f0fff4' },
+            ].map(k => (
+              <div key={k.label} style={{background:k.bg,borderRadius:'10px',padding:'0.75rem 1rem',border:`1px solid ${k.color}30`}}>
+                <div style={{fontSize:'0.72rem',color:'#718096',marginBottom:'0.25rem'}}>{k.label}</div>
+                <div style={{fontSize:'1.5rem',fontWeight:'700',color:k.color}}>{k.val}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1.2fr 0.8fr',gap:'1.25rem'}}>
+            {/* Tableau par catégorie */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.5rem'}}>Répartition par catégorie</div>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.8rem'}}>
+                <thead>
+                  <tr style={{background:'#f7fafc'}}>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'left'}}>Catégorie</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>Total</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>Part</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>Taux SLA</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>Hors délai</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>Délai moy.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statsParCat.map(s => {
+                    const pct = total > 0 ? Math.round(s.total / total * 100) : 0
+                    const color = CAT_COLORS[s.cat]
+                    return (
+                      <tr key={s.cat} style={styles.tr}>
+                        <td style={{...styles.td,padding:'0.35rem 0.5rem'}}>
+                          <span style={{background:CAT_BG[s.cat],color,padding:'2px 8px',borderRadius:10,fontSize:'0.75rem',fontWeight:'600'}}>{CAT_LABELS[s.cat]}</span>
+                        </td>
+                        <td style={{...styles.td,textAlign:'center',fontWeight:'700',color:'#2d3748'}}>{s.total}</td>
+                        <td style={{...styles.td,textAlign:'center'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:'4px'}}>
+                            <div style={{flex:1,height:5,background:'#edf2f7',borderRadius:3}}>
+                              <div style={{height:5,width:`${pct}%`,background:color,borderRadius:3,opacity:0.7}}/>
+                            </div>
+                            <span style={{fontSize:'0.72rem',color:'#718096',width:'2.5rem',textAlign:'right'}}>{pct}%</span>
+                          </div>
+                        </td>
+                        <td style={{...styles.td,textAlign:'center'}}>
+                          <span style={{background:s.taux>=90?'#f0fff4':s.taux>=70?'#fffbeb':'#fff5f5',color:s.taux>=90?'#276749':s.taux>=70?'#b7791f':'#c53030',padding:'1px 7px',borderRadius:10,fontSize:'0.75rem',fontWeight:'700'}}>{s.taux}%</span>
+                        </td>
+                        <td style={{...styles.td,textAlign:'center',color:s.horsSla>0?'#c53030':'#718096',fontWeight:s.horsSla>0?'700':'400'}}>{s.horsSla}</td>
+                        <td style={{...styles.td,textAlign:'center',color:'#4a5568'}}>{s.delaiMoyen != null ? `${s.delaiMoyen}j` : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Top types réclamation */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.5rem'}}>
+                Types de réclamation les plus fréquents
+              </div>
+              {topReclamations.length > 0 ? (
+                <div style={{display:'flex',flexDirection:'column',gap:'0.45rem'}}>
+                  {topReclamations.map(([type, nb], i) => {
+                    const pct = topReclamations[0][1] > 0 ? Math.round(nb / topReclamations[0][1] * 100) : 0
+                    return (
+                      <div key={type}>
+                        <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.78rem',marginBottom:'2px'}}>
+                          <span style={{color:'#2d3748',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'80%'}}>{type}</span>
+                          <span style={{color:'#c53030',fontWeight:'700',marginLeft:'0.5rem'}}>{nb}</span>
+                        </div>
+                        <div style={{height:5,background:'#edf2f7',borderRadius:3}}>
+                          <div style={{height:5,width:`${pct}%`,background:`rgba(197,48,48,${0.3+i*0.1})`,borderRadius:3}}/>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div style={{fontSize:'0.82rem',color:'#a0aec0',padding:'1rem 0'}}>Aucune réclamation dans la période sélectionnée.</div>
+              )}
             </div>
           </div>
         </div>
