@@ -5525,6 +5525,11 @@ function Rapports({ demandes: demandesProp = [] }) {
   const demandes = demandesProp
   const [periode, setPeriode] = useState('tout')
   const [typeDate, setTypeDate] = useState('dateReception')
+  const [filterService, setFilterService] = useState('')
+  const [filterAgent, setFilterAgent] = useState('')
+
+  const servicesDispos = [...new Set(demandes.map(d => d.service).filter(Boolean))].sort()
+  const agentsDispos   = [...new Set([...demandes.map(d => d.agentN1), ...demandes.map(d => d.agentN2)].filter(Boolean))].sort()
 
   // Constantes locales alignées sur le Dashboard
   const CLOS   = ['Clôturée', 'Traité', 'Clôturé']
@@ -5532,15 +5537,16 @@ function Rapports({ demandes: demandesProp = [] }) {
 
   const now = new Date()
   const filtered = demandes.filter(d => {
-    if (periode === 'tout') return true
-    const ref = typeDate === 'dateTraitement'
-      ? d.dateTraitement
-      : (d.dateReception || d.createdAt)
-    if (!ref) return false
-    const date = new Date(ref)
-    if (periode === 'semaine') return (now - date) / (1000*60*60*24) <= 7
-    if (periode === 'mois') return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear()
-    if (periode === 'annee') return date.getFullYear() === now.getFullYear()
+    if (periode !== 'tout') {
+      const ref = typeDate === 'dateTraitement' ? d.dateTraitement : (d.dateReception || d.createdAt)
+      if (!ref) return false
+      const date = new Date(ref)
+      if (periode === 'semaine' && (now - date) / (1000*60*60*24) > 7) return false
+      if (periode === 'mois' && (date.getMonth() !== now.getMonth() || date.getFullYear() !== now.getFullYear())) return false
+      if (periode === 'annee' && date.getFullYear() !== now.getFullYear()) return false
+    }
+    if (filterService && d.service !== filterService) return false
+    if (filterAgent && d.agentN1 !== filterAgent && d.agentN2 !== filterAgent) return false
     return true
   })
 
@@ -5692,6 +5698,7 @@ function Rapports({ demandes: demandesProp = [] }) {
 
   const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
   const typeDateLabel = typeDate === 'dateTraitement' ? 'par date de traitement' : 'par date de création'
+  const filtresActifs = [filterService && `Service : ${filterService}`, filterAgent && `Agent : ${filterAgent}`].filter(Boolean)
   const dateExport = new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')
 
   const exportPDF = () => {
@@ -5705,7 +5712,7 @@ function Rapports({ demandes: demandesProp = [] }) {
     y += 7
     doc.setFontSize(10)
     doc.setTextColor(113, 128, 150)
-    doc.text(`Période : ${periodeLabel} (${typeDateLabel}) — Généré le ${new Date().toLocaleString('fr-FR')}`, 14, y)
+    doc.text(`Période : ${periodeLabel} (${typeDateLabel})${filtresActifs.length ? ` — ${filtresActifs.join(', ')}` : ''} — Généré le ${new Date().toLocaleString('fr-FR')}`, 14, y)
     y += 6
 
     const addTable = (title, head, body) => {
@@ -5779,7 +5786,7 @@ function Rapports({ demandes: demandesProp = [] }) {
 
     const titleSlide = pptx.addSlide()
     titleSlide.addText('Rapport CRRAE-CRM', { x: 0.5, y: 1.8, w: 12.3, h: 1, fontSize: 36, bold: true, color: '1a365d' })
-    titleSlide.addText(`Période : ${periodeLabel} — ${typeDateLabel}`, { x: 0.5, y: 2.8, fontSize: 18, color: '4a5568' })
+    titleSlide.addText(`Période : ${periodeLabel} — ${typeDateLabel}${filtresActifs.length ? ` — ${filtresActifs.join(', ')}` : ''}`, { x: 0.5, y: 2.8, fontSize: 18, color: '4a5568' })
     titleSlide.addText(`Généré le ${new Date().toLocaleString('fr-FR')}`, { x: 0.5, y: 3.3, fontSize: 14, color: '718096' })
 
     const kpiSlide = pptx.addSlide()
@@ -5937,7 +5944,43 @@ function Rapports({ demandes: demandesProp = [] }) {
             📊 Export PowerPoint
           </button>
         </div>
+
+        {/* Filtres service / agent */}
+        <div style={{display:'flex',gap:'0.5rem',flexWrap:'wrap',alignItems:'center',marginTop:'0.5rem'}}>
+          <span style={{fontSize:'0.82rem',color:'#718096',fontWeight:'600'}}>Filtrer :</span>
+          <select
+            value={filterService}
+            onChange={e => setFilterService(e.target.value)}
+            style={{padding:'0.4rem 0.65rem',borderRadius:'6px',border:`1px solid ${filterService?'#2b6cb0':'#e2e8f0'}`,background:filterService?'#ebf8ff':'white',fontSize:'0.82rem',color:filterService?'#2b6cb0':'#4a5568',fontWeight:filterService?'600':'400',cursor:'pointer'}}
+          >
+            <option value="">🏢 Tous les services</option>
+            {servicesDispos.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select
+            value={filterAgent}
+            onChange={e => setFilterAgent(e.target.value)}
+            style={{padding:'0.4rem 0.65rem',borderRadius:'6px',border:`1px solid ${filterAgent?'#6b46c1':'#e2e8f0'}`,background:filterAgent?'#faf5ff':'white',fontSize:'0.82rem',color:filterAgent?'#6b46c1':'#4a5568',fontWeight:filterAgent?'600':'400',cursor:'pointer'}}
+          >
+            <option value="">👤 Tous les agents</option>
+            {agentsDispos.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          {(filterService || filterAgent) && (
+            <button
+              onClick={() => { setFilterService(''); setFilterAgent('') }}
+              style={{padding:'0.4rem 0.75rem',borderRadius:'6px',border:'none',background:'#fed7d7',color:'#c53030',fontSize:'0.82rem',cursor:'pointer',fontWeight:'600'}}
+            >
+              ✕ Réinitialiser
+            </button>
+          )}
+        </div>
       </div>
+
+      {filtresActifs.length > 0 && (
+        <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:'10px',padding:'0.6rem 1rem',marginBottom:'0.75rem',fontSize:'0.85rem',color:'#2b6cb0',display:'flex',alignItems:'center',gap:'0.5rem'}}>
+          <span style={{fontWeight:'700'}}>🔍 Filtres actifs :</span>
+          {filtresActifs.join(' — ')} — {total} demande{total > 1 ? 's' : ''} correspondante{total > 1 ? 's' : ''}
+        </div>
+      )}
 
       {typeDate === 'dateTraitement' && periode !== 'tout' && (
         <div style={{background:'#f0fff4',border:'1px solid #9ae6b4',borderRadius:'10px',padding:'0.6rem 1rem',marginBottom:'0.75rem',fontSize:'0.85rem',color:'#276749',display:'flex',alignItems:'center',gap:'0.5rem'}}>
