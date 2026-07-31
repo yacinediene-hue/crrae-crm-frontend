@@ -5605,11 +5605,24 @@ function Rapports({ demandes: demandesProp = [] }) {
   }).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
 
   // Performance services
-  const SLA_SERVICES = {DPM:'3j',DPR:'5j',DDSI:'6j',PATRIMOINE:'7j',DCR:'5j',DFC:'5j',DRUC:'5j',REGISSEUR:'5j',Autre:'5j'}
-  const perfServices = Object.keys(SLA_SERVICES).map(s => {
+  const SLA_SERVICES_LEGACY = {DPM:'3j',DPR:'5j',DDSI:'6j',PATRIMOINE:'7j',DCR:'5j',DFC:'5j',DRUC:'5j',REGISSEUR:'5j',Autre:'5j'}
+  const perfServices = Object.keys(SLA_SERVICES_LEGACY).map(s => {
     const t = filtered.filter(d => d.service === s)
     const oui = t.filter(d => d.respectDelai === 'OUI').length
-    return { name: s, total: t.length, taux: t.length > 0 ? Math.round(oui/t.length*100) : 0 }
+
+    // Délai CMR le plus fréquent dans ce service (mode sur dateLimite - dateReception)
+    const delaisCmr = t
+      .filter(d => d.dateLimite && d.dateReception)
+      .map(d => Math.round((new Date(d.dateLimite) - new Date(d.dateReception)) / 86400000))
+      .filter(n => n > 0)
+    let slaMax = SLA_SERVICES_LEGACY[s]
+    if (delaisCmr.length > 0) {
+      const freq = delaisCmr.reduce((acc, n) => { acc[n] = (acc[n] || 0) + 1; return acc }, {})
+      const mode = Number(Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0])
+      slaMax = `${mode}j`
+    }
+
+    return { name: s, total: t.length, taux: t.length > 0 ? Math.round(oui/t.length*100) : 0, slaMax }
   }).filter(s => s.total > 0)
 
   // Critiques — aligné sur Dashboard (!CLOS + priorité/délai/réclamation)
@@ -5683,7 +5696,7 @@ function Rapports({ demandes: demandesProp = [] }) {
     )
 
     addTable('Respect des délais par service', ['Service','Total','SLA max','Taux'],
-      perfServices.map(s => [s.name, s.total, SLA_SERVICES[s.name], `${s.taux}%`])
+      perfServices.map(s => [s.name, s.total, s.slaMax, `${s.taux}%`])
     )
 
     doc.save(`Rapport_CRRAE_${periode}_${dateExport}.pdf`)
@@ -5742,7 +5755,7 @@ function Rapports({ demandes: demandesProp = [] }) {
     serviceSlide.addText('Respect des délais par service', { x: 0.4, y: 0.25, fontSize: 22, bold: true, color: '1a365d' })
     serviceSlide.addTable([
       head('Service','Total','SLA max','Taux'),
-      ...perfServices.map(s => [s.name, String(s.total), SLA_SERVICES[s.name], `${s.taux}%`])
+      ...perfServices.map(s => [s.name, String(s.total), s.slaMax, `${s.taux}%`])
     ], { x: 0.4, y: 0.9, w: 6, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
 
     pptx.writeFile({ fileName: `Rapport_CRRAE_${periode}_${dateExport}.pptx` })
@@ -5966,7 +5979,7 @@ function Rapports({ demandes: demandesProp = [] }) {
                 <tr key={s.name} style={styles.tr}>
                   <td style={styles.td}>{s.name}</td>
                   <td style={styles.td}>{s.total}</td>
-                  <td style={styles.td}>{SLA_SERVICES[s.name]}</td>
+                  <td style={styles.td}>{s.slaMax}</td>
                   <td style={styles.td}><span style={{...styles.badge,background:s.taux>=80?'#f0fff4':'#fff5f5',color:s.taux>=80?'#276749':'#c53030'}}>{s.taux}%</span></td>
                 </tr>
               ))}
