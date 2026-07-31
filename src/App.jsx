@@ -7272,39 +7272,96 @@ function PageEnquete() {
 }
 
 // Agent Data Storytelling — rapports narratifs pour le Comité de Direction
+const SERVICES_LISTE = ['DPM', 'DPR', 'DDSI', 'DCR', 'DRUC']
+const HIST_KEY = 'crrae_rapport_historique'
+
 function AgentRapport() {
   const [periode, setPeriode] = useState('mois')
   const [debut, setDebut] = useState('')
   const [fin, setFin] = useState('')
   const [type, setType] = useState('complet')
+  const [filterService, setFilterService] = useState('')
+  const [filterAgent, setFilterAgent] = useState('')
   const [loading, setLoading] = useState(false)
   const [rapport, setRapport] = useState(null)
   const [meta, setMeta] = useState(null)
   const [analytics, setAnalytics] = useState(null)
   const [erreur, setErreur] = useState(null)
   const [onglet, setOnglet] = useState('visualisations')
+  const [historique, setHistorique] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]') } catch { return [] }
+  })
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const chatEndRef = React.useRef(null)
+
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
 
   const generer = async () => {
     setLoading(true)
-    setRapport(null)
-    setMeta(null)
-    setAnalytics(null)
-    setErreur(null)
+    setRapport(null); setMeta(null); setAnalytics(null); setErreur(null); setChatMessages([])
     try {
       const res = await API.post('/story', {
         periode,
         debut: periode === 'custom' ? debut : undefined,
         fin:   periode === 'custom' ? fin   : undefined,
         type,
+        service: filterService || undefined,
+        agent:   filterAgent.trim() || undefined,
       })
       setRapport(res.data.rapport)
       setMeta(res.data.metadata)
       setAnalytics(res.data.analytics)
       setOnglet('visualisations')
+      // Historique local (max 5)
+      const entry = {
+        id: Date.now(),
+        date: new Date().toLocaleString('fr-FR'),
+        periode: res.data.metadata.periode,
+        type,
+        service: filterService,
+        total: res.data.metadata.totalDemandes,
+        tauxSla: res.data.metadata.tauxSla,
+        rapport: res.data.rapport,
+        meta: res.data.metadata,
+        analytics: res.data.analytics,
+      }
+      const hist = [entry, ...historique].slice(0, 5)
+      setHistorique(hist)
+      localStorage.setItem(HIST_KEY, JSON.stringify(hist))
     } catch (e) {
       setErreur(e?.response?.data?.message || 'Erreur lors de la génération du rapport')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const chargerHistorique = (entry) => {
+    setRapport(entry.rapport); setMeta(entry.meta); setAnalytics(entry.analytics)
+    setChatMessages([]); setOnglet('visualisations')
+  }
+
+  const supprimerHistorique = (id) => {
+    const hist = historique.filter(h => h.id !== id)
+    setHistorique(hist); localStorage.setItem(HIST_KEY, JSON.stringify(hist))
+  }
+
+  const poserQuestion = async () => {
+    if (!chatInput.trim() || !meta) return
+    const q = chatInput.trim(); setChatInput('')
+    setChatMessages(prev => [...prev, { role: 'user', text: q }])
+    setChatLoading(true)
+    try {
+      const contexteData = `Période : ${meta.periode}. Total : ${meta.totalDemandes} demandes. Traitées : ${meta.traites} (${meta.tauxTraite}%). Taux SLA : ${meta.tauxSla}%. Hors SLA : ${meta.horsSla}. Escalades : ${meta.escalades}. Délai moyen : ${meta.delaiMoyen || 'N/A'} jours. Satisfaction : ${meta.moyNote || 'N/A'}/5. NPS : ${meta.nps ?? 'N/A'}. Services : ${analytics?.byService?.map(s => `${s.service} (${s.total} dem., SLA ${s.tauxSla}%)`).join(', ') || 'N/A'}.`
+      const res = await API.post('/story/chat', { question: q, contexteData })
+      setChatMessages(prev => [...prev, { role: 'assistant', text: res.data.reponse }])
+    } catch (e) {
+      setChatMessages(prev => [...prev, { role: 'assistant', text: '⚠️ Erreur lors de la réponse. Réessayez.' }])
+    } finally {
+      setChatLoading(false)
     }
   }
 
@@ -7683,6 +7740,19 @@ function AgentRapport() {
                   style={{flex:1, border:'1px solid #e2e8f0', borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.85rem'}} />
               </div>
             )}
+            <div style={{marginTop:'0.9rem'}}>
+              <div style={{fontWeight:'600', color:'#1a365d', fontSize:'0.82rem', marginBottom:'0.4rem'}}>🔍 Filtrer par (optionnel)</div>
+              <div style={{display:'flex', gap:'0.5rem'}}>
+                <select value={filterService} onChange={e=>setFilterService(e.target.value)}
+                  style={{flex:1, border:`1px solid ${filterService?'#2b6cb0':'#e2e8f0'}`, borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.82rem', background:filterService?'#ebf8ff':'white', color:filterService?'#2b6cb0':'#4a5568'}}>
+                  <option value="">🏢 Tous les services</option>
+                  {SERVICES_LISTE.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <input value={filterAgent} onChange={e=>setFilterAgent(e.target.value)}
+                  placeholder="👤 Nom agent…"
+                  style={{flex:1, border:`1px solid ${filterAgent?'#6b46c1':'#e2e8f0'}`, borderRadius:'6px', padding:'0.4rem 0.6rem', fontSize:'0.82rem', background:filterAgent?'#faf5ff':'white'}} />
+              </div>
+            </div>
           </div>
           <div>
             <div style={{fontWeight:'600', color:'#1a365d', fontSize:'0.88rem', marginBottom:'0.6rem'}}>📋 Type de rapport</div>
@@ -7698,13 +7768,75 @@ function AgentRapport() {
             </div>
           </div>
         </div>
-        <button onClick={generer} disabled={loading || (periode==='custom' && (!debut||!fin))}
-          style={{...styles.button, width:'auto', padding:'0.75rem 2rem', fontSize:'0.95rem',
-            background: loading ? '#718096':'#1a365d', opacity: (periode==='custom'&&(!debut||!fin)) ? 0.5:1,
-            cursor: loading ? 'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'0.5rem'}}>
-          {loading ? <><span style={{animation:'spin 1s linear infinite', display:'inline-block'}}>⏳</span> Analyse en cours...</> : '🚀 Générer l\'analyse'}
-        </button>
+        <div style={{display:'flex', gap:'0.75rem', alignItems:'center', flexWrap:'wrap'}}>
+          <button onClick={generer} disabled={loading || (periode==='custom' && (!debut||!fin))}
+            style={{...styles.button, width:'auto', padding:'0.75rem 2rem', fontSize:'0.95rem',
+              background: loading ? '#718096':'#1a365d', opacity: (periode==='custom'&&(!debut||!fin)) ? 0.5:1,
+              cursor: loading ? 'not-allowed':'pointer', display:'flex', alignItems:'center', gap:'0.5rem'}}>
+            {loading ? <><span style={{animation:'spin 1s linear infinite', display:'inline-block'}}>⏳</span> Analyse en cours…</> : '🚀 Générer l\'analyse'}
+          </button>
+          {(filterService || filterAgent) && (
+            <button onClick={()=>{setFilterService('');setFilterAgent('')}}
+              style={{padding:'0.5rem 1rem',borderRadius:'7px',border:'none',background:'#fed7d7',color:'#c53030',fontSize:'0.82rem',cursor:'pointer',fontWeight:'600'}}>
+              ✕ Réinitialiser filtres
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Historique local */}
+      {historique.length > 0 && !rapport && (
+        <div style={{background:'white', borderRadius:'14px', padding:'1rem 1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', marginBottom:'1rem'}}>
+          <div style={{fontWeight:'700', color:'#1a365d', marginBottom:'0.75rem', fontSize:'0.92rem'}}>🕒 Rapports récents</div>
+          <div style={{display:'flex', flexDirection:'column', gap:'0.4rem'}}>
+            {historique.map(h => (
+              <div key={h.id} style={{display:'flex', alignItems:'center', gap:'0.75rem', padding:'0.5rem 0.75rem', borderRadius:'8px', background:'#f7fafc', border:'1px solid #e2e8f0'}}>
+                <div style={{flex:1}}>
+                  <span style={{fontWeight:'600', color:'#2d3748', fontSize:'0.85rem'}}>{h.periode}</span>
+                  <span style={{color:'#a0aec0', fontSize:'0.78rem', marginLeft:'0.5rem'}}>{h.date}</span>
+                  {h.service && <span style={{marginLeft:'0.5rem', background:'#ebf8ff', color:'#2b6cb0', fontSize:'0.72rem', padding:'1px 7px', borderRadius:8}}>{h.service}</span>}
+                  <span style={{marginLeft:'0.5rem', color:'#718096', fontSize:'0.78rem'}}>{h.total} dem. · SLA {h.tauxSla}%</span>
+                </div>
+                <button onClick={()=>chargerHistorique(h)}
+                  style={{padding:'0.3rem 0.75rem', borderRadius:'6px', border:'none', background:'#2b6cb0', color:'white', fontSize:'0.78rem', cursor:'pointer', fontWeight:'600'}}>
+                  Charger
+                </button>
+                <button onClick={()=>supprimerHistorique(h.id)}
+                  style={{padding:'0.3rem 0.5rem', borderRadius:'6px', border:'none', background:'#fed7d7', color:'#c53030', fontSize:'0.78rem', cursor:'pointer'}}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* État vide — guide */}
+      {!rapport && !loading && !erreur && (
+        <div style={{background:'white', borderRadius:'14px', padding:'2rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', marginBottom:'1rem'}}>
+          <div style={{textAlign:'center', marginBottom:'1.5rem'}}>
+            <div style={{fontSize:'3rem', marginBottom:'0.5rem'}}>🤖</div>
+            <div style={{fontWeight:'700', color:'#1a365d', fontSize:'1.1rem', marginBottom:'0.3rem'}}>Agent Data Storytelling</div>
+            <div style={{color:'#718096', fontSize:'0.88rem'}}>Sélectionnez une période et un type de rapport, puis cliquez sur Générer</div>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'1rem'}}>
+            {[
+              { icon:'📄', title:'Résumé exécutif', desc:'Synthèse en 1 page — ouverture de réunion. 3 chiffres clés, 2 points d\'attention, 2 recommandations.', color:'#ebf8ff', border:'#bee3f8' },
+              { icon:'📊', title:'Rapport complet', desc:'Toutes les dimensions : volume, SLA, satisfaction, agents, types de demandes, canaux de contact.', color:'#f0fff4', border:'#9ae6b4' },
+              { icon:'📈', title:'Analyse tendances', desc:'Évolutions, signaux faibles et feuille de route opérationnelle pour le Comité de Direction.', color:'#fffbeb', border:'#fbd38d' },
+            ].map(c => (
+              <div key={c.title} style={{background:c.color, borderRadius:'10px', padding:'1rem', border:`1px solid ${c.border}`}}>
+                <div style={{fontSize:'1.5rem', marginBottom:'0.4rem'}}>{c.icon}</div>
+                <div style={{fontWeight:'700', color:'#1a365d', fontSize:'0.88rem', marginBottom:'0.3rem'}}>{c.title}</div>
+                <div style={{fontSize:'0.78rem', color:'#4a5568', lineHeight:'1.5'}}>{c.desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:'1.25rem', padding:'0.75rem 1rem', background:'#f7fafc', borderRadius:'8px', fontSize:'0.8rem', color:'#718096', borderLeft:'3px solid #2b6cb0'}}>
+            💡 <strong>Astuce :</strong> Filtrez par service (DPM, DPR…) ou par agent pour obtenir un rapport ciblé. Posez des questions à l'IA après la génération pour approfondir l'analyse.
+          </div>
+        </div>
+      )}
 
       {erreur && (
         <div style={{background:'#fff5f5', border:'1px solid #fed7d7', borderRadius:'10px', padding:'1rem', color:'#c53030', marginBottom:'1rem'}}>
@@ -7751,11 +7883,44 @@ function AgentRapport() {
             </div>
           </div>
 
+          {/* Insights automatiques */}
+          {(() => {
+            const insights = []
+            if (meta.tauxSla < 70) insights.push({ type:'danger', icon:'🚨', msg:`Taux SLA critique : ${meta.tauxSla}% — ${meta.horsSla} dossier(s) hors délai actif(s).` })
+            else if (meta.tauxSla < 85) insights.push({ type:'warn', icon:'⚠️', msg:`Taux SLA en dessous de l'objectif : ${meta.tauxSla}% (cible ≥ 85%).` })
+            if (meta.horsSla > 0) insights.push({ type:'warn', icon:'⏰', msg:`${meta.horsSla} demande(s) active(s) hors délai — action corrective requise.` })
+            if (meta.escalades > 0 && meta.totalDemandes > 0 && Math.round(meta.escalades/meta.totalDemandes*100) > 20)
+              insights.push({ type:'warn', icon:'🔺', msg:`Taux d'escalade élevé : ${meta.escalades}/${meta.totalDemandes} (${Math.round(meta.escalades/meta.totalDemandes*100)}%).` })
+            if (meta.moyNote && parseFloat(meta.moyNote) < 3) insights.push({ type:'danger', icon:'😟', msg:`Satisfaction très faible : ${meta.moyNote}/5 — ${meta.notesCount} avis.` })
+            if (analytics?.byService?.some(s => s.tauxSla < 60))
+              insights.push({ type:'danger', icon:'🏢', msg:`Service en difficulté : ${analytics.byService.filter(s=>s.tauxSla<60).map(s=>`${s.service} (SLA ${s.tauxSla}%)`).join(', ')}.` })
+            if (meta.tauxSla >= 90) insights.push({ type:'success', icon:'✅', msg:`Excellente performance SLA : ${meta.tauxSla}% — Objectif largement atteint.` })
+            if (meta.tauxTraite >= 80) insights.push({ type:'success', icon:'🎯', msg:`Fort taux de traitement : ${meta.tauxTraite}% des demandes clôturées.` })
+            if (insights.length === 0) return null
+            const bgMap = { danger:'#fff5f5', warn:'#fffbeb', success:'#f0fff4' }
+            const colorMap = { danger:'#c53030', warn:'#b7791f', success:'#276749' }
+            const borderMap = { danger:'#feb2b2', warn:'#fbd38d', success:'#9ae6b4' }
+            return (
+              <div style={{background:'white', borderRadius:'14px', padding:'1rem 1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', marginBottom:'1rem'}}>
+                <div style={{fontWeight:'700', color:'#1a365d', marginBottom:'0.75rem', fontSize:'0.92rem'}}>🔍 Insights & Alertes automatiques</div>
+                <div style={{display:'flex', flexDirection:'column', gap:'0.4rem'}}>
+                  {insights.map((ins, i) => (
+                    <div key={i} style={{display:'flex', alignItems:'flex-start', gap:'0.6rem', padding:'0.55rem 0.85rem', borderRadius:'8px', background:bgMap[ins.type], border:`1px solid ${borderMap[ins.type]}`}}>
+                      <span style={{fontSize:'1rem', flexShrink:0}}>{ins.icon}</span>
+                      <span style={{fontSize:'0.84rem', color:colorMap[ins.type], lineHeight:'1.45'}}>{ins.msg}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+
           {/* Onglets */}
           <div style={{display:'flex', gap:'0', marginBottom:'1rem', background:'white', borderRadius:'10px', padding:'0.3rem', boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>
             {[
               ['visualisations','📊 Visualisations'],
               ['rapport','📝 Rapport narratif'],
+              ['chat',`💬 Chat IA${chatMessages.length > 0 ? ` (${Math.ceil(chatMessages.length/2)})` : ''}`],
             ].map(([k,lbl]) => (
               <button key={k} onClick={() => setOnglet(k)}
                 style={{flex:1, padding:'0.6rem', border:'none', cursor:'pointer', borderRadius:'7px', fontSize:'0.88rem', fontWeight: onglet===k ? '700':'400',
@@ -7909,8 +8074,8 @@ function AgentRapport() {
                     </ResponsiveContainer>
                     <div style={{display:'grid', gap:'0.4rem'}}>
                       {analytics.byCanal.map((c, i) => {
-                        const total = analytics.byCanal.reduce((s,x) => s+x.nb, 0)
-                        const pct = total > 0 ? Math.round(c.nb/total*100) : 0
+                        const tot = analytics.byCanal.reduce((s,x) => s+x.nb, 0)
+                        const pct = tot > 0 ? Math.round(c.nb/tot*100) : 0
                         return (
                           <div key={c.canal} style={{display:'flex', alignItems:'center', gap:'0.5rem'}}>
                             <div style={{width:'10px', height:'10px', borderRadius:'50%', background:CHART_COLORS[i%CHART_COLORS.length], flexShrink:0}} />
@@ -7926,6 +8091,26 @@ function AgentRapport() {
                   </div>
                 </div>
               )}
+
+              {/* Évolution mensuelle */}
+              {analytics.byMois?.length > 1 && (
+                <div style={{background:'white', borderRadius:'14px', padding:'1.25rem', boxShadow:'0 2px 10px rgba(0,0,0,0.06)'}}>
+                  <h3 style={{color:'#1a365d', margin:'0 0 0.75rem', fontSize:'0.95rem', fontWeight:'700'}}>📈 Évolution mensuelle (12 derniers mois)</h3>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <ComposedChart data={analytics.byMois} margin={{top:5,right:30,left:0,bottom:5}}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="label" tick={{fontSize:10}} />
+                      <YAxis yAxisId="left" tick={{fontSize:10}} />
+                      <YAxis yAxisId="right" orientation="right" unit="%" domain={[0,100]} tick={{fontSize:10}} />
+                      <Tooltip formatter={(v,n) => n === 'Taux SLA %' ? `${v}%` : v} />
+                      <Legend wrapperStyle={{fontSize:'0.78rem'}} />
+                      <Bar yAxisId="left" dataKey="total" name="Volume" fill="#2b6cb0" radius={[3,3,0,0]} opacity={0.8} />
+                      <Bar yAxisId="left" dataKey="traites" name="Clôturées" fill="#276749" radius={[3,3,0,0]} opacity={0.8} />
+                      <Line yAxisId="right" type="monotone" dataKey="tauxSla" name="Taux SLA %" stroke="#c53030" strokeWidth={2} dot={{r:3}} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           )}
 
@@ -7933,6 +8118,78 @@ function AgentRapport() {
           {onglet === 'rapport' && (
             <div style={{background:'white', borderRadius:'14px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', padding:'2rem'}}>
               {renderMarkdown(rapport)}
+            </div>
+          )}
+
+          {/* ─── ONGLET CHAT IA ─── */}
+          {onglet === 'chat' && (
+            <div style={{background:'white', borderRadius:'14px', boxShadow:'0 2px 10px rgba(0,0,0,0.06)', overflow:'hidden'}}>
+              <div style={{padding:'1rem 1.25rem', borderBottom:'1px solid #e2e8f0', display:'flex', alignItems:'center', gap:'0.6rem'}}>
+                <span style={{fontSize:'1.2rem'}}>💬</span>
+                <div>
+                  <div style={{fontWeight:'700', color:'#1a365d', fontSize:'0.92rem'}}>Chat IA — Questions sur vos données</div>
+                  <div style={{fontSize:'0.75rem', color:'#718096'}}>Posez des questions sur le rapport généré. L'IA répond sur la base des données réelles.</div>
+                </div>
+              </div>
+
+              {/* Suggestions */}
+              {chatMessages.length === 0 && (
+                <div style={{padding:'1rem 1.25rem', borderBottom:'1px solid #f0f0f0'}}>
+                  <div style={{fontSize:'0.78rem', color:'#718096', marginBottom:'0.5rem', fontWeight:'600'}}>Questions suggérées :</div>
+                  <div style={{display:'flex', flexWrap:'wrap', gap:'0.4rem'}}>
+                    {[
+                      'Quels sont les principaux risques à surveiller ?',
+                      'Quel service a les meilleures performances ?',
+                      'Comment améliorer le taux SLA ?',
+                      'Quelles sont les recommandations prioritaires ?',
+                      'Quels types de demandes posent problème ?',
+                    ].map(q => (
+                      <button key={q} onClick={()=>{ setChatInput(q) }}
+                        style={{padding:'0.3rem 0.75rem', borderRadius:'99px', border:'1px solid #bee3f8', background:'#ebf8ff', color:'#2b6cb0', fontSize:'0.78rem', cursor:'pointer'}}>
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Messages */}
+              <div style={{padding:'1rem 1.25rem', minHeight:'200px', maxHeight:'400px', overflowY:'auto', display:'flex', flexDirection:'column', gap:'0.75rem'}}>
+                {chatMessages.map((m, i) => (
+                  <div key={i} style={{display:'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start'}}>
+                    <div style={{maxWidth:'80%', padding:'0.6rem 0.9rem', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                      background: m.role === 'user' ? '#1a365d' : '#f7fafc', color: m.role === 'user' ? 'white' : '#2d3748',
+                      fontSize:'0.85rem', lineHeight:'1.55', border: m.role === 'assistant' ? '1px solid #e2e8f0' : 'none'}}>
+                      {m.text}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div style={{display:'flex', justifyContent:'flex-start'}}>
+                    <div style={{padding:'0.6rem 0.9rem', borderRadius:'12px 12px 12px 2px', background:'#f7fafc', border:'1px solid #e2e8f0', fontSize:'0.85rem', color:'#718096'}}>
+                      <span style={{animation:'pulse 1.2s ease-in-out infinite', display:'inline-block'}}>🤖 Analyse en cours…</span>
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Input */}
+              <div style={{padding:'0.75rem 1.25rem', borderTop:'1px solid #e2e8f0', display:'flex', gap:'0.5rem'}}>
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !chatLoading && poserQuestion()}
+                  placeholder="Posez une question sur vos données…"
+                  style={{flex:1, border:'1px solid #e2e8f0', borderRadius:'8px', padding:'0.55rem 0.85rem', fontSize:'0.85rem', outline:'none'}}
+                  disabled={chatLoading}
+                />
+                <button onClick={poserQuestion} disabled={chatLoading || !chatInput.trim()}
+                  style={{padding:'0.55rem 1.25rem', borderRadius:'8px', border:'none', background: chatLoading||!chatInput.trim() ? '#cbd5e0' : '#1a365d',
+                    color:'white', fontWeight:'700', fontSize:'0.85rem', cursor: chatLoading||!chatInput.trim() ? 'not-allowed' : 'pointer'}}>
+                  Envoyer
+                </button>
+              </div>
             </div>
           )}
         </>
