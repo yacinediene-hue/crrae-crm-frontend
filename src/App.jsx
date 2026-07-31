@@ -19,7 +19,7 @@ import { BrowserRouter, Routes, Route, Navigate, Link, NavLink, useLocation, use
 import API from './api'
 import './App.css'
 import * as XLSX from 'xlsx'
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ComposedChart, Line, CartesianGrid } from 'recharts'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import pptxgen from 'pptxgenjs'
@@ -5651,6 +5651,34 @@ function Rapports({ demandes: demandesProp = [] }) {
     }))
     .sort((a, b) => b.total - a.total)
 
+  // Évolution temporelle — volume + taux SLA par période
+  const evolutionData = (() => {
+    const buckets = {}
+    const getKey = d => {
+      const dt = new Date(d.dateReception || d.createdAt)
+      if (periode === 'semaine') return dt.toISOString().slice(0, 10)
+      if (periode === 'mois') return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${Math.ceil(dt.getDate()/7)}`
+      return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`
+    }
+    const getLabel = (key, dt) => {
+      if (periode === 'semaine') return new Date(key).toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })
+      if (periode === 'mois') return `Sem. ${key.split('-')[2]}`
+      const [y, m] = key.split('-')
+      return new Date(+y, +m-1, 1).toLocaleDateString('fr-FR', { month:'short', ...(periode==='tout'?{year:'2-digit'}:{}) })
+    }
+    filtered.forEach(d => {
+      const dt = new Date(d.dateReception || d.createdAt)
+      const key = getKey(d)
+      if (!buckets[key]) buckets[key] = { key, label: getLabel(key, dt), total: 0, horsSla: 0, clos: 0 }
+      buckets[key].total++
+      if (isHorsSla(d)) buckets[key].horsSla++
+      if (CLOS.includes(d.statut)) buckets[key].clos++
+    })
+    return Object.values(buckets)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map(b => ({ ...b, taux: b.total > 0 ? Math.round((b.total - b.horsSla) / b.total * 100) : 100 }))
+  })()
+
   // Critiques — aligné sur Dashboard (!CLOS + priorité/délai/réclamation)
   const demandesCritiques = filtered.filter(d =>
     !CLOS.includes(d.statut) && (
@@ -5925,6 +5953,32 @@ function Rapports({ demandes: demandesProp = [] }) {
               {filtered.filter(d=>ACTIFS.includes(d.statut)&&d.respectDelai==='NON').length} demande(s) hors SLA en cours
             </div>
           )}
+        </div>
+      )}
+
+      {/* Évolution temporelle */}
+      {evolutionData.length > 1 && (
+        <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
+            <div style={{fontWeight:'700',color:'#1a365d',fontSize:'1rem'}}>📈 Évolution — Volume & Conformité SLA</div>
+            <div style={{display:'flex',gap:'1rem',fontSize:'0.78rem',color:'#718096'}}>
+              <span><span style={{display:'inline-block',width:10,height:10,background:'#bee3f8',borderRadius:2,marginRight:4}}/>Volume total</span>
+              <span><span style={{display:'inline-block',width:10,height:10,background:'#fed7d7',borderRadius:2,marginRight:4}}/>Hors SLA</span>
+              <span><span style={{display:'inline-block',width:10,height:10,background:'#276749',borderRadius:'50%',marginRight:4}}/>Taux conformité %</span>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <ComposedChart data={evolutionData} margin={{top:4,right:40,left:0,bottom:0}}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{fontSize:11}} />
+              <YAxis yAxisId="left" allowDecimals={false} tick={{fontSize:11}} />
+              <YAxis yAxisId="right" orientation="right" domain={[0,100]} unit="%" tick={{fontSize:11}} />
+              <Tooltip formatter={(val, name) => name === 'taux' ? [`${val}%`, 'Conformité SLA'] : [val, name === 'total' ? 'Volume total' : name === 'horsSla' ? 'Hors SLA' : 'Clôturées']} />
+              <Bar yAxisId="left" dataKey="total"  name="total"  fill="#bee3f8" radius={[4,4,0,0]} />
+              <Bar yAxisId="left" dataKey="horsSla" name="horsSla" fill="#fed7d7" radius={[4,4,0,0]} />
+              <Line yAxisId="right" type="monotone" dataKey="taux" name="taux" stroke="#276749" strokeWidth={2} dot={{ r: 4, fill:'#276749' }} activeDot={{ r: 6 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
         </div>
       )}
 
