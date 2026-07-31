@@ -5653,6 +5653,7 @@ function Rapports({ demandes: demandesProp = [] }) {
     .map(([libelle, s]) => ({
       libelle,
       ...s,
+      enCours: s.enCours,
       taux: s.total > 0 ? Math.round((s.total - s.horsSla) / s.total * 100) : 100,
     }))
     .sort((a, b) => b.total - a.total)
@@ -5766,7 +5767,7 @@ function Rapports({ demandes: demandesProp = [] }) {
           s.libelle,
           s.delai != null ? `${s.delai}j` : '—',
           s.total,
-          Math.max(0, s.total - s.horsSla - s.clos),
+          s.enCours,
           s.horsSla,
           s.clos,
           `${s.taux}%`,
@@ -5842,7 +5843,7 @@ function Rapports({ demandes: demandesProp = [] }) {
           s.libelle,
           s.delai != null ? `${s.delai}j` : '—',
           String(s.total),
-          String(Math.max(0, s.total - s.horsSla - s.clos)),
+          String(s.enCours),
           String(s.horsSla),
           String(s.clos),
           `${s.taux}%`,
@@ -6141,7 +6142,7 @@ function Rapports({ demandes: demandesProp = [] }) {
                   <td style={{...styles.td,fontSize:'0.82rem'}}>{s.libelle}</td>
                   <td style={{...styles.td,textAlign:'center'}}>{s.delai != null ? `${s.delai}j` : '—'}</td>
                   <td style={{...styles.td,textAlign:'center'}}>{s.total}</td>
-                  <td style={{...styles.td,textAlign:'center'}}>{s.total - s.horsSla - s.clos}</td>
+                  <td style={{...styles.td,textAlign:'center'}}>{s.enCours}</td>
                   <td style={{...styles.td,textAlign:'center'}}>
                     <span style={{...styles.badge,background:s.horsSla>0?'#fff5f5':'#f0fff4',color:s.horsSla>0?'#c53030':'#276749'}}>{s.horsSla}</span>
                   </td>
