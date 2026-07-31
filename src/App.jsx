@@ -5697,6 +5697,29 @@ function Rapports({ demandes: demandesProp = [] }) {
 
   const activiteRecente = [...filtered].sort((a,b) => new Date(b.updatedAt)-new Date(a.updatedAt)).slice(0,5)
 
+  // Ancienneté des dossiers en cours
+  const demandesEnCours = filtered.filter(d => !CLOS.includes(d.statut) && d.dateReception)
+  const agesJours = demandesEnCours.map(d => Math.floor((now - new Date(d.dateReception)) / 86400000))
+  const ageMoyenEnCours = agesJours.length > 0 ? Math.round(agesJours.reduce((a,b) => a+b, 0) / agesJours.length) : null
+  const ageMaxEnCours   = agesJours.length > 0 ? Math.max(...agesJours) : null
+
+  const ageParType = Object.entries(
+    demandesEnCours.reduce((acc, d) => {
+      const k = d.objetDemande || 'Non précisé'
+      if (!acc[k]) acc[k] = { total: 0, sumAge: 0 }
+      acc[k].total++
+      acc[k].sumAge += Math.floor((now - new Date(d.dateReception)) / 86400000)
+      return acc
+    }, {})
+  )
+    .map(([type, s]) => ({ type, total: s.total, ageMoyen: Math.round(s.sumAge / s.total) }))
+    .sort((a, b) => b.ageMoyen - a.ageMoyen)
+
+  const dossiersPlusAnciens = [...demandesEnCours]
+    .sort((a, b) => new Date(a.dateReception) - new Date(b.dateReception))
+    .slice(0, 8)
+    .map(d => ({ ...d, age: Math.floor((now - new Date(d.dateReception)) / 86400000) }))
+
   const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
   const typeDateLabel = typeDate === 'dateTraitement' ? 'par date de traitement' : 'par date de création'
   const filtresActifs = [filterService && `Service : ${filterService}`, filterAgent && `Agent : ${filterAgent}`].filter(Boolean)
@@ -6054,6 +6077,78 @@ function Rapports({ demandes: demandesProp = [] }) {
               <Line yAxisId="right" type="monotone" dataKey="taux" name="taux" stroke="#276749" strokeWidth={2} dot={{ r: 4, fill:'#276749' }} activeDot={{ r: 6 }} />
             </ComposedChart>
           </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Ancienneté des dossiers en cours */}
+      {demandesEnCours.length > 0 && (
+        <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+          <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'1rem',fontSize:'1rem'}}>🗂️ Ancienneté des dossiers en cours</div>
+
+          {/* KPIs ancienneté */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'0.75rem',marginBottom:'1.25rem'}}>
+            {[
+              { label:'Dossiers en cours', val: demandesEnCours.length, color:'#2b6cb0', bg:'#ebf8ff' },
+              { label:'Âge moyen', val: ageMoyenEnCours != null ? `${ageMoyenEnCours}j` : '—', color: ageMoyenEnCours != null && ageMoyenEnCours > 5 ? '#c53030' : '#276749', bg: ageMoyenEnCours != null && ageMoyenEnCours > 5 ? '#fff5f5' : '#f0fff4' },
+              { label:'Dossier le plus ancien', val: ageMaxEnCours != null ? `${ageMaxEnCours}j` : '—', color: ageMaxEnCours != null && ageMaxEnCours > 10 ? '#c53030' : '#b7791f', bg: ageMaxEnCours != null && ageMaxEnCours > 10 ? '#fff5f5' : '#fffbeb' },
+            ].map(k => (
+              <div key={k.label} style={{background:k.bg,borderRadius:'10px',padding:'0.75rem 1rem',border:`1px solid ${k.color}30`}}>
+                <div style={{fontSize:'0.72rem',color:'#718096',marginBottom:'0.25rem'}}>{k.label}</div>
+                <div style={{fontSize:'1.5rem',fontWeight:'700',color:k.color}}>{k.val}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1rem'}}>
+            {/* Âge moyen par type */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.5rem'}}>Âge moyen par type de demande</div>
+              <div style={{display:'flex',flexDirection:'column',gap:'0.35rem'}}>
+                {ageParType.slice(0,8).map(t => {
+                  const pct = ageMaxEnCours > 0 ? Math.min(100, Math.round(t.ageMoyen / ageMaxEnCours * 100)) : 0
+                  const color = t.ageMoyen > 10 ? '#c53030' : t.ageMoyen > 5 ? '#b7791f' : '#276749'
+                  return (
+                    <div key={t.type}>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:'0.78rem',marginBottom:'2px'}}>
+                        <span style={{color:'#2d3748',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:'75%'}}>{t.type}</span>
+                        <span style={{color,fontWeight:'600',whiteSpace:'nowrap'}}>{t.ageMoyen}j ({t.total})</span>
+                      </div>
+                      <div style={{height:5,background:'#edf2f7',borderRadius:3}}>
+                        <div style={{height:5,width:`${pct}%`,background:color,borderRadius:3,transition:'width 0.3s'}}/>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Dossiers les plus anciens */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.5rem'}}>Dossiers ouverts les plus anciens</div>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.78rem'}}>
+                <thead>
+                  <tr style={{background:'#f7fafc'}}>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem'}}>N°</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem'}}>Client</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem'}}>Service</th>
+                    <th style={{...styles.th,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>Âge</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dossiersPlusAnciens.map(d => (
+                    <tr key={d.id} style={styles.tr}>
+                      <td style={{...styles.td,fontSize:'0.75rem',padding:'0.3rem 0.5rem',color:'#2b6cb0',fontWeight:'600'}}>{d.numDemande||'—'}</td>
+                      <td style={{...styles.td,fontSize:'0.75rem',padding:'0.3rem 0.5rem',maxWidth:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.nomPrenom}</td>
+                      <td style={{...styles.td,fontSize:'0.75rem',padding:'0.3rem 0.5rem'}}>{d.service||'—'}</td>
+                      <td style={{...styles.td,fontSize:'0.75rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>
+                        <span style={{background:d.age>10?'#fff5f5':d.age>5?'#fffbeb':'#f0fff4',color:d.age>10?'#c53030':d.age>5?'#b7791f':'#276749',padding:'1px 7px',borderRadius:12,fontWeight:'600'}}>{d.age}j</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
