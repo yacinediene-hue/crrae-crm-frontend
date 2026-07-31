@@ -5550,10 +5550,15 @@ function Rapports({ demandes: demandesProp = [] }) {
   const nonResolues = filtered.filter(d => !CLOS.includes(d.statut)).length
   const enCours     = filtered.filter(d => d.statut === 'En cours').length
   const enAttente   = filtered.filter(d => d.statut === 'En attente client').length
-  const horsSla     = filtered.filter(d => !CLOS.includes(d.statut) && d.respectDelai === 'NON').length
   const escaladeN2  = filtered.filter(d => d.niveauTraitement === 2).length
   const tauxTraite  = total > 0 ? Math.round(traitees / total * 100) : 0
-  const tauxSla     = total > 0 ? Math.round(filtered.filter(d => d.respectDelai === 'OUI').length / total * 100) : 0
+
+  // Hors SLA unifié — priorité dateLimite CMR, fallback sur ancien respectDelai
+  const isHorsSla = d => !CLOS.includes(d.statut) && (
+    d.dateLimite ? new Date(d.dateLimite) < now : d.respectDelai === 'NON'
+  )
+  const horsSla = filtered.filter(isHorsSla).length
+  const tauxSla = total > 0 ? Math.round((total - horsSla) / total * 100) : 0
 
   // Délai moyen de traitement
   const delaisValides = filtered.filter(d => d.delaiTraitement !== null && d.delaiTraitement !== undefined)
@@ -5600,7 +5605,7 @@ function Rapports({ demandes: demandesProp = [] }) {
       asN2: asN2.length,
       total: all.length,
       traite:  all.filter(d => CLOS.includes(d.statut)).length,
-      horsSla: all.filter(d => !CLOS.includes(d.statut) && d.respectDelai === 'NON').length,
+      horsSla: all.filter(isHorsSla).length,
     }
   }).filter(a => a.total > 0).sort((a,b) => b.total - a.total)
 
