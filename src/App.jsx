@@ -5753,6 +5753,20 @@ function Rapports({ demandes: demandesProp = [] }) {
       perfServices.map(s => [s.name, s.total, s.slaMax, `${s.taux}%`])
     )
 
+    if (perfTypes.length > 0) {
+      addTable('Respect SLA par type de demande CMR', ['Type de demande','Délai CMR','Total','En cours','Hors délai','Clôturées','Conformité'],
+        perfTypes.map(s => [
+          s.libelle,
+          s.delai != null ? `${s.delai}j` : '—',
+          s.total,
+          Math.max(0, s.total - s.horsSla - s.clos),
+          s.horsSla,
+          s.clos,
+          `${s.taux}%`,
+        ])
+      )
+    }
+
     doc.save(`Rapport_CRRAE_${periode}_${dateExport}.pdf`)
   }
 
@@ -5811,6 +5825,23 @@ function Rapports({ demandes: demandesProp = [] }) {
       head('Service','Total','SLA max','Taux'),
       ...perfServices.map(s => [s.name, String(s.total), s.slaMax, `${s.taux}%`])
     ], { x: 0.4, y: 0.9, w: 6, fontSize: 11, border: { type: 'solid', color: 'E2E8F0' } })
+
+    if (perfTypes.length > 0) {
+      const slaTypeSlide = pptx.addSlide()
+      slaTypeSlide.addText('Respect SLA par type de demande CMR', { x: 0.4, y: 0.25, fontSize: 22, bold: true, color: '1a365d' })
+      slaTypeSlide.addTable([
+        head('Type de demande','Délai CMR','Total','En cours','Hors délai','Clôturées','Conformité'),
+        ...perfTypes.map(s => [
+          s.libelle,
+          s.delai != null ? `${s.delai}j` : '—',
+          String(s.total),
+          String(Math.max(0, s.total - s.horsSla - s.clos)),
+          String(s.horsSla),
+          String(s.clos),
+          `${s.taux}%`,
+        ])
+      ], { x: 0.4, y: 0.9, w: 12.5, fontSize: 9, border: { type: 'solid', color: 'E2E8F0' } })
+    }
 
     pptx.writeFile({ fileName: `Rapport_CRRAE_${periode}_${dateExport}.pptx` })
   }
