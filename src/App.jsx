@@ -5720,6 +5720,46 @@ function Rapports({ demandes: demandesProp = [] }) {
     .slice(0, 8)
     .map(d => ({ ...d, age: Math.floor((now - new Date(d.dateReception)) / 86400000) }))
 
+  // Profil client × Canal — analyse croisée
+  const SERVICES_CMR = ['DPM', 'DPR', 'DDSI', 'DCR', 'DRUC']
+  const perfCanaux = Object.entries(
+    filtered.reduce((acc, d) => {
+      const k = labelCanalDemande(d.canal) || 'Non défini'
+      if (!acc[k]) acc[k] = { total: 0, horsSla: 0, clos: 0 }
+      acc[k].total++
+      if (isHorsSla(d)) acc[k].horsSla++
+      if (CLOS.includes(d.statut)) acc[k].clos++
+      return acc
+    }, {})
+  )
+    .map(([canal, s]) => ({
+      canal,
+      total: s.total,
+      horsSla: s.horsSla,
+      clos: s.clos,
+      enCours: Math.max(0, s.total - s.horsSla - s.clos),
+      taux: s.total > 0 ? Math.round((s.total - s.horsSla) / s.total * 100) : 100,
+    }))
+    .sort((a, b) => b.total - a.total)
+
+  const canalMaxTotal = perfCanaux.length > 0 ? perfCanaux[0].total : 1
+
+  // Pour chaque canal : répartition par service (top 3)
+  const canalParService = filtered.reduce((acc, d) => {
+    const canal = labelCanalDemande(d.canal) || 'Non défini'
+    const svc = d.service || '—'
+    if (!acc[canal]) acc[canal] = {}
+    acc[canal][svc] = (acc[canal][svc] || 0) + 1
+    return acc
+  }, {})
+
+  // Matrice service × canal (nb demandes par case)
+  const servicesAvecDemandes = SERVICES_CMR.filter(s => filtered.some(d => d.service === s))
+  const canauxAvecDemandes = perfCanaux.map(c => c.canal)
+  const matrixMax = servicesAvecDemandes.length > 0 && canauxAvecDemandes.length > 0
+    ? Math.max(...servicesAvecDemandes.flatMap(s => canauxAvecDemandes.map(c => (canalParService[c]?.[s] || 0))))
+    : 1
+
   const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
   const typeDateLabel = typeDate === 'dateTraitement' ? 'par date de traitement' : 'par date de création'
   const filtresActifs = [filterService && `Service : ${filterService}`, filterAgent && `Agent : ${filterAgent}`].filter(Boolean)
@@ -6147,6 +6187,86 @@ function Rapports({ demandes: demandesProp = [] }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profil × Canal */}
+      {perfCanaux.length > 0 && (
+        <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+          <div style={{fontWeight:'700',color:'#1a365d',marginBottom:'1rem',fontSize:'1rem'}}>📡 Analyse par canal de contact</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'1.25rem'}}>
+
+            {/* Performance par canal */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.6rem'}}>Performance SLA par canal</div>
+              <div style={{display:'flex',flexDirection:'column',gap:'0.5rem'}}>
+                {perfCanaux.map(c => {
+                  const color = c.taux >= 90 ? '#276749' : c.taux >= 70 ? '#b7791f' : '#c53030'
+                  const bg    = c.taux >= 90 ? '#f0fff4' : c.taux >= 70 ? '#fffbeb' : '#fff5f5'
+                  return (
+                    <div key={c.canal}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'3px'}}>
+                        <span style={{fontSize:'0.8rem',color:'#2d3748',fontWeight:'500'}}>{c.canal}</span>
+                        <div style={{display:'flex',gap:'0.5rem',alignItems:'center'}}>
+                          <span style={{fontSize:'0.75rem',color:'#718096'}}>{c.total} dem.</span>
+                          <span style={{background:bg,color,fontSize:'0.75rem',fontWeight:'700',padding:'1px 8px',borderRadius:10}}>{c.taux}%</span>
+                        </div>
+                      </div>
+                      <div style={{height:6,background:'#edf2f7',borderRadius:3,position:'relative'}}>
+                        <div style={{position:'absolute',height:6,width:`${Math.round(c.total/canalMaxTotal*100)}%`,background:'#bee3f8',borderRadius:3}}/>
+                        <div style={{position:'absolute',height:6,width:`${Math.round((c.total-c.horsSla)/canalMaxTotal*100)}%`,background:color,borderRadius:3,opacity:0.7}}/>
+                      </div>
+                      <div style={{display:'flex',gap:'1rem',marginTop:'2px',fontSize:'0.72rem',color:'#718096'}}>
+                        <span>En cours : {c.enCours}</span>
+                        <span style={{color:c.horsSla>0?'#c53030':'#718096'}}>Hors délai : {c.horsSla}</span>
+                        <span>Clôturées : {c.clos}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Matrice service × canal */}
+            <div>
+              <div style={{fontSize:'0.82rem',fontWeight:'600',color:'#4a5568',marginBottom:'0.6rem'}}>Répartition canal × division</div>
+              {servicesAvecDemandes.length > 0 ? (
+                <div style={{overflowX:'auto'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse',fontSize:'0.78rem'}}>
+                    <thead>
+                      <tr style={{background:'#f7fafc'}}>
+                        <th style={{...styles.th,fontSize:'0.73rem',padding:'0.3rem 0.5rem',textAlign:'left'}}>Canal</th>
+                        {servicesAvecDemandes.map(s => (
+                          <th key={s} style={{...styles.th,fontSize:'0.73rem',padding:'0.3rem 0.5rem',textAlign:'center'}}>{s}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {canauxAvecDemandes.slice(0, 7).map(canal => (
+                        <tr key={canal} style={styles.tr}>
+                          <td style={{...styles.td,fontSize:'0.78rem',padding:'0.3rem 0.5rem',fontWeight:'500',color:'#2d3748'}}>{canal}</td>
+                          {servicesAvecDemandes.map(svc => {
+                            const nb = canalParService[canal]?.[svc] || 0
+                            const intensity = matrixMax > 0 ? nb / matrixMax : 0
+                            const cellBg = nb === 0 ? '#f7fafc' : `rgba(43,108,176,${0.08 + intensity * 0.72})`
+                            const cellColor = intensity > 0.5 ? 'white' : '#2b6cb0'
+                            return (
+                              <td key={svc} style={{...styles.td,padding:'0.3rem 0.5rem',textAlign:'center',background:cellBg,color:nb===0?'#cbd5e0':cellColor,fontWeight:nb>0?'600':'400',fontSize:'0.78rem'}}>
+                                {nb || '·'}
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div style={{fontSize:'0.7rem',color:'#a0aec0',marginTop:'0.4rem'}}>Intensité de couleur = volume relatif</div>
+                </div>
+              ) : (
+                <div style={{fontSize:'0.82rem',color:'#a0aec0',padding:'1rem 0'}}>Attribuez un service aux demandes pour voir la matrice.</div>
+              )}
             </div>
           </div>
         </div>
