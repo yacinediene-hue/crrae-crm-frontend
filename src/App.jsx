@@ -5625,6 +5625,27 @@ function Rapports({ demandes: demandesProp = [] }) {
     return { name: s, total: t.length, taux: t.length > 0 ? Math.round(oui/t.length*100) : 0, slaMax }
   }).filter(s => s.total > 0)
 
+  // Respect SLA par type de demande CMR (seulement les demandes avec dateLimite)
+  const perfTypes = Object.entries(
+    filtered.filter(d => d.dateLimite && d.objetDemande).reduce((acc, d) => {
+      const k = d.objetDemande
+      if (!acc[k]) {
+        const delai = Math.round((new Date(d.dateLimite) - new Date(d.dateReception)) / 86400000)
+        acc[k] = { total: 0, horsSla: 0, clos: 0, delai: delai > 0 ? delai : null }
+      }
+      acc[k].total++
+      if (CLOS.includes(d.statut)) acc[k].clos++
+      else if (new Date(d.dateLimite) < now) acc[k].horsSla++
+      return acc
+    }, {})
+  )
+    .map(([libelle, s]) => ({
+      libelle,
+      ...s,
+      taux: s.total > 0 ? Math.round((s.total - s.horsSla) / s.total * 100) : 100,
+    }))
+    .sort((a, b) => b.total - a.total)
+
   // Critiques — aligné sur Dashboard (!CLOS + priorité/délai/réclamation)
   const demandesCritiques = filtered.filter(d =>
     !CLOS.includes(d.statut) && (
@@ -5964,6 +5985,37 @@ function Rapports({ demandes: demandesProp = [] }) {
                   <td style={styles.td}>{a.traite}</td>
                   <td style={styles.td}><span style={{...styles.badge,background:a.horsSla>0?'#fff5f5':'#f0fff4',color:a.horsSla>0?'#c53030':'#276749'}}>{a.horsSla}</span></td>
                   <td style={styles.td}><span style={{...styles.badge,background:'#f0fff4',color:'#276749'}}>{a.total>0?Math.round(a.traite/a.total*100):0}%</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ))}
+
+        {perfTypes.length > 0 && panel('📋 Respect des SLA par type de demande', 'Délais réglementaires CMR', (
+          <table style={{...styles.table,boxShadow:'none',borderRadius:0}}>
+            <thead><tr>
+              <th style={styles.th}>Type de demande</th>
+              <th style={{...styles.th,textAlign:'center'}}>Délai CMR</th>
+              <th style={{...styles.th,textAlign:'center'}}>Total</th>
+              <th style={{...styles.th,textAlign:'center'}}>En cours</th>
+              <th style={{...styles.th,textAlign:'center'}}>Hors délai</th>
+              <th style={{...styles.th,textAlign:'center'}}>Clôturées</th>
+              <th style={{...styles.th,textAlign:'center'}}>Conformité</th>
+            </tr></thead>
+            <tbody>
+              {perfTypes.map(s => (
+                <tr key={s.libelle} style={styles.tr}>
+                  <td style={{...styles.td,fontSize:'0.82rem'}}>{s.libelle}</td>
+                  <td style={{...styles.td,textAlign:'center'}}>{s.delai != null ? `${s.delai}j` : '—'}</td>
+                  <td style={{...styles.td,textAlign:'center'}}>{s.total}</td>
+                  <td style={{...styles.td,textAlign:'center'}}>{s.total - s.horsSla - s.clos}</td>
+                  <td style={{...styles.td,textAlign:'center'}}>
+                    <span style={{...styles.badge,background:s.horsSla>0?'#fff5f5':'#f0fff4',color:s.horsSla>0?'#c53030':'#276749'}}>{s.horsSla}</span>
+                  </td>
+                  <td style={{...styles.td,textAlign:'center'}}>{s.clos}</td>
+                  <td style={{...styles.td,textAlign:'center'}}>
+                    <span style={{...styles.badge,background:s.taux>=80?'#f0fff4':'#fff5f5',color:s.taux>=80?'#276749':'#c53030'}}>{s.taux}%</span>
+                  </td>
                 </tr>
               ))}
             </tbody>
