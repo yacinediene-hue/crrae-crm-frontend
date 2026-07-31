@@ -5550,6 +5550,28 @@ function Rapports({ demandes: demandesProp = [] }) {
     return true
   })
 
+  // Période précédente (même durée, même filtres service/agent)
+  const filteredPrev = periode === 'tout' ? [] : demandes.filter(d => {
+    const ref = typeDate === 'dateTraitement' ? d.dateTraitement : (d.dateReception || d.createdAt)
+    if (!ref) return false
+    const date = new Date(ref)
+    if (periode === 'semaine') {
+      const j = (now - date) / (1000*60*60*24)
+      if (j <= 7 || j > 14) return false
+    }
+    if (periode === 'mois') {
+      const pm = now.getMonth() === 0 ? 11 : now.getMonth() - 1
+      const py = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+      if (date.getMonth() !== pm || date.getFullYear() !== py) return false
+    }
+    if (periode === 'annee') {
+      if (date.getFullYear() !== now.getFullYear() - 1) return false
+    }
+    if (filterService && d.service !== filterService) return false
+    if (filterAgent && d.agentN1 !== filterAgent && d.agentN2 !== filterAgent) return false
+    return true
+  })
+
   // KPIs de base — alignés sur Dashboard (CLOS = Traité + Clôturé)
   const total       = filtered.length
   const traitees    = filtered.filter(d => CLOS.includes(d.statut)).length
@@ -5565,6 +5587,14 @@ function Rapports({ demandes: demandesProp = [] }) {
   )
   const horsSla = filtered.filter(isHorsSla).length
   const tauxSla = total > 0 ? Math.round((total - horsSla) / total * 100) : 0
+
+  // KPIs période précédente
+  const prevTotal      = filteredPrev.length
+  const prevTraitees   = filteredPrev.filter(d => CLOS.includes(d.statut)).length
+  const prevHorsSla    = filteredPrev.filter(isHorsSla).length
+  const prevTauxSla    = prevTotal > 0 ? Math.round((prevTotal - prevHorsSla) / prevTotal * 100) : 0
+  const prevEscaladeN2 = filteredPrev.filter(d => d.niveauTraitement === 2).length
+  const pctDelta = (cur, prev) => prev === 0 ? null : Math.round((cur - prev) / prev * 100)
 
   // Délai moyen de traitement
   const delaisValides = filtered.filter(d => d.delaiTraitement !== null && d.delaiTraitement !== undefined)
@@ -5842,6 +5872,7 @@ function Rapports({ demandes: demandesProp = [] }) {
   const totalReclamations = statsParCat.find(s => s.cat === 'Réclamation')?.total || 0
   const tauxReclamations  = total > 0 ? Math.round(totalReclamations / total * 100) : 0
   const tauxSlaReclam     = statsParCat.find(s => s.cat === 'Réclamation')?.taux ?? null
+  const prevReclamations  = filteredPrev.filter(d => catDemande(d.objetDemande) === 'Réclamation').length
 
   // Top types de réclamation
   const topReclamations = Object.entries(
@@ -6165,6 +6196,91 @@ function Rapports({ demandes: demandesProp = [] }) {
         {card('💬','Taux de réponse', `${tauxReponse}%`, tauxReponse >= 50 ? '#276749' : '#b7791f', `${enqueteRepondues} répondu(s)`)}
         {card('👍','Clients satisfaits (≥4/5)', nps ? `${Math.round(nps.promoteurs/notes.length*100)}%` : '—', '#276749', nps ? `${nps.detracteurs} insatisfait(s)` : '')}
       </div>
+
+      {/* Comparaison période précédente */}
+      {periode !== 'tout' && (
+        <div style={{background:'white',borderRadius:'14px',padding:'1rem 1.25rem',boxShadow:'0 2px 10px rgba(0,0,0,0.06)',marginBottom:'1rem'}}>
+          <div style={{display:'flex',alignItems:'center',gap:'0.75rem',marginBottom:'0.9rem'}}>
+            <span style={{fontWeight:'700',color:'#1a365d',fontSize:'1rem'}}>📈 Évolution vs période précédente</span>
+            <span style={{fontSize:'0.78rem',color:'#718096',background:'#f7fafc',padding:'2px 10px',borderRadius:10,border:'1px solid #e2e8f0'}}>
+              {periode === 'semaine' ? 'Semaine précédente' : periode === 'mois' ? 'Mois précédent' : 'Année précédente'}
+              {prevTotal > 0 ? ` — ${prevTotal} demande${prevTotal>1?'s':''}` : ' — aucune donnée'}
+            </span>
+          </div>
+          {prevTotal === 0 ? (
+            <div style={{color:'#a0aec0',fontSize:'0.85rem'}}>Aucune demande sur la période précédente — impossible de calculer l'évolution.</div>
+          ) : (
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'0.75rem'}}>
+              {[
+                {
+                  label: 'Volume total',
+                  cur: total, prev: prevTotal,
+                  fmt: v => String(v),
+                  goodDir: 'neutral',
+                },
+                {
+                  label: 'Clôturées',
+                  cur: traitees, prev: prevTraitees,
+                  fmt: v => String(v),
+                  goodDir: 'up',
+                },
+                {
+                  label: 'Taux SLA',
+                  cur: tauxSla, prev: prevTauxSla,
+                  fmt: v => `${v}%`,
+                  goodDir: 'up',
+                },
+                {
+                  label: 'Hors SLA',
+                  cur: horsSla, prev: prevHorsSla,
+                  fmt: v => String(v),
+                  goodDir: 'down',
+                },
+                {
+                  label: 'Escalades N2',
+                  cur: escaladeN2, prev: prevEscaladeN2,
+                  fmt: v => String(v),
+                  goodDir: 'down',
+                },
+                {
+                  label: 'Réclamations',
+                  cur: totalReclamations, prev: prevReclamations,
+                  fmt: v => String(v),
+                  goodDir: 'down',
+                },
+              ].map(({ label, cur, prev, fmt, goodDir }) => {
+                const delta = pctDelta(cur, prev)
+                const isUp = delta > 0
+                const isGood = delta === null ? null
+                  : goodDir === 'neutral' ? null
+                  : goodDir === 'up' ? isUp
+                  : !isUp
+                const deltaColor = delta === null || delta === 0 ? '#718096'
+                  : isGood === null ? '#718096'
+                  : isGood ? '#276749' : '#c53030'
+                const deltaBg = delta === null || delta === 0 ? '#f7fafc'
+                  : isGood === null ? '#f7fafc'
+                  : isGood ? '#f0fff4' : '#fff5f5'
+                return (
+                  <div key={label} style={{background:'#f9fafb',borderRadius:'10px',padding:'0.7rem 0.9rem',border:'1px solid #e2e8f0'}}>
+                    <div style={{fontSize:'0.72rem',color:'#718096',marginBottom:'0.2rem'}}>{label}</div>
+                    <div style={{display:'flex',alignItems:'baseline',gap:'0.5rem'}}>
+                      <span style={{fontSize:'1.4rem',fontWeight:'700',color:'#1a365d'}}>{fmt(cur)}</span>
+                      <span style={{fontSize:'0.75rem',color:'#a0aec0'}}>vs {fmt(prev)}</span>
+                    </div>
+                    {delta !== null && (
+                      <span style={{display:'inline-block',marginTop:'0.2rem',background:deltaBg,color:deltaColor,fontSize:'0.75rem',fontWeight:'700',padding:'1px 8px',borderRadius:8}}>
+                        {isUp ? '↑' : delta < 0 ? '↓' : '='} {delta > 0 ? '+' : ''}{delta}%
+                      </span>
+                    )}
+                    {delta === null && <span style={{fontSize:'0.72rem',color:'#a0aec0'}}>— pas de données</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Points de vigilance */}
       {demandesCritiques.length > 0 && (
