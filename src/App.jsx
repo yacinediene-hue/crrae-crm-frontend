@@ -3266,7 +3266,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     objetDemande: '', typeDemandeId: '', commentaire: '',
     agentN1: localStorage.getItem('userName') || '', service: '', agentN2: '', niveauTraitement: 1,
     dateReception: new Date().toISOString().split('T')[0],
-    dateTraitement: '', statut: 'Nouveau', actionMenee: '',
+    dateTraitement: '', dateEscalade: '', statut: 'Nouveau', actionMenee: '',
     canalCommunication: 'WhatsApp', noteSatisfaction: '',
   }
   const [form, setForm] = useState(emptyForm)
@@ -3401,6 +3401,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           ...form,
           dateReception: form.dateReception ? new Date(form.dateReception).toISOString() : null,
           dateTraitement: form.dateTraitement ? new Date(form.dateTraitement).toISOString() : null,
+          dateEscalade: form.dateEscalade ? new Date(form.dateEscalade).toISOString() : null,
           noteSatisfaction: form.noteSatisfaction !== '' && form.noteSatisfaction !== null && form.noteSatisfaction !== undefined
             ? parseInt(form.noteSatisfaction, 10) : null,
         }
@@ -3461,6 +3462,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
       service: d.service || '', agentN2: d.agentN2 || '',
       dateReception: d.dateReception ? new Date(d.dateReception).toISOString().split('T')[0] : '',
       dateTraitement: d.dateTraitement ? new Date(d.dateTraitement).toISOString().split('T')[0] : '',
+      dateEscalade: d.dateEscalade ? new Date(d.dateEscalade).toISOString().split('T')[0] : '',
       statut: d.statut || 'En cours', actionMenee: d.actionMenee || '',
       canalCommunication: d.canalCommunication || 'WhatsApp',
       noteSatisfaction: d.noteSatisfaction || '',
@@ -4419,6 +4421,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             <input style={inp} placeholder="Agent N1 (Front Office)" value={form.agentN1} onChange={e=>setForm({...form,agentN1:e.target.value})} />
             {form.niveauTraitement===2 && (
               <input style={inp} placeholder="Agent N2 (Back Office)" value={form.agentN2} onChange={e=>setForm({...form,agentN2:e.target.value})} />
+            )}
+            {form.niveauTraitement===2 && (
+              <div>
+                <label style={{fontSize:'0.8rem',color:'#6b46c1',display:'block',marginBottom:'0.25rem',fontWeight:'600'}}>Date d'escalade vers Back Office 2</label>
+                <input style={{...inp, borderColor:'#d6bcfa'}} type="date" value={form.dateEscalade} onChange={e=>setForm({...form,dateEscalade:e.target.value})} />
+              </div>
             )}
             <select style={inp} value={form.statut} onChange={e=>setForm({...form,statut:e.target.value})}>
               <option>Nouveau</option>
