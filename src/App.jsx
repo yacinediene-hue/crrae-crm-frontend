@@ -5527,6 +5527,8 @@ function Rapports({ demandes: demandesProp = [] }) {
   const [typeDate, setTypeDate] = useState('dateReception')
   const [filterService, setFilterService] = useState('')
   const [filterAgent, setFilterAgent] = useState('')
+  const [dateDebut, setDateDebut] = useState('')
+  const [dateFin, setDateFin] = useState('')
 
   const servicesDispos = [...new Set(demandes.map(d => d.service).filter(Boolean))].sort()
   const agentsDispos   = [...new Set([...demandes.map(d => d.agentN1), ...demandes.map(d => d.agentN2)].filter(Boolean))].sort()
@@ -5536,14 +5538,23 @@ function Rapports({ demandes: demandesProp = [] }) {
   const ACTIFS = ['Nouveau', 'En cours', 'En attente client', 'Transmis au Back Office 2']
 
   const now = new Date()
+
+  const dateDebutTs = dateDebut ? new Date(dateDebut).setHours(0,0,0,0) : null
+  const dateFinTs   = dateFin   ? new Date(dateFin).setHours(23,59,59,999) : now.getTime()
+
   const filtered = demandes.filter(d => {
+    const ref = typeDate === 'dateTraitement' ? d.dateTraitement : (d.dateReception || d.createdAt)
     if (periode !== 'tout') {
-      const ref = typeDate === 'dateTraitement' ? d.dateTraitement : (d.dateReception || d.createdAt)
       if (!ref) return false
       const date = new Date(ref)
       if (periode === 'semaine' && (now - date) / (1000*60*60*24) > 7) return false
       if (periode === 'mois' && (date.getMonth() !== now.getMonth() || date.getFullYear() !== now.getFullYear())) return false
       if (periode === 'annee' && date.getFullYear() !== now.getFullYear()) return false
+      if (periode === 'custom') {
+        const ts = date.getTime()
+        if (dateDebutTs && ts < dateDebutTs) return false
+        if (ts > dateFinTs) return false
+      }
     }
     if (filterService && d.service !== filterService) return false
     if (filterAgent && d.agentN1 !== filterAgent && d.agentN2 !== filterAgent) return false
@@ -5551,7 +5562,7 @@ function Rapports({ demandes: demandesProp = [] }) {
   })
 
   // Période précédente (même durée, même filtres service/agent)
-  const filteredPrev = periode === 'tout' ? [] : demandes.filter(d => {
+  const filteredPrev = (periode === 'tout' || periode === 'custom') ? [] : demandes.filter(d => {
     const ref = typeDate === 'dateTraitement' ? d.dateTraitement : (d.dateReception || d.createdAt)
     if (!ref) return false
     const date = new Date(ref)
@@ -5880,7 +5891,9 @@ function Rapports({ demandes: demandesProp = [] }) {
       .reduce((acc, d) => { const k = d.objetDemande || 'Non précisé'; acc[k] = (acc[k] || 0) + 1; return acc }, {})
   ).sort((a, b) => b[1] - a[1]).slice(0, 6)
 
-  const periodeLabel = {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
+  const periodeLabel = periode === 'custom'
+    ? `${dateDebut ? new Date(dateDebut).toLocaleDateString('fr-FR') : '…'} → ${dateFin ? new Date(dateFin).toLocaleDateString('fr-FR') : "aujourd'hui"}`
+    : {semaine:'Cette semaine', mois:'Ce mois', annee:'Cette année', tout:'Tout'}[periode]
   const typeDateLabel = typeDate === 'dateTraitement' ? 'par date de traitement' : 'par date de création'
   const filtresActifs = [filterService && `Service : ${filterService}`, filterAgent && `Agent : ${filterAgent}`].filter(Boolean)
   const dateExport = new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')
@@ -6099,14 +6112,28 @@ function Rapports({ demandes: demandesProp = [] }) {
           >
             🔔 Relances agents
           </button>
-          {[{val:'semaine',label:'Cette semaine'},{val:'mois',label:'Ce mois'},{val:'annee',label:'Cette année'},{val:'tout',label:'Tout'}].map(p => (
+          {[{val:'semaine',label:'Cette semaine'},{val:'mois',label:'Ce mois'},{val:'annee',label:'Cette année'},{val:'tout',label:'Tout'},{val:'custom',label:'🗓️ Personnalisé'}].map(p => (
             <button key={p.val} onClick={() => setPeriode(p.val)}
-              style={{padding:'0.5rem 1rem',borderRadius:'6px',border:'none',cursor:'pointer',
-                background: periode===p.val ? '#2b6cb0' : '#edf2f7',
-                color: periode===p.val ? 'white' : '#4a5568', fontSize:'0.85rem'}}>
+              style={{padding:'0.5rem 1rem',borderRadius:'6px',border: p.val==='custom' ? `1px solid ${periode===p.val?'#2b6cb0':'#cbd5e0'}` : 'none',cursor:'pointer',
+                background: periode===p.val ? '#2b6cb0' : p.val==='custom' ? 'white' : '#edf2f7',
+                color: periode===p.val ? 'white' : '#4a5568', fontSize:'0.85rem', fontWeight: p.val==='custom'&&periode===p.val ? '600':'400'}}>
               {p.label}
             </button>
           ))}
+          {periode === 'custom' && (
+            <div style={{display:'flex',alignItems:'center',gap:'0.4rem',background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:'8px',padding:'0.3rem 0.6rem'}}>
+              <input type="date" value={dateDebut} onChange={e => setDateDebut(e.target.value)}
+                style={{border:'none',background:'transparent',fontSize:'0.82rem',color:'#2b6cb0',cursor:'pointer',outline:'none'}} />
+              <span style={{color:'#718096',fontSize:'0.8rem'}}>→</span>
+              <input type="date" value={dateFin} onChange={e => setDateFin(e.target.value)}
+                placeholder="Aujourd'hui"
+                style={{border:'none',background:'transparent',fontSize:'0.82rem',color:'#2b6cb0',cursor:'pointer',outline:'none'}} />
+              {(dateDebut || dateFin) && (
+                <button onClick={() => { setDateDebut(''); setDateFin('') }}
+                  style={{border:'none',background:'none',color:'#718096',cursor:'pointer',fontSize:'0.82rem',padding:'0 0.2rem',lineHeight:1}}>✕</button>
+              )}
+            </div>
+          )}
           <select
             value={typeDate}
             onChange={e => setTypeDate(e.target.value)}
