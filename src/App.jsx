@@ -1540,17 +1540,17 @@ function Contacts() {
   }
 
   const PROFILS_CLIENTS = [
-    'Participant Cadre',
-    'Participant Non-cadre',
-    'Participant Volontaire',
-    'Participant Individuel',
-    'Participant RVC',
-    'Retraité',
-    'Réversataire',
-    'Adhérent (institution)',
-    'Locataire',
+    'Retraité cadre',
+    'Retraité non-cadre',
+    'Participant cadre',
+    'Participant non-cadre',
+    'Participant individuel',
+    'Participant volontaire',
+    'Adhérent',
     'Prospect',
-    'Autres',
+    'Ayant-droit',
+    'Locataire',
+    'Autre',
   ]
 
   const ajouterTicketContact = async () => {
@@ -2042,17 +2042,17 @@ function Contacts() {
 
 // Deals
 const PROFILS_CLIENTS = [
-  'Participant Cadre',
-  'Participant Non-cadre',
-  'Participant Volontaire',
-  'Participant Individuel',
-  'Participant RVC',
-  'Retraité',
-  'Réversataire',
-  'Adhérent (institution)',
-  'Locataire',
+  'Retraité cadre',
+  'Retraité non-cadre',
+  'Participant cadre',
+  'Participant non-cadre',
+  'Participant individuel',
+  'Participant volontaire',
+  'Adhérent',
   'Prospect',
-  'Autres',
+  'Ayant-droit',
+  'Locataire',
+  'Autre',
 ]
 
 const CANAUX_DEMANDE = [
@@ -2242,29 +2242,26 @@ function Deals() {
   }))
 
   const documentsParTypeEtAdhesion = {
-    'Participant Individuel': {
+    'Participant individuel': {
       RVC: `• Bulletin d'adhésion à titre individuel RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       RRPC: `• Bulletin d'adhésion à titre individuel RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       RCPNC: `• Bulletin d'adhésion à titre individuel RCPNC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       'FAAM RRPC': `• Bulletin d'adhésion à titre individuel FAAM RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       'FAAM RCPNC': `• Bulletin d'adhésion à titre individuel FAAM RCPNC (à élaborer)\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
     },
-    'Participant Volontaire': {
+    'Participant volontaire': {
       RVC: `• Bulletin d'adhésion à titre individuel RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       RRPC: `• Bulletin d'adhésion à titre individuel RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       RCPNC: `• Bulletin d'adhésion à titre individuel RCPNC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       'FAAM RRPC': `• Bulletin d'adhésion à titre individuel FAAM RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
       'FAAM RCPNC': `• Bulletin d'adhésion à titre individuel FAAM RCPNC (à élaborer)\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
     },
-    'Adhérent (institution)': {
+    'Adhérent': {
       RVC: `• État du personnel des salariés RCPNC\n• État du personnel des salariés RRPC\n• Bulletin d'adhésion RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
       RRPC: `• État du personnel des salariés RRPC\n• Bulletin d'adhésion RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
       RCPNC: `• État du personnel des salariés RCPNC\n• Bulletin d'adhésion RCPNC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
       'FAAM RRPC': `• Bulletin d'adhésion FAAM RRPC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
       'FAAM RCPNC': `• Bulletin d'adhésion FAAM RCPNC (à élaborer)\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation familiale\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans\n• Courrier de demande d'adhésion à faire par l'adhérent`,
-    },
-    'Participant RVC': {
-      RVC: `• Bulletin d'adhésion à titre individuel RVC\n• Fiche de reconstitution de périodes d'assurance vieillesse\n• Fiche de situation de famille\n• Engagement de cotiser pour satisfaire la durée minimale de 10 ans`,
     },
   }
 
@@ -2279,10 +2276,10 @@ function Deals() {
     }
 
     if (
-      (typeClient === 'Participant Cadre' || typeClient === 'Participant Non-cadre') &&
-      documentsParTypeEtAdhesion['Adhérent (institution)']?.[typeAdhesion]
+      (typeClient === 'Participant cadre' || typeClient === 'Participant non-cadre') &&
+      documentsParTypeEtAdhesion['Adhérent']?.[typeAdhesion]
     ) {
-      return documentsParTypeEtAdhesion['Adhérent (institution)'][typeAdhesion]
+      return documentsParTypeEtAdhesion['Adhérent'][typeAdhesion]
     }
 
     return ''
@@ -3918,17 +3915,17 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
   const profilClientColor = (profil) => {
     const map = {
-      'Participant Cadre': { background: '#ebf8ff', color: '#2b6cb0' },
-      'Participant Non-cadre': { background: '#e6fffa', color: '#234e52' },
-      'Participant Volontaire': { background: '#fff5f5', color: '#c53030' },
-      'Participant Individuel': { background: '#faf5ff', color: '#6b46c1' },
-      'Participant RVC': { background: '#f0fff4', color: '#276749' },
-      'Retraité': { background: '#f0fff4', color: '#276749' },
-      'Réversataire': { background: '#faf5ff', color: '#6b46c1' },
-      'Adhérent (institution)': { background: '#fffbeb', color: '#b7791f' },
-      'Locataire': { background: '#f7fafc', color: '#718096' },
-      'Prospect': { background: '#fffbea', color: '#975a16' },
-      'Autres': { background: '#edf2f7', color: '#4a5568' },
+      'Retraité cadre':        { background: '#ebf8ff', color: '#1a365d' },
+      'Retraité non-cadre':    { background: '#e6fffa', color: '#234e52' },
+      'Participant cadre':     { background: '#bee3f8', color: '#2b6cb0' },
+      'Participant non-cadre': { background: '#b2f5ea', color: '#285e61' },
+      'Participant individuel':{ background: '#faf5ff', color: '#6b46c1' },
+      'Participant volontaire':{ background: '#fff5f5', color: '#c53030' },
+      'Adhérent':              { background: '#fffbeb', color: '#b7791f' },
+      'Prospect':              { background: '#fefcbf', color: '#975a16' },
+      'Ayant-droit':           { background: '#f0fff4', color: '#276749' },
+      'Locataire':             { background: '#f7fafc', color: '#718096' },
+      'Autre':                 { background: '#edf2f7', color: '#4a5568' },
     }
     return map[profil] || { background: '#f7fafc', color: '#718096' }
   }
@@ -4213,8 +4210,8 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
               {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement'].map(s=><option key={s}>{s}</option>)}
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterTypeClient} onChange={e=>setFilterTypeClient(e.target.value)}>
-              <option value="">Tous types</option>
-              <option>Actif</option><option>Retraité</option><option>Ayant droit</option>
+              <option value="">Tous profils</option>
+              {PROFILS_CLIENTS.map(p=><option key={p}>{p}</option>)}
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterObjet} onChange={e=>setFilterObjet(e.target.value)}>
               <option value="">Tous objets</option>
