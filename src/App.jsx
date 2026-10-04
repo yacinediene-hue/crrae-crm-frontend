@@ -270,7 +270,7 @@ function Dashboard({ alertes = [], demandes: demandesProp = [] }) {
   })
 
   const slaStats = demandesFiltrees.reduce((acc, item) => {
-    const service = item.service || 'Autre'
+    const service = item.service || 'Non défini'
     if (!acc[service]) acc[service] = { total: 0, slaOk: 0 }
     acc[service].total++
     if (item.respectDelai === 'OUI') acc[service].slaOk++
@@ -4208,7 +4208,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterService} onChange={e=>setFilterService(e.target.value)}>
               <option value="">Tous services</option>
-              {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s=><option key={s}>{s}</option>)}
+              {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement'].map(s=><option key={s}>{s}</option>)}
             </select>
             <select style={{...styles.input,marginBottom:0}} value={filterTypeClient} onChange={e=>setFilterTypeClient(e.target.value)}>
               <option value="">Tous types</option>
@@ -4370,7 +4370,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
             )}
             <select style={inp} value={form.service} onChange={e=>setForm({...form,service:e.target.value})}>
               <option value="">-- Service --</option>
-              {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s=><option key={s}>{s}</option>)}
+              {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement'].map(s=><option key={s}>{s}</option>)}
             </select>
             <select style={inp} value={form.canal} onChange={e=>setForm({...form,canal:e.target.value})}>
               <option value="">Canal</option>
@@ -4750,7 +4750,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 onChange={e => setEscaladeForm({...escaladeForm, service: e.target.value})}
               >
                 <option value="">-- Sélectionner un service --</option>
-                {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement','Autre'].map(s => <option key={s}>{s}</option>)}
+                {['DPM','DPR','DDSI','DCR','DFC','DRUC','PATRIMOINE','REGISSEUR','Division Développement'].map(s => <option key={s}>{s}</option>)}
               </select>
 
               <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>Date d'escalade</label>
@@ -6972,7 +6972,7 @@ function ModalAssignation({ demande, onClose, onAssigned }) {
             <label style={{display:'block',fontSize:'0.85rem',color:'#4a5568',marginBottom:'0.4rem',fontWeight:'600'}}>Service</label>
             <select style={{...styles.input, marginBottom:0}} value={service} onChange={e=>setService(e.target.value)}>
               <option value="">-- Service --</option>
-              {["DPM","DPR","DDSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Division Développement","Autre"].map(s => <option key={s} value={s}>{s}</option>)}
+              {["DPM","DPR","DDSI","DCR","DFC","DRUC","PATRIMOINE","REGISSEUR","Division Développement"].map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div style={{marginBottom:'1rem'}}>
