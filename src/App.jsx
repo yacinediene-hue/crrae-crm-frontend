@@ -4475,6 +4475,18 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                 🔺 Envoyer au BO1
               </button>
             )}
+            {editId && (form.niveauTraitement || 1) === 2 && !['Clôturée','Traité','Clôturé'].includes(form.statut) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const d = demandes.find(x => x.id === editId)
+                  if (d) { setRenvoyerModal(d); setRenvoyerMotif('') }
+                }}
+                style={{...styles.button, background:'#c53030', width:'auto', padding:'0.625rem 1.25rem', whiteSpace:'nowrap'}}
+              >
+                ↩ Renvoyer au Front Office
+              </button>
+            )}
           </div>
             </form>
           </div>
@@ -4710,6 +4722,16 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                       </button>
                     )}
 
+                    {(d.niveauTraitement || 1) === 2 && isFullAccess && !['Clôturée','Traité','Clôturé'].includes(d.statut) && (
+                      <button
+                        title="Renvoyer au Front Office (N1)"
+                        onClick={e => { e.stopPropagation(); setRenvoyerModal(d); setRenvoyerMotif('') }}
+                        style={{background:'#fff5f5',color:'#c53030',border:'1px solid #feb2b2',borderRadius:'6px',padding:'0.3rem 0.6rem',cursor:'pointer',marginRight:'0.35rem',fontSize:'0.78rem',fontWeight:'600',whiteSpace:'nowrap'}}
+                      >
+                        ↩ FO
+                      </button>
+                    )}
+
                     {peutEnvoyerEnquete(d) && (
                       <button
                         title="Envoyer enquête satisfaction par email"
@@ -4833,14 +4855,32 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
 
       {renvoyerModal && (
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
-          <div style={{background:'white',borderRadius:'12px',padding:'1.75rem',width:'100%',maxWidth:'420px',boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
-            <h3 style={{margin:'0 0 0.25rem',color:'#1a365d',fontSize:'1.05rem'}}>↩ Renvoyer au Front Office (N1)</h3>
-            <p style={{margin:'0 0 1.25rem',color:'#718096',fontSize:'0.85rem'}}>Demande : <strong>{renvoyerModal.numDemande}</strong></p>
+          <div style={{background:'white',borderRadius:'12px',padding:'1.75rem',width:'100%',maxWidth:'460px',boxShadow:'0 8px 40px rgba(0,0,0,0.18)'}}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:'1rem'}}>
+              <div>
+                <h3 style={{margin:'0 0 0.2rem',color:'#1a365d',fontSize:'1.05rem'}}>↩ Renvoyer au Front Office</h3>
+                <p style={{margin:0,color:'#718096',fontSize:'0.82rem'}}>
+                  Demande <strong>{renvoyerModal.numDemande}</strong>
+                  {renvoyerModal.agentN1 && <> · Agent FO : <strong>{renvoyerModal.agentN1}</strong></>}
+                </p>
+              </div>
+              <button onClick={() => setRenvoyerModal(null)} style={{background:'none',border:'none',fontSize:'1.2rem',cursor:'pointer',color:'#a0aec0',lineHeight:1}}>✕</button>
+            </div>
+
+            <div style={{background:'#fffbeb',border:'1px solid #f6e05e',borderRadius:'8px',padding:'0.65rem 0.85rem',marginBottom:'1.25rem',fontSize:'0.82rem',color:'#744210'}}>
+              La demande sera renvoyée au niveau N1 (Front Office) avec le statut <strong>En cours</strong>.
+              L'agent N1 verra la note ci-dessous dans la timeline.
+            </div>
+
             <form onSubmit={handleRenvoyerN1}>
-              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>Motif du renvoi</label>
+              <label style={{display:'block',fontSize:'0.8rem',color:'#4a5568',marginBottom:'0.25rem',fontWeight:'600'}}>
+                Note / Information complémentaire <span style={{color:'#c53030'}}>*</span>
+              </label>
               <textarea
-                style={{...styles.input,height:'80px',resize:'vertical',marginBottom:'1.25rem'}}
-                placeholder="Expliquez pourquoi cette demande est renvoyée au Front Office…"
+                required
+                autoFocus
+                style={{...styles.input,height:'100px',resize:'vertical',marginBottom:'1.25rem'}}
+                placeholder="Précisez le motif du renvoi, la remarque ou l'information à transmettre au Front Office…"
                 value={renvoyerMotif}
                 onChange={e => setRenvoyerMotif(e.target.value)}
               />
@@ -4849,9 +4889,12 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
                   style={{padding:'0.5rem 1.2rem',borderRadius:'6px',border:'1px solid #e2e8f0',background:'white',cursor:'pointer',color:'#4a5568',fontSize:'0.875rem'}}>
                   Annuler
                 </button>
-                <button type="submit"
-                  style={{padding:'0.5rem 1.4rem',borderRadius:'6px',border:'none',background:'#c53030',color:'white',cursor:'pointer',fontWeight:'600',fontSize:'0.875rem'}}>
-                  ↩ Confirmer le renvoi
+                <button type="submit" disabled={!renvoyerMotif.trim()}
+                  style={{padding:'0.5rem 1.4rem',borderRadius:'6px',border:'none',
+                    background: renvoyerMotif.trim() ? '#c53030' : '#cbd5e0',
+                    color:'white',cursor: renvoyerMotif.trim() ? 'pointer' : 'not-allowed',
+                    fontWeight:'600',fontSize:'0.875rem'}}>
+                  ↩ Renvoyer au Front Office
                 </button>
               </div>
             </form>
