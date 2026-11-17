@@ -3724,7 +3724,16 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
   const isN2 = AGENTS_N2.some(n => userName && n.toLowerCase() === userName.toLowerCase())
   const isFullAccess = userRole === 'admin' || userRole === 'manager' || isN2
 
-  const critiques = demandes.filter(d =>
+  // Agents (rôle 'agent' non-N2) : portée limitée à leurs propres demandes
+  const isAgentOnly = userRole === 'agent' && !isN2
+  const demandesAccessibles = isAgentOnly && !controlee
+    ? demandes.filter(d =>
+        (d.agentN1 && d.agentN1.toLowerCase() === (userName || '').toLowerCase()) ||
+        (d.agentN2 && d.agentN2.toLowerCase() === (userName || '').toLowerCase())
+      )
+    : demandes
+
+  const critiques = demandesAccessibles.filter(d =>
     ['En cours', 'En attente client', 'Nouveau'].includes(d.statut) && (
       d.priorite === 'Urgent' ||
       d.respectDelai === 'NON' ||
@@ -3732,7 +3741,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     )
   )
 
-  const horsSLA = demandes.filter(d => {
+  const horsSLA = demandesAccessibles.filter(d => {
     if (!d.dateReception || !['En cours', 'En attente client', 'Nouveau'].includes(d.statut)) return false
 
     const jours = Math.floor(
@@ -3742,7 +3751,7 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     return jours > 3
   })
 
-  const demandesTriees = [...demandes].sort((a, b) => {
+  const demandesTriees = [...demandesAccessibles].sort((a, b) => {
     const dateA = new Date(a.dateReception || a.createdAt || 0).getTime()
     const dateB = new Date(b.dateReception || b.createdAt || 0).getTime()
     return sortDateAsc ? dateA - dateB : dateB - dateA
@@ -3980,6 +3989,13 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
           </div>
         </div>
       </div>
+
+      {isAgentOnly && !controlee && (
+        <div style={{background:'#ebf8ff',border:'1px solid #bee3f8',borderRadius:'10px',padding:'0.65rem 1rem',marginBottom:'0.75rem',display:'flex',alignItems:'center',gap:'0.6rem',fontSize:'0.86rem',color:'#2b6cb0'}}>
+          <span>📌</span>
+          <span>Vous consultez uniquement vos demandes assignées. Contactez un manager pour accéder à l'ensemble des dossiers.</span>
+        </div>
+      )}
 
       {/* Modale prévisualisation import Excel */}
       {importData && (
