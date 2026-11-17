@@ -3327,15 +3327,20 @@ function Demandes({ onOpenCommentaires, onAssigner, ouvrirNouvelleDemande, onNou
     })
   }
 
+  // Chargement initial : toujours appeler l'API pour les vues non contrôlées
   useEffect(() => {
-    if (demandesInitiales.length > 0) {
-      setDemandes(demandesInitiales)
-      setIsLoading(false)
-      setFetchError(null)
-    } else if (!controlee) {
+    if (!controlee) {
       rechargerDemandes()
     } else {
+      setDemandes(demandesInitiales)
       setIsLoading(false)
+    }
+  }, [])
+
+  // Sync depuis le parent (après qu'une action ait mis à jour demandesApp)
+  useEffect(() => {
+    if (controlee) {
+      setDemandes(demandesInitiales)
     }
   }, [demandesInitiales])
 
